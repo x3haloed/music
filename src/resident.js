@@ -6,6 +6,7 @@ export class MusicResident {
     ingress,
     pollMs = 250,
     heartbeatMs = 15 * 60_000,
+    continuityFloorMs = 24 * 60 * 60_000,
     failureBackoffMs = 5_000,
     maxFailureBackoffMs = 5 * 60_000,
     runtime = null,
@@ -15,6 +16,9 @@ export class MusicResident {
     if (!ingress) throw new Error('MusicResident needs a durable ingress directory');
     if (!Number.isInteger(pollMs) || pollMs < 10) throw new Error('resident pollMs must be an integer of at least 10');
     if (!Number.isInteger(heartbeatMs) || heartbeatMs < 1_000) throw new Error('resident heartbeatMs must be an integer of at least 1000');
+    if (!Number.isInteger(continuityFloorMs) || continuityFloorMs < 1_000) {
+      throw new Error('continuityFloorMs must be an integer of at least 1000');
+    }
     if (!Number.isInteger(failureBackoffMs) || failureBackoffMs < 100) throw new Error('failureBackoffMs must be an integer of at least 100');
     if (!Number.isInteger(maxFailureBackoffMs) || maxFailureBackoffMs < failureBackoffMs) {
       throw new Error('maxFailureBackoffMs must be an integer at least as large as failureBackoffMs');
@@ -24,6 +28,7 @@ export class MusicResident {
     this.ingress = prepareIngress(ingress).root;
     this.pollMs = pollMs;
     this.heartbeatMs = heartbeatMs;
+    this.continuityFloorMs = continuityFloorMs;
     this.failureBackoffMs = failureBackoffMs;
     this.maxFailureBackoffMs = maxFailureBackoffMs;
     this.runtime = runtime === null ? null : structuredClone(runtime);
@@ -59,6 +64,8 @@ export class MusicResident {
     const openingDue = openingPending
       && (state.position.activeOpening.notBefore === null
         || this.clock() >= Date.parse(state.position.activeOpening.notBefore));
+    const continuityFloorDue = openingPending && !openingDue
+      && this.clock() - this.lastEncounterAt >= this.continuityFloorMs;
     const trigger = state.pendingDeltas.length > 0
       ? 'delta'
       : (state.consequenceSweepActive && state.consequenceSweepIds.length > 0
@@ -66,7 +73,7 @@ export class MusicResident {
         : (openingDue
           ? 'opening'
           : (openingPending
-            ? null
+            ? (continuityFloorDue ? 'heartbeat' : null)
             : (state.nextWake
               ? (this.clock() >= Date.parse(state.nextWake.wakeAt) ? 'scheduled' : null)
               : (this.clock() - this.lastEncounterAt >= this.heartbeatMs ? 'heartbeat' : null)))));

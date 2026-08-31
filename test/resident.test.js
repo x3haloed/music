@@ -328,6 +328,46 @@ test('a retained subject-authored opening suppresses fallback heartbeat until it
   await resident.activeEncounter;
 });
 
+test('the continuity floor reopens secluded contact without consuming a future opening', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'music-resident-continuity-floor-test-'));
+  let now = Date.UTC(2026, 7, 30, 18, 0, 0);
+  const opening = {
+    id: 'distant-future-opening',
+    notBefore: new Date(now + 365 * 24 * 60 * 60_000).toISOString(),
+  };
+  let openedWith = null;
+  const presentedOpeningIds = new Set();
+  const kernel = {
+    events: () => [{ type: 'sounding_opened', at: new Date(now - 60_000).toISOString() }],
+    state: () => ({
+      activeInferenceId: null,
+      openSoundingId: null,
+      pendingDeltas: [],
+      consequenceSweepActive: false,
+      consequenceSweepIds: [],
+      position: { activeOpening: opening },
+      presentedOpeningIds,
+      nextWake: null,
+    }),
+    openSounding(trigger) {
+      openedWith = trigger;
+      return { id: 'continuity-floor-sounding' };
+    },
+  };
+  const resident = new MusicResident(kernel, { receive: async () => ({ ok: true }) }, {
+    ingress: join(root, 'ingress'),
+    heartbeatMs: 1_000,
+    continuityFloorMs: 60_000,
+    clock: () => now,
+  });
+
+  assert.equal((await resident.pump()).started, true);
+  assert.equal(openedWith, 'heartbeat');
+  assert.equal(kernel.state().position.activeOpening, opening);
+  assert.equal(presentedOpeningIds.has(opening.id), false);
+  await resident.activeEncounter;
+});
+
 function mind(kernel, model) {
   return new MusicMind(kernel, {
     model,

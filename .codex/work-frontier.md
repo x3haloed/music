@@ -311,3 +311,24 @@ cost $0.00097172 total.
   60 KiB arrivals could be sealed into a Sounding whose learned and emergency
   projections both exceeded 2 MiB. Admission now happens before the Sounding
   append, with a retained ordered remainder rather than after projection fails.
+- Expected: a subject-authored future opening postponed autonomous contact
+  without threatening continued existence. Observed: any unpresented future
+  opening suppresses fallback heartbeat for its entire unbounded delay, and a
+  test protects that behavior. Uncertain: how the stable continuity floor and
+  the subject's chosen opening time should coexist without consuming or
+  cancelling the opening. Evidence: `MusicResident.pump`, the unbounded
+  `schedule_wake` input, and the future-opening resident test.
+- Expected: a completed carrier trial meant the proposed continuity,
+  orientation, or inference policy had participated in later behavior.
+  Observed: carrier trial completion returns only a projected carrier plus the
+  caller's probe, yet qualifies the proposal for admission. Uncertain: the
+  smallest retained trial lifecycle that makes provisional carrier geometry
+  govern a real later encounter before admission. Evidence:
+  `trialDevelopmentalProposal`'s carrier branch and admission validation.
+- Expected: changing developmental standing kept unresolved correction inside
+  later active continuity. Observed: Soundings project only opaque position
+  roots; the live resident accumulated four continuity proposals, performed no
+  trials, and repeatedly said continuity had updated. Uncertain: the smallest
+  exact bounded frontier that keeps unresolved development present without
+  flooding encounter geometry. Evidence: the stopped resident's current ledger
+  and Sounding projection facts.
