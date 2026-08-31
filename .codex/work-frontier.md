@@ -114,10 +114,21 @@ observation: let contact arrive, see what the resident does, and let the residen
 remain its own witness. Tests should prove continuity and recovery mechanics,
 not turn the resident into a benchmark or comparative research subject.
 
-Current hatch frontier: repeat the bounded lived residency with the corrected
-GLM reasoning floor and observe whether an explicit mailbox round trip completes.
-The local mailbox supplies real bidirectional contact, and dependency behavior
-is ordinary revisable machinery with an in-resident failure/rollback path.
+Hatch checkpoint reached: a fresh Aster residency using only
+`z-ai/glm-5.3-flash` completed a real mailbox round trip through the retained
+selection and message tools. The reply preserved its exact incoming Delta id;
+the enclosing inference then completed before one-signal graceful shutdown.
+The final ledger was valid with one completed Sounding, two successful
+invocations, one retained selection, no failed inference, no pending contact,
+and no failed or uncertain invocation or delivery projection. Three requests
+used explicit `minimal` reasoning, a 256-token per-request ceiling, and zero
+retries; their retained OpenRouter cost was $0.00075142 and no credential
+material was retained.
+
+This is readiness to hatch, not a claim that the resident is finished. Network
+adapters, richer tools, and the actual character of long residence belong to
+world contact and the resident's own subsequent revisions rather than to more
+pre-hatch scaffolding.
 
 ## Prediction errors
 
@@ -132,3 +143,6 @@ is ordinary revisable machinery with an in-resident failure/rollback path.
   because the final model step was still active, the old shutdown path aborted
   and correctly requeued the already-effectful contact. Shutdown now separates
   graceful loop stop from explicit second-signal encounter abort.
+- The repeated lived rehearsal closed that error: contact, selection, delivery,
+  final inference completion, and one-signal shutdown all completed in order
+  without requeue, failure, or uncertainty.

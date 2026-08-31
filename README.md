@@ -103,6 +103,17 @@ Inference uses AI SDK 7. OpenRouter has a separate dedicated provider path in
 strict compatibility mode, with tool-capability preflight and explicit spend
 guards. The example remains locked to `z-ai/glm-5.3-flash`.
 
+## Hatch status
+
+The pre-hatch causal path has completed a bounded live rehearsal with a fresh
+Aster subject and `z-ai/glm-5.3-flash`: real inbound mailbox contact, retained
+actor-authored selection, explicit outbound delivery with exact Delta lineage,
+completed inference and Sounding, then clean one-signal shutdown. The final
+ledger had no pending contact, failed inference, or failed/uncertain invocation
+or projection. Music is ready to host its first long-term resident. This marks
+habitat readiness, not the end of learning or a claim that future tools and
+contact surfaces should be designed in advance.
+
 ## Try it
 
 Requires Node.js 22 or newer.

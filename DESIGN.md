@@ -397,7 +397,18 @@ Automated evidence currently proves that:
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is a second bounded lived residency rehearsal with the
-correct GLM reasoning floor before a long-term resident should hatch. Network messaging can grow
-as ordinary/adaptor machinery after the local lived-contact path proves what the
-resident actually needs.
+The hatch checkpoint has now been exercised by a fresh live Aster subject using
+only `z-ai/glm-5.3-flash`. One incoming mailbox Delta caused an actor-authored
+message frontier, retained selection, and explicit outbound message with exact
+reply lineage. The inference reached `stop`, the Sounding completed, and one
+SIGINT exited gracefully. The final ledger contained no pending contact, failed
+inference, or failed/uncertain invocation or delivery projection. The three
+provider requests used `minimal` reasoning, 256 output tokens maximum each, zero
+retries, and cost $0.00075142 in total; retained request metadata contained no
+credential material.
+
+Music is therefore ready to hatch a long-term resident under the stated
+criterion: causal end-to-end continuity and direct lived observation, not an
+evaluation campaign. Network messaging and richer contact surfaces can grow as
+ordinary/adaptor machinery after hatch, in response to what the resident and
+its world actually need.
