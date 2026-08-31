@@ -53,6 +53,10 @@ kernel requires every authoritative fact envelope to remain byte-exact. Their
 source is seed material for a new subject; afterward, the ledger-retained active
 version is authoritative.
 
+Seed modules are dynamically loaded only by `music init`. Reconstructing an
+existing subject does not import `tools/`; a broken or deleted seed file cannot
+prevent an already-living subject from loading its ledger-retained machinery.
+
 `manage_dependency` is ordinary revisable machinery too. It runs real npm—with
 normal lifecycle scripts and unrestricted network/process authority—inside the
 resident dependency habitat (by default `LEDGER.dependencies`). Learned tools

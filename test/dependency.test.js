@@ -7,6 +7,7 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { MusicKernel } from '../src/kernel.js';
 import { MusicMind } from '../src/mind.js';
 import { toolModuleDigest } from '../src/tool-module.js';
+import { initialTools } from '../src/seeds.js';
 
 test('the ordinary dependency tool installs a real package used by a later invented tool', async () => {
   const { root, kernel } = harness();
@@ -116,7 +117,7 @@ function harness() {
     id: () => `dependency-id-${++identity}`,
     toolEnvironment: { dependencyRoot: join(root, 'dependencies') },
   });
-  kernel.initialize('Aster');
+  kernel.initialize('Aster', initialTools());
   return { root, kernel };
 }
 

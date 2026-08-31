@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
-import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { MusicKernel } from '../src/kernel.js';
 import { toolModuleDigest } from '../src/tool-module.js';
+import { initialTools } from '../src/seeds.js';
 
 function harness(kernelOptions = {}) {
   const root = mkdtempSync(join(tmpdir(), 'music-test-'));
@@ -17,7 +20,7 @@ function harness(kernelOptions = {}) {
     toolEnvironment: { mailboxRoot: join(root, 'mailbox'), dependencyRoot: join(root, 'dependencies') },
     ...kernelOptions,
   });
-  kernel.initialize('Aster');
+  kernel.initialize('Aster', initialTools());
   return { kernel, root };
 }
 
@@ -567,6 +570,25 @@ test('a complete but corrupted final event is not misclassified as a torn write'
 
   assert.throws(() => kernel.recoverLedgerTail(), /event digest mismatch/);
   assert.equal(readFileSync(kernel.ledgerPath, 'utf8'), corrupted);
+});
+
+test('an existing subject reconstructs in a fresh process with no ordinary seed files present', () => {
+  const { kernel, root } = harness();
+  const isolated = join(root, 'isolated-core');
+  mkdirSync(isolated);
+  for (const name of ['canonical.js', 'carrier.js', 'kernel.js', 'tool-module.js']) {
+    copyFileSync(join(process.cwd(), 'src', name), join(isolated, name));
+  }
+  writeFileSync(join(isolated, 'package.json'), '{"type":"module"}\n');
+  assert.equal(existsSync(join(root, 'tools')), false);
+
+  const script = `
+    const { MusicKernel } = await import(${JSON.stringify(pathToFileURL(join(isolated, 'kernel.js')).href)});
+    const audit = new MusicKernel(${JSON.stringify(kernel.ledgerPath)}).audit();
+    process.stdout.write(JSON.stringify({ subject: audit.subject.name, tools: audit.tools.length }));
+  `;
+  const result = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' }));
+  assert.deepEqual(result, { subject: 'Aster', tools: initialTools().length });
 });
 
 function begin(kernel, soundingId) {

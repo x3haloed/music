@@ -8,13 +8,14 @@ import { submitWorldDelta } from '../src/ingress.js';
 import { MusicKernel } from '../src/kernel.js';
 import { MusicMind } from '../src/mind.js';
 import { MusicResident } from '../src/resident.js';
+import { initialTools } from '../src/seeds.js';
 
 test('durable world ingress wakes the one mind and a deferred consequence survives restart', async () => {
   const root = mkdtempSync(join(tmpdir(), 'music-resident-test-'));
   const ledger = join(root, 'events.jsonl');
   const ingress = join(root, 'ingress');
   const kernel = new MusicKernel(ledger);
-  kernel.initialize('Aster');
+  kernel.initialize('Aster', initialTools());
   const target = join(root, 'contact.txt');
   writeFileSync(target, 'before');
   const actionSounding = kernel.openSounding();
@@ -81,7 +82,7 @@ test('a Delta arriving during inference is durably queued and wakes the next Sou
   const ledger = join(root, 'events.jsonl');
   const ingress = join(root, 'ingress');
   const kernel = new MusicKernel(ledger);
-  kernel.initialize('Aster');
+  kernel.initialize('Aster', initialTools());
   let releaseFirst;
   let markStarted;
   const firstStarted = new Promise(resolve => { markStarted = resolve; });
@@ -121,7 +122,7 @@ test('real ingress during an AI SDK step steers the same encounter and can be in
   const ledger = join(root, 'events.jsonl');
   const ingress = join(root, 'ingress');
   const kernel = new MusicKernel(ledger);
-  kernel.initialize('Aster');
+  kernel.initialize('Aster', initialTools());
   const target = join(root, 'steered.txt');
   writeFileSync(target, 'before');
   const actionSounding = kernel.openSounding();

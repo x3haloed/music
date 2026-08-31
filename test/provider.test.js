@@ -7,6 +7,7 @@ import { generateText, isStepCount, jsonSchema, tool } from 'ai';
 import { MusicKernel } from '../src/kernel.js';
 import { MusicMind } from '../src/mind.js';
 import { assertToolCapability, createConfiguredModel } from '../src/provider.js';
+import { initialTools } from '../src/seeds.js';
 
 test('dedicated OpenRouter provider carries the complete tool protocol with strict compatibility', async () => {
   const previous = process.env.MUSIC_TEST_OPENROUTER_KEY;
@@ -74,7 +75,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     }, { fetch });
     const root = mkdtempSync(join(tmpdir(), 'music-provider-test-'));
     const kernel = new MusicKernel(join(root, 'events.jsonl'));
-    kernel.initialize('Aster');
+    kernel.initialize('Aster', initialTools());
     await new MusicMind(kernel, configured, configured.inference).receive(kernel.openSounding().id);
 
     const request = configured.requests()[0].body;

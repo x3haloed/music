@@ -22,7 +22,7 @@ try {
   let afterOutput = () => {};
   switch (command) {
     case 'init':
-      result = kernel.initialize(args.join(' '));
+      result = kernel.initialize(args.join(' '), (await import('./seeds.js')).initialTools());
       result = { subject: result.subject, head: result.head };
       break;
     case 'delta':

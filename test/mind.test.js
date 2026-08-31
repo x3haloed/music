@@ -8,6 +8,7 @@ import { MusicKernel } from '../src/kernel.js';
 import { MusicMind, repairIncompleteToolTurns } from '../src/mind.js';
 import { toolModuleDigest } from '../src/tool-module.js';
 import { pendingOutboundMessages } from '../src/mailbox.js';
+import { initialTools } from '../src/seeds.js';
 
 function harness(model) {
   const root = mkdtempSync(join(tmpdir(), 'music-mind-test-'));
@@ -16,7 +17,7 @@ function harness(model) {
     id: () => `id-${++identity}`,
     toolEnvironment: { mailboxRoot: join(root, 'mailbox'), dependencyRoot: join(root, 'dependencies') },
   });
-  kernel.initialize('Aster');
+  kernel.initialize('Aster', initialTools());
   return {
     root,
     kernel,

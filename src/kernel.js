@@ -6,12 +6,6 @@ import { hostname } from 'node:os';
 import { canonical, digest } from './canonical.js';
 import { applyCarrierTransition, createCarrierTransition, initialCarrier, projectCarrier, readCarrier, serializeCarrier } from './carrier.js';
 import { executeToolModule, toolModuleDigest, validateToolModule } from './tool-module.js';
-import { initialFilePatchTool } from '../tools/file-patch.js';
-import { initialMessageTool } from '../tools/message.js';
-import { initialSelectionTool } from '../tools/select-tool-action.js';
-import { initialConsequenceTool } from '../tools/attend-consequence.js';
-import { initialEncounterShapeTool } from '../tools/shape-encounter.js';
-import { initialDependencyTool } from '../tools/manage-dependency.js';
 
 const FORMAT = 'music-event-10';
 const WRITER_FORMAT = 'music-writer-1';
@@ -45,16 +39,14 @@ export class MusicKernel {
     this.writerLease = null;
   }
 
-  initialize(name) {
+  initialize(name, tools) {
     if (this.state().subject) throw new Error('Music subject already exists');
     const trimmed = typeof name === 'string' ? name.trim() : '';
     if (!trimmed || trimmed.length > 128) throw new Error('subject name must be 1-128 characters');
+    const initial = validateInitialTools(tools);
     this.append('subject_created', {
       subject: { id: this.id(), name: trimmed, bornAt: this.clock().toISOString() },
-      tools: [
-        initialMessageTool(), initialFilePatchTool(), initialSelectionTool(), initialConsequenceTool(),
-        initialEncounterShapeTool(), initialDependencyTool(),
-      ],
+      tools: initial,
       carrier: serializeCarrier(initialCarrier()),
     });
     return this.state();
@@ -1365,6 +1357,20 @@ function validateStagedRevision(payload, state) {
     tool,
     rollbackOf,
   };
+}
+
+function validateInitialTools(tools) {
+  if (!Array.isArray(tools) || tools.length < 1 || tools.length > MAX_TOOLS) {
+    throw new Error(`initial tools must contain 1-${MAX_TOOLS} ordinary modules`);
+  }
+  const ids = new Set();
+  return tools.map(candidate => {
+    const tool = validateToolModule(candidate);
+    if (RESERVED_TOOL_IDS.has(tool.id)) throw new Error(`${tool.id} is reserved by the continuity kernel`);
+    if (ids.has(tool.id)) throw new Error(`duplicate initial tool id: ${tool.id}`);
+    ids.add(tool.id);
+    return tool;
+  });
 }
 
 function projectCarrierTransition(payload, encounter) {

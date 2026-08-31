@@ -75,6 +75,11 @@ tools retain the unrestricted machine authority of the harness process.
   remain as stale evidence. Music backs up only syntactically torn final bytes
   and appends a recovery receipt, while complete digest-invalid events are
   refused unchanged.
+- **Birth material must not become an accidental dependency of the living
+  subject.**
+  **Evidence:** The continuity kernel has no import edge to ordinary seeds. A
+  fresh process reconstructs the subject from an isolated four-module core with
+  no `tools/` directory present; seeds are loaded dynamically only for `init`.
 - **Delivery geometry may learn, but authoritative contact cannot disappear
   inside that geometry.**
   **Evidence:** Music now gives a retained ordinary `shape_encounter` module
@@ -95,7 +100,7 @@ observation: let contact arrive, see what the resident does, and let the residen
 remain its own witness. Tests should prove continuity and recovery mechanics,
 not turn the resident into a benchmark or comparative research subject.
 
-Current hatch frontier: bootstrap survival/repair, then a bounded lived
+Current hatch frontier: external bootstrap integrity/repair, then a bounded lived
 residency that can reveal what remains missing.
 The local mailbox supplies real bidirectional contact, and dependency behavior
 is ordinary revisable machinery with an in-resident failure/rollback path.

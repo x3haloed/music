@@ -67,7 +67,11 @@ under [`tools/`](./tools):
 
 These files seed a new subject only. Once initialized, the ledger-retained tool
 version is authoritative. The bootstrap does not re-read seed source to replace
-an active learned version.
+an active learned version. More strongly, the continuity kernel has no import
+edge to `tools/`: `music init` dynamically loads [`src/seeds.js`](./src/seeds.js),
+while reconstruction of an existing subject loads its complete active modules
+from the ledger. An obsolete or broken seed implementation therefore cannot
+strand a living identity.
 
 ## Causal map
 
@@ -318,6 +322,8 @@ Automated evidence currently proves that:
 - a live writer excludes a second author, a dead writer leaves stale evidence,
   torn final bytes are backed up with an append-only receipt, and complete
   corrupted events are refused rather than discarded;
+- a fresh Node process reconstructs an existing subject from the isolated
+  continuity modules with no ordinary seed-tool files present;
 - a real filesystem Delta arriving during an AI SDK model step is appended at a
   retained steering boundary, interpreted by the same inference, and can drive
   the ordinary consequence-attention tool without opening another Sounding;
@@ -333,7 +339,7 @@ Automated evidence currently proves that:
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is bootstrap survival/repair and then a bounded lived
-residency before a long-term resident should hatch. Network messaging can grow
+The next risk frontier is external bootstrap integrity checking/repair and then
+a bounded lived residency before a long-term resident should hatch. Network messaging can grow
 as ordinary/adaptor machinery after the local lived-contact path proves what the
 resident actually needs.

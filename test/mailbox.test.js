@@ -7,6 +7,7 @@ import test from 'node:test';
 import { pendingIngressFiles, readIngressDelta } from '../src/ingress.js';
 import { archiveOutboundMessage, pendingOutboundMessages, submitMailboxMessage } from '../src/mailbox.js';
 import { MusicKernel } from '../src/kernel.js';
+import { initialTools } from '../src/seeds.js';
 
 test('a delivered mailbox message and its human reply retain exact invocation lineage', async () => {
   const root = mkdtempSync(join(tmpdir(), 'music-mailbox-test-'));
@@ -16,7 +17,7 @@ test('a delivered mailbox message and its human reply retain exact invocation li
     id: () => `id-${++identity}`,
     toolEnvironment: { mailboxRoot: mailbox },
   });
-  kernel.initialize('Aster');
+  kernel.initialize('Aster', initialTools());
   const sounding = kernel.openSounding();
   const inferenceId = kernel.beginInference(
     sounding.id,
@@ -67,7 +68,7 @@ test('a separate talk process crosses the mailbox boundary in both directions', 
     id: () => `talk-id-${++identity}`,
     toolEnvironment: { mailboxRoot: mailbox },
   });
-  kernel.initialize('Aster');
+  kernel.initialize('Aster', initialTools());
 
   const talk = execute(process.execPath, [join(process.cwd(), 'src/cli.js'), 'talk', mailbox, 'Chad', 'Are you there?'], {
     ...process.env,
