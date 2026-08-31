@@ -1,0 +1,9 @@
+{
+  "provider": "openai-compatible",
+  "name": "local",
+  "model": "replace-with-a-tool-capable-model-id",
+  "baseURL": "http://localhost:1234/v1",
+  "capabilities": {
+    "tools": true
+  }
+}

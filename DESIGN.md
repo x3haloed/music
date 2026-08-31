@@ -7,10 +7,12 @@ reach that subject through a Sounding; the subject can author a bounded change
 to executable tool geometry; and a later Sounding and invocation must use the
 changed geometry.
 
-The first envelope is one trusted local Node.js process, one writer, one ledger,
-and bounded `emit` effects. It does not yet claim concurrent writers, inference
-provider integration, real messaging or filesystem effects, autonomous
-scheduling, evaluator independence, or safe native-code/tool installation.
+The current envelope is one trusted local Node.js process, one writer, one
+ledger, AI SDK 7 text/tool inference, OpenRouter or a generic OpenAI-compatible
+endpoint, and bounded `emit` effects. It does not yet claim concurrent writers,
+real messaging or filesystem effects, autonomous scheduling, multimodal
+provider equivalence, evaluator independence, or safe native-code/tool
+installation.
 
 The event chain, subject identity, admitted world Deltas, Soundings, activated
 tool versions, and invocation receipts are preserved exactly. Tool descriptions,
@@ -31,6 +33,7 @@ world-authored Delta
   -> later Sounding projects the changed actions
   -> invocation executes that exact tool version
   -> durable observable emission receipt
+  -> complete AI SDK response messages retained for a later Sounding
 ```
 
 The ledger is the only state authority. Current subject state, pending Deltas,
@@ -51,11 +54,35 @@ new named tool and actions using the existing bounded `emit` primitive. This
 proves that the action vocabulary can grow without claiming that arbitrary new
 machine authority is safe.
 
+Provider compatibility is not collapsed into one nominally OpenAI-shaped path.
+OpenRouter uses `@openrouter/ai-sdk-provider` 3 in explicit `strict` mode. Local
+or otherwise generic OpenAI-compatible servers use
+`@ai-sdk/openai-compatible`. The request boundary records bodies and non-secret
+header names for diagnosis, while never retaining authorization values. Tests
+exercise the dedicated provider's two-request tool-call protocol rather than
+assuming API-shape compatibility from package names.
+
+OpenRouter model metadata must declare the `tools` supported parameter before a
+run begins. Generic OpenAI-compatible endpoints do not share a reliable metadata
+contract, so their configuration must explicitly claim `capabilities.tools`;
+unknown capability is treated as unavailable rather than optimistic support.
+
+An `inference_started` event is durable before the provider call begins. If a
+process disappears, the next runtime explicitly closes that orphan as a failed
+inference, adds an interruption observation to retained history, and only then
+opens another Sounding. It never silently rewinds a tool effect or leaves the
+subject permanently locked in an inference that no longer exists.
+
 ## Next risk frontier
 
-The least-proven boundary is model inference: demonstrating that one continuing
-subject can interpret a real Delta, author a useful revision, and later act
-through it without splitting authority between prompts, provider sessions, and
-the retained self. After that, external-effect adapters need prepare/commit
-semantics so a durable invocation and a real side effect cannot disagree after
-a crash.
+The provider loop, multi-step tool protocol, later-turn history, agent-authored
+tool invention, and interrupted-step recovery are exercised against AI SDK's
+real loop and provider serializers. No OpenRouter credential was available in
+the implementation environment, so a live remote model response remains beyond
+the evidence horizon.
+
+The next structural frontier is external-effect commit: real message and file
+adapters need prepare/commit/reconcile semantics so a durable invocation and an
+external side effect cannot disagree after a crash. Scheduling and live Delta
+steering then need one explicit ordering authority rather than a second agent
+loop.

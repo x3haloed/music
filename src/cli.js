@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { MusicKernel } from './kernel.js';
+import { MusicMind } from './mind.js';
+import { createConfiguredModel } from './provider.js';
 
 const [command, ledger, ...args] = process.argv.slice(2);
 
@@ -29,6 +31,14 @@ try {
     case 'audit':
       result = kernel.audit();
       break;
+    case 'run': {
+      kernel.recoverInterruptedInference('The previous Music process ended before its active inference could complete.');
+      const configured = createConfiguredModel(readJsonFile(args[0]));
+      await configured.preflight();
+      const sounding = kernel.openSounding(args[1] ?? 'manual');
+      result = await new MusicMind(kernel, configured).receive(sounding);
+      break;
+    }
     default:
       usage();
   }
@@ -44,5 +54,5 @@ function readJsonFile(path) {
 }
 
 function usage() {
-  throw new Error('usage: music <init|delta|sound|revise|invoke|audit> LEDGER [arguments]');
+  throw new Error('usage: music <init|delta|sound|revise|invoke|run|audit> LEDGER [arguments]');
 }

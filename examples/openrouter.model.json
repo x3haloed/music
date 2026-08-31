@@ -1,0 +1,6 @@
+{
+  "provider": "openrouter",
+  "model": "openai/gpt-4o-mini",
+  "apiKeyEnv": "OPENROUTER_API_KEY",
+  "appName": "Music"
+}
