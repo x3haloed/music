@@ -5,17 +5,19 @@ import { createHash, randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { canonical, digest } from './canonical.js';
 import { applyCarrierTransition, createCarrierTransition, initialCarrier, projectCarrier, readCarrier, serializeCarrier } from './carrier.js';
+import { inferencePolicyFromCarrier, inferencePolicyFromProjection } from './inference-policy.js';
 import { executeToolModule, toolModuleDigest, validateToolModule } from './tool-module.js';
 
-export const MUSIC_EVENT_FORMAT = 'music-event-10';
+export const MUSIC_EVENT_FORMAT = 'music-event-11';
 const FORMAT = MUSIC_EVENT_FORMAT;
+const READABLE_FORMATS = new Set(['music-event-10', FORMAT]);
 const WRITER_FORMAT = 'music-writer-1';
 const ENCOUNTER_SHAPE_TOOL_ID = 'shape_encounter';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
 const MAX_SELECTION_BYTES = 64 * 1_024;
 const MAX_DELTA_BYTES = 64 * 1_024;
-const MAX_INFERENCE_BYTES = 2 * 1_024 * 1_024;
+const MAX_PROJECTION_BYTES = 2 * 1_024 * 1_024;
 const MAX_ACTIVE_SURFACE_BYTES = 512 * 1_024;
 const MAX_PROJECTION_FACTS = 128;
 const MAX_DELIVERY_FAILURE_MESSAGE_BYTES = 2_048;
@@ -46,15 +48,16 @@ export class MusicKernel {
   initialize(name, tools) {
     if (this.state().subject) throw new Error('Music subject already exists');
     const trimmed = typeof name === 'string' ? name.trim() : '';
-    if (!trimmed || trimmed.length > 128) throw new Error('subject name must be 1-128 characters');
+    if (trimmed.length > 128) throw new Error('subject designation must be at most 128 characters');
     const initial = validateInitialTools(tools);
+    const subject = { id: this.id(), name: trimmed || null, bornAt: this.clock().toISOString() };
     assertActiveGeometryFits(new Map(initial.map(tool => [tool.id, tool])), initialCarrier(), {
       id: 'initial-sounding-capacity-check',
-      name: trimmed,
+      name: subject.name,
       bornAt: this.clock().toISOString(),
     });
     this.append('subject_created', {
-      subject: { id: this.id(), name: trimmed, bornAt: this.clock().toISOString() },
+      subject,
       tools: initial,
       carrier: serializeCarrier(initialCarrier()),
     });
@@ -74,7 +77,7 @@ export class MusicKernel {
   recordRuntimeStart(runtime) {
     const state = this.state();
     requireSubject(state);
-    const retained = validateRuntimeProvenance(runtime);
+    const retained = validateRuntimeProvenance(runtime, FORMAT);
     this.append('runtime_started', { runtime: retained });
     return retained;
   }
@@ -156,6 +159,12 @@ export class MusicKernel {
     return structuredClone([...state.recoveryMessages, state.activeInputMessage, ...state.activeTurnMessages]);
   }
 
+  inferencePolicy(soundingId) {
+    const sounding = this.state().soundings.get(soundingId);
+    if (!sounding) throw new Error(`unknown Sounding: ${soundingId}`);
+    return inferencePolicyFromProjection(sounding.sounding.carrier);
+  }
+
   pendingSteeringDeltas(inferenceId) {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
@@ -180,7 +189,7 @@ export class MusicKernel {
       inputMessage: message,
       deliveryProjectionId,
     };
-    if (Buffer.byteLength(canonical(payload)) > MAX_INFERENCE_BYTES) throw new Error(`steering checkpoint exceeds ${MAX_INFERENCE_BYTES} bytes`);
+    assertInferencePayloadFits(state, payload, 'steering checkpoint');
     this.append('inference_steered', payload);
     return { deltas: this.state().activeEncounter.steeringDeltas.slice(-deltaIds.length), message };
   }
@@ -382,6 +391,7 @@ export class MusicKernel {
         environment: structuredClone(this.toolEnvironment),
         selectToolAction: (selectedToolId, frontier) => this.selectToolAction(inferenceId, soundingId, selectedToolId, frontier),
         stageConsequenceTransition: proposal => this.stageConsequenceTransition(inferenceId, soundingId, proposal),
+        stageCarrierTransition: proposal => this.stageCarrierTransition(inferenceId, soundingId, proposal),
         stageWakeTransition: proposal => this.stageWakeTransition(inferenceId, soundingId, invocationId, proposal),
       });
       this.append('tool_invocation_completed', { invocationId, output });
@@ -414,6 +424,25 @@ export class MusicKernel {
     return inferenceId;
   }
 
+  checkpointInference(inferenceId, result) {
+    const state = this.state();
+    if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
+    const payload = jsonValue({
+      inferenceId,
+      soundingId: state.activeEncounter.sounding.id,
+      projection: state.activeEncounter.projection,
+      responseMessages: result.responseMessages ?? [],
+      step: result.step,
+      usage: result.usage ?? {},
+      requests: result.requests ?? [],
+    }, 'inference checkpoint');
+    if (!Array.isArray(payload.responseMessages)) throw new Error('inference checkpoint responseMessages must be an array');
+    if (!Array.isArray(payload.requests)) throw new Error('inference checkpoint requests must be an array');
+    assertInferencePayloadFits(state, payload, 'inference checkpoint');
+    this.append('inference_checkpointed', payload);
+    return payload;
+  }
+
   completeInference(inferenceId, result) {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
@@ -436,7 +465,7 @@ export class MusicKernel {
       activatedConsequenceTransitions: stagedConsequenceTransitions,
       activatedWakeTransition: stagedWakeTransition,
     }, 'inference result');
-    if (Buffer.byteLength(canonical(payload)) > MAX_INFERENCE_BYTES) throw new Error(`inference result exceeds ${MAX_INFERENCE_BYTES} bytes`);
+    assertInferencePayloadFits(state, payload, 'inference result');
     this.append('inference_completed', payload);
     return this.state();
   }
@@ -452,7 +481,7 @@ export class MusicKernel {
       error: errorRecord(error),
       requests,
     }, 'inference failure');
-    if (Buffer.byteLength(canonical(payload)) > MAX_INFERENCE_BYTES) throw new Error(`inference failure exceeds ${MAX_INFERENCE_BYTES} bytes`);
+    assertInferencePayloadFits(state, payload, 'inference failure');
     this.append('inference_failed', payload);
     return this.state();
   }
@@ -599,6 +628,7 @@ export class MusicKernel {
       ledgerTailRecoveries: state.ledgerTailRecoveryCount,
       runtimeStarts: state.runtimeHistory.length,
       runtime: state.runtime ? structuredClone(state.runtime) : null,
+      inferenceCheckpoints: state.inferenceCheckpointCount,
       unresolvedConsequences: [...state.consequences.values()].filter(consequence => consequence.status !== 'settled').length,
       deferredConsequences: [...state.consequences.values()].filter(consequence => consequence.status === 'deferred').length,
       consequenceSweepActive: state.consequenceSweepActive,
@@ -632,6 +662,9 @@ export class MusicKernel {
     const release = this.writerLease ? null : this.acquireWriter(`append ${type}`);
     try {
       const events = this.events();
+      if (events.length > 0 && events[0].format !== FORMAT) {
+        throw new Error(`legacy ${events[0].format} ledger is read-only; migrate it before appending ${FORMAT} events`);
+      }
       const unsigned = {
         format: FORMAT,
         sequence: events.length,
@@ -705,6 +738,7 @@ function reduceEvents(events) {
     ledgerTailRecoveryCount: 0,
     runtimeHistory: [],
     runtime: null,
+    inferenceCheckpointCount: 0,
   };
   for (const event of events) {
     state.head = event.hash;
@@ -726,7 +760,7 @@ function reduceEvents(events) {
         break;
       case 'runtime_started': {
         requireSubject(state);
-        const runtime = validateRuntimeProvenance(event.payload.runtime);
+        const runtime = validateRuntimeProvenance(event.payload.runtime, event.format);
         state.runtimeHistory.push(runtime);
         state.runtime = runtime;
         break;
@@ -964,8 +998,22 @@ function reduceEvents(events) {
         state.messages.push(structuredClone(event.payload.inputMessage));
         break;
       }
+      case 'inference_checkpointed': {
+        requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        assertInferencePayloadFits(state, event.payload, 'inference checkpoint');
+        if (!Array.isArray(event.payload.responseMessages)) throw new Error('checkpointed inference lacks response messages');
+        if (!Array.isArray(event.payload.requests)) throw new Error('checkpointed inference lacks request receipts');
+        jsonValue(event.payload.step, 'checkpointed inference step');
+        jsonValue(event.payload.usage, 'checkpointed inference usage');
+        const retained = structuredClone(event.payload.responseMessages);
+        state.activeTurnMessages.push(...retained);
+        state.messages.push(...retained);
+        state.inferenceCheckpointCount += 1;
+        break;
+      }
       case 'inference_steered': {
         const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        assertInferencePayloadFits(state, event.payload, 'steering checkpoint');
         if (!Array.isArray(event.payload.deliveredDeltaIds)
           || !matchesPendingPrefix(state.pendingDeltas, event.payload.deliveredDeltaIds)) {
           throw new Error('steered Delta acknowledgement does not match pending world contact');
@@ -990,6 +1038,7 @@ function reduceEvents(events) {
       case 'inference_completed': {
         if (state.activeInferenceId !== event.payload.inferenceId) throw new Error('completed inference is not active');
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        assertInferencePayloadFits(state, event.payload, 'inference result');
         if ([...state.activeToolInvocations.values()].some(invocation => invocation.inferenceId === event.payload.inferenceId)) {
           throw new Error('cannot complete inference with an uncertain tool invocation');
         }
@@ -1011,6 +1060,7 @@ function reduceEvents(events) {
         }
         if (event.payload.activatedCarrierTransition) {
           state.carrier = applyCarrierTransition(state.carrier, event.payload.activatedCarrierTransition);
+          inferencePolicyFromCarrier(state.carrier);
         }
         if (!Array.isArray(event.payload.activatedConsequenceTransitions)
           || event.payload.activatedConsequenceTransitions.length !== state.stagedConsequenceTransitions.length
@@ -1066,6 +1116,7 @@ function reduceEvents(events) {
       case 'inference_failed':
         if (state.activeInferenceId !== event.payload.inferenceId) throw new Error('failed inference is not active');
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        assertInferencePayloadFits(state, event.payload, 'inference failure');
         if (!Array.isArray(event.payload.checkpointMessages)) throw new Error('failed inference lacks checkpoint messages');
         state.messages.push(...structuredClone(event.payload.checkpointMessages));
         const runtimeFailure = {
@@ -1112,9 +1163,11 @@ function reduceEvents(events) {
 
 function verifyChain(events) {
   let parent = null;
+  const format = events[0]?.format ?? FORMAT;
+  if (!READABLE_FORMATS.has(format)) throw new Error(`unsupported Music event format: ${format}`);
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
-    if (event.format !== FORMAT || event.sequence !== index || event.parent !== parent) {
+    if (event.format !== format || event.sequence !== index || event.parent !== parent) {
       throw new Error(`broken event ancestry at ledger line ${index + 1}`);
     }
     const { hash, ...unsigned } = event;
@@ -1192,10 +1245,10 @@ function validateLedgerRecoveryReceipt(receipt) {
   }
 }
 
-function validateRuntimeProvenance(value) {
+function validateRuntimeProvenance(value, eventFormat) {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || value.format !== 'music-runtime-1'
-    || value.eventFormat !== FORMAT
+    || value.eventFormat !== eventFormat
     || !['resident', 'single-run'].includes(value.mode)
     || typeof value.release?.commit !== 'string' || !/^[a-f0-9]{40}$/.test(value.release.commit)
     || typeof value.release?.version !== 'string' || !value.release.version.trim() || value.release.version.length > 128
@@ -1246,6 +1299,13 @@ function validateConsequenceReferences(delta, state) {
 
 function countInvocationStatus(state, status) {
   return [...state.invocationHistory.values()].filter(invocation => invocation.status === status).length;
+}
+
+function assertInferencePayloadFits(state, payload, label) {
+  if (!state.activeEncounter) throw new Error(`${label} requires an active encounter`);
+  const maximum = inferencePolicyFromProjection(state.activeEncounter.sounding.carrier).maxInferenceEventBytes;
+  const bytes = Buffer.byteLength(canonical(payload));
+  if (bytes > maximum) throw new Error(`${label} exceeds active inference policy limit ${maximum} bytes (received ${bytes})`);
 }
 
 function boundedEvidence(evidence) {
@@ -1351,7 +1411,7 @@ function planSoundingSurface(state, base) {
   const fits = surface => projectionInputFits(
     soundingProjectionInput({ ...base, ...surface }),
     { manifest: binding },
-    MAX_INFERENCE_BYTES,
+    MAX_PROJECTION_BYTES,
   );
   if (!fits(candidate())) throw new Error('active geometry cannot form a bounded Sounding');
 
@@ -1392,7 +1452,7 @@ function planSteeringSurface(state, encounter) {
     const next = [...deltas, delta];
     const frontier = buildSteeringFrontier(pending, next);
     const input = steeringProjectionInput(encounter, next, frontier);
-    if (input.facts.length > MAX_PROJECTION_FACTS || !projectionInputFits(input, binding, MAX_INFERENCE_BYTES)) break;
+    if (input.facts.length > MAX_PROJECTION_FACTS || !projectionInputFits(input, binding, MAX_PROJECTION_BYTES)) break;
     deltas = next;
   }
   if (pending.length > 0 && deltas.length === 0) {
@@ -1487,6 +1547,7 @@ function assertProspectiveGeometryFits(state, { tool = null, carrierTransition =
 }
 
 function assertActiveGeometryFits(tools, carrier, subject) {
+  inferencePolicyFromCarrier(carrier);
   const binding = tools.get(ENCOUNTER_SHAPE_TOOL_ID);
   if (!binding) throw new Error(`active geometry requires ${ENCOUNTER_SHAPE_TOOL_ID}`);
   const sounding = {
@@ -1596,7 +1657,7 @@ function validateProjectionMessage(value, input) {
   for (const fact of input.facts) {
     if (!message.content.includes(fact.envelope)) throw new Error(`delivery projection omitted required fact: ${fact.id}`);
   }
-  if (Buffer.byteLength(canonical(message)) > MAX_INFERENCE_BYTES) throw new Error(`delivery projection exceeds ${MAX_INFERENCE_BYTES} bytes`);
+  if (Buffer.byteLength(canonical(message)) > MAX_PROJECTION_BYTES) throw new Error(`delivery projection exceeds ${MAX_PROJECTION_BYTES} bytes`);
   return message;
 }
 

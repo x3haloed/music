@@ -11,11 +11,13 @@ test('carrier transition preserves stable rule identity while evolving state and
   });
   const afterCarrier = applyCarrierTransition(carrier, transition);
   const after = projectCarrier(afterCarrier);
+  const beforeOrientation = before.components.find(component => component.id === 'orientation');
+  const afterOrientation = after.components.find(component => component.id === 'orientation');
 
-  assert.equal(after.components[0].ruleDigest, before.components[0].ruleDigest);
-  assert.notEqual(after.components[0].stateDigest, before.components[0].stateDigest);
+  assert.equal(afterOrientation.ruleDigest, beforeOrientation.ruleDigest);
+  assert.notEqual(afterOrientation.stateDigest, beforeOrientation.stateDigest);
   assert.notEqual(after.root, before.root);
-  assert.equal(after.components[0].state.generation, 1);
+  assert.equal(afterOrientation.state.generation, 1);
   assert.equal(transition.parentRoot, before.root);
   assert.equal(transition.successorRoot, after.root);
 });

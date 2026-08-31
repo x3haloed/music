@@ -757,7 +757,10 @@ test('carrier state stages inside an encounter and merges with stable rule ident
   assert.notEqual(staged.successorRoot, before.root);
   complete(kernel, inferenceId);
   const later = kernel.openSounding();
-  assert.equal(later.carrier.components[0].ruleDigest, before.components[0].ruleDigest);
+  assert.equal(
+    later.carrier.components.find(component => component.id === 'orientation').ruleDigest,
+    before.components.find(component => component.id === 'orientation').ruleDigest,
+  );
   assert.equal(later.carrier.root, staged.successorRoot);
 });
 
@@ -851,7 +854,7 @@ test('an existing subject reconstructs in a fresh process with no ordinary seed 
   const { kernel, root } = harness();
   const isolated = join(root, 'isolated-core');
   mkdirSync(isolated);
-  for (const name of ['canonical.js', 'carrier.js', 'kernel.js', 'tool-module.js']) {
+  for (const name of ['canonical.js', 'carrier.js', 'inference-policy.js', 'kernel.js', 'tool-module.js']) {
     copyFileSync(join(process.cwd(), 'src', name), join(isolated, name));
   }
   writeFileSync(join(isolated, 'package.json'), '{"type":"module"}\n');

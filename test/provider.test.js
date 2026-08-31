@@ -93,6 +93,8 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.has('search_files'));
     assert.ok(tools.has('shell'));
     assert.ok(tools.has('web_fetch'));
+    assert.ok(tools.has('retain_context'));
+    assert.ok(tools.has('tune_inference'));
     assert.ok(tools.has('inspect_tool'));
     assert.ok(tools.has('revise_tool'));
     assert.ok(tools.has('rollback_tool'));
@@ -106,6 +108,12 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.equal(tools.get('revise_tool').properties.consequenceDeltaIds.items.type, 'string');
     assert.equal(tools.get('rollback_tool').properties.consequenceDeltaIds.items.type, 'string');
     assert.deepEqual(tools.get('attend_consequence').properties.action.enum, ['defer', 'settle']);
+    const retainedRequest = kernel.events().find(event => event.type === 'inference_checkpointed').payload.requests[0];
+    assert.equal(retainedRequest.format, 'music-provider-request-1');
+    assert.equal(retainedRequest.model, 'z-ai/glm-5.3-flash');
+    assert.equal(retainedRequest.bodyBytes > 0, true);
+    assert.match(retainedRequest.bodySha256, /^[a-f0-9]{64}$/);
+    assert.equal(Object.hasOwn(retainedRequest, 'body'), false);
   } finally {
     if (previous === undefined) delete process.env.MUSIC_TEST_OPENROUTER_KEY;
     else process.env.MUSIC_TEST_OPENROUTER_KEY = previous;

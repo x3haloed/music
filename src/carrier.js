@@ -1,4 +1,5 @@
 import { canonical, digest } from './canonical.js';
+import { DEFAULT_INFERENCE_POLICY } from './inference-policy.js';
 
 const ID = /^[a-z][a-z0-9_-]{0,47}$/;
 const MAX_COMPONENTS = 16;
@@ -6,14 +7,23 @@ const MAX_RULE_CHARS = 1_024;
 const MAX_VALUE_BYTES = 16 * 1_024;
 
 export function initialCarrier() {
-  return new Map([[
-    'orientation',
-    validateCarrierComponent({
+  return new Map([
+    ['continuity', validateCarrierComponent({
+      id: 'continuity',
+      rule: { description: 'A bounded subject-authored account of the current situation to present in later encounters.' },
+      state: { generation: 0, value: '' },
+    })],
+    ['inference_policy', validateCarrierComponent({
+      id: 'inference_policy',
+      rule: { description: 'Subject-authored limits governing the duration and retained event geometry of later inference encounters.' },
+      state: { generation: 0, value: DEFAULT_INFERENCE_POLICY },
+    })],
+    ['orientation', validateCarrierComponent({
       id: 'orientation',
       rule: { description: 'A bounded subject-authored basis that may shape selection in later encounters.' },
       state: { generation: 0, value: 'No learned selection consequence is currently active.' },
-    }),
-  ]]);
+    })],
+  ]);
 }
 
 export function readCarrier(components) {

@@ -10,6 +10,8 @@ import { initialWriteFileTool } from '../tools/write-file.js';
 import { initialSearchFilesTool } from '../tools/search-files.js';
 import { initialShellTool } from '../tools/shell.js';
 import { initialWebFetchTool } from '../tools/web-fetch.js';
+import { initialRetainContextTool } from '../tools/retain-context.js';
+import { initialTuneInferenceTool } from '../tools/tune-inference.js';
 
 export function initialTools() {
   return [
@@ -18,5 +20,6 @@ export function initialTools() {
     initialScheduleWakeTool(),
     initialReadFileTool(), initialWriteFileTool(), initialSearchFilesTool(),
     initialShellTool(), initialWebFetchTool(),
+    initialRetainContextTool(), initialTuneInferenceTool(),
   ];
 }

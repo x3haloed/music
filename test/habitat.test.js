@@ -28,17 +28,17 @@ test('the habitat command initializes and audits one ledger without placing it i
   const create = habitatCommand(['create', root]);
   assert.equal(create.status, 0, create.stderr);
 
-  const initialized = habitatCommand(['init', root, 'Fixture Resident']);
+  const initialized = habitatCommand(['init', root]);
   assert.equal(initialized.status, 0, initialized.stderr);
   const habitat = readHabitat(root);
   const kernel = new MusicKernel(habitat.ledger);
-  assert.equal(kernel.state().subject.name, 'Fixture Resident');
+  assert.equal(kernel.state().subject.name, null);
   assert.equal(kernel.events().length, 1);
   assert.equal(resolve(habitat.ledger).startsWith(repository), false);
 
   const audit = habitatCommand(['audit', root]);
   assert.equal(audit.status, 0, audit.stderr);
-  assert.equal(JSON.parse(audit.stdout).subject.name, 'Fixture Resident');
+  assert.equal(JSON.parse(audit.stdout).subject.name, null);
   assert.notEqual(habitatCommand(['init', root, 'Another Resident']).status, 0);
 });
 

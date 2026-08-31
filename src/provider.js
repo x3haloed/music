@@ -1,9 +1,11 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { createHash } from 'node:crypto';
 
 export function createConfiguredModel(config, { fetch: fetchImplementation = globalThis.fetch } = {}) {
   validateConfig(config);
   const requests = [];
+  const retainedRequests = [];
   let preflightResult;
   const preflight = () => {
     if (!preflightResult) {
@@ -15,7 +17,9 @@ export function createConfiguredModel(config, { fetch: fetchImplementation = glo
     return preflightResult;
   };
   const recordedFetch = async (url, init = {}) => {
-    requests.push(recordRequest(url, init));
+    const request = recordRequest(url, init);
+    requests.push(request);
+    retainedRequests.push(retainedRequest(request));
     return fetchImplementation(url, init);
   };
 
@@ -34,6 +38,7 @@ export function createConfiguredModel(config, { fetch: fetchImplementation = glo
       identity: { provider: 'openrouter', model: config.model },
       inference: inferenceSettings(config),
       requests: () => structuredClone(requests),
+      retainedRequests: () => structuredClone(retainedRequests),
       preflight,
     };
   }
@@ -51,6 +56,7 @@ export function createConfiguredModel(config, { fetch: fetchImplementation = glo
     identity: { provider: config.name ?? 'openai-compatible', model: config.model },
     inference: inferenceSettings(config),
     requests: () => structuredClone(requests),
+    retainedRequests: () => structuredClone(retainedRequests),
     preflight,
   };
 }
@@ -119,6 +125,9 @@ function readKey(environmentName, optional) {
 }
 
 function recordRequest(url, init) {
+  const encodedBody = typeof init.body === 'string'
+    ? init.body
+    : init.body === undefined ? '' : Object.prototype.toString.call(init.body);
   let body = init.body;
   if (typeof body === 'string') {
     try { body = JSON.parse(body); } catch { body = { unparsed: body.slice(0, 16_384) }; }
@@ -130,5 +139,24 @@ function recordRequest(url, init) {
     method: init.method ?? 'GET',
     headerNames: [...new Headers(init.headers).keys()].filter(name => name.toLowerCase() !== 'authorization').sort(),
     body: body ?? null,
+    bodyBytes: Buffer.byteLength(encodedBody),
+    bodySha256: createHash('sha256').update(encodedBody).digest('hex'),
+  };
+}
+
+function retainedRequest(request) {
+  const body = request.body && typeof request.body === 'object' && !Array.isArray(request.body) ? request.body : {};
+  return {
+    format: 'music-provider-request-1',
+    url: request.url,
+    method: request.method,
+    headerNames: request.headerNames,
+    bodyBytes: request.bodyBytes,
+    bodySha256: request.bodySha256,
+    model: typeof body.model === 'string' ? body.model : null,
+    messageCount: Array.isArray(body.messages) ? body.messages.length : null,
+    toolNames: Array.isArray(body.tools)
+      ? body.tools.map(candidate => candidate?.function?.name).filter(name => typeof name === 'string')
+      : [],
   };
 }

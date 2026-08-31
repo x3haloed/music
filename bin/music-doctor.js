@@ -13,6 +13,7 @@ const CORE_PATHS = [
   'src/carrier.js',
   'src/cli.js',
   'src/ingress.js',
+  'src/inference-policy.js',
   'src/habitat.js',
   'src/kernel.js',
   'src/mailbox.js',

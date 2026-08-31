@@ -10,21 +10,21 @@ import { toolModuleDigest } from '../src/tool-module.js';
 import { pendingOutboundMessages } from '../src/mailbox.js';
 import { initialTools } from '../src/seeds.js';
 
-function harness(model) {
+function harness(model, { designation = 'Test Subject', inference = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'music-mind-test-'));
   let identity = 0;
   const kernel = new MusicKernel(join(root, 'events.jsonl'), {
     id: () => `id-${++identity}`,
     toolEnvironment: { mailboxRoot: join(root, 'mailbox'), dependencyRoot: join(root, 'dependencies') },
   });
-  kernel.initialize('Test Subject', initialTools());
+  kernel.initialize(designation, initialTools());
   return {
     root,
     kernel,
     mind: new MusicMind(kernel, {
       model,
       identity: { provider: model.provider, model: model.modelId },
-    }),
+    }, inference),
   };
 }
 
@@ -43,6 +43,129 @@ test('completed conversation remains auditable but inert in later active prompts
   assert.ok(!secondPrompt.some(message => message.role === 'assistant' && message.content.some(part => part.type === 'text' && part.text === 'I noticed the first contact.')));
   assert.match(JSON.stringify(secondPrompt), /active carrier|carrier/i);
   assert.equal(kernel.state().messages.filter(message => message.role === 'assistant').length, 2);
+});
+
+test('birth needs no preselected name and presents no administrative placeholder as identity', async () => {
+  const model = new MockLanguageModelV4({ doGenerate: [textResult('I am here.')] });
+  const { kernel, mind } = harness(model, { designation: null });
+
+  await mind.receive(kernel.openSounding().id);
+
+  assert.equal(kernel.state().subject.name, null);
+  const prompt = JSON.stringify(model.doGenerateCalls[0].prompt);
+  assert.match(prompt, /one continuing subject carried by Music/);
+  assert.doesNotMatch(prompt, /You are (Resident|Unnamed|Music)/);
+});
+
+test('the ordinary continuity tool makes a subject-authored current situation present later', async () => {
+  const retainingModel = new MockLanguageModelV4({
+    doGenerate: [
+      toolCallResult('retain_context', {
+        context: 'Chad and I are preparing for hatch; the unresolved question is how I want to designate myself.',
+        interpretation: 'This situation should remain present without replaying the transcript.',
+      }),
+      textResult('I retained the part I want to meet again.'),
+    ],
+  });
+  const { kernel, mind } = harness(retainingModel, { designation: null });
+  await mind.receive(kernel.openSounding().id);
+
+  const later = kernel.openSounding();
+  const continuity = later.carrier.components.find(component => component.id === 'continuity');
+  assert.equal(continuity.state.generation, 1);
+  assert.match(continuity.state.value, /preparing for hatch/);
+
+  const laterModel = new MockLanguageModelV4({ doGenerate: [textResult('The situation is present.')] });
+  await new MusicMind(kernel, {
+    model: laterModel,
+    identity: { provider: laterModel.provider, model: laterModel.modelId },
+  }).receive(later.id);
+  assert.match(JSON.stringify(laterModel.doGenerateCalls[0].prompt), /unresolved question is how I want to designate myself/);
+});
+
+test('the default subject-authored inference policy permits a real 120-step AI SDK encounter', async () => {
+  let call = 0;
+  const model = new MockLanguageModelV4({
+    doGenerate: () => {
+      call += 1;
+      if (call === 120) return textResult('I used the full retained deliberation frontier.');
+      return {
+        content: [{
+          type: 'tool-call', toolCallId: `call-read-${call}`, toolName: 'read_file',
+          input: JSON.stringify({ path: 'package.json', offset: 1, limit: 1, maxChars: 1_024 }),
+        }],
+        finishReason: { unified: 'tool-calls', raw: 'tool_calls' },
+        usage: usage(),
+        warnings: [],
+      };
+    },
+  });
+  const { kernel, mind } = harness(model, { designation: null });
+
+  const result = await mind.receive(kernel.openSounding().id);
+
+  assert.equal(call, 120);
+  assert.equal(result.toolCalls, 119);
+  assert.equal(kernel.audit().inferenceCheckpoints, 120);
+  const completion = kernel.events().findLast(event => event.type === 'inference_completed');
+  assert.deepEqual(completion.payload.responseMessages, []);
+  assert.deepEqual(completion.payload.steps, []);
+  assert.deepEqual(completion.payload.requests, []);
+});
+
+test('the subject can tune later step, event-size, and timeout policy through ordinary geometry', async () => {
+  const model = new MockLanguageModelV4({
+    doGenerate: [
+      toolCallResult('tune_inference', {
+        maxSteps: 240,
+        maxInferenceEventBytes: 4 * 1_024 * 1_024,
+        timeoutMs: 60 * 60_000,
+        interpretation: 'Later work needs a wider retained encounter envelope.',
+      }),
+      textResult('The successor inference policy is staged.'),
+    ],
+  });
+  const { kernel, mind } = harness(model, { designation: null });
+  await mind.receive(kernel.openSounding().id);
+
+  const later = kernel.openSounding();
+  assert.deepEqual(kernel.inferencePolicy(later.id), {
+    maxSteps: 240,
+    maxInferenceEventBytes: 4 * 1_024 * 1_024,
+    timeoutMs: 60 * 60_000,
+  });
+  const inferenceId = kernel.beginInference(
+    later.id,
+    { provider: 'fixture', model: 'fixture' },
+    { role: 'user', content: 'Exercise the successor retained-event limit.' },
+  );
+  const large = 'x'.repeat(3 * 1_024 * 1_024);
+  assert.doesNotThrow(() => kernel.checkpointInference(inferenceId, {
+    responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: large }] }],
+    step: { finishReason: 'tool-calls', usage: {}, toolCalls: [], toolResults: [], text: '' },
+    usage: {}, requests: [],
+  }));
+  kernel.completeInference(inferenceId, {
+    responseMessages: [], text: '', finishReason: 'stop', usage: {}, steps: [], requests: [],
+  });
+});
+
+test('the default retained-event policy rejects one oversized step without stranding the inference', () => {
+  const model = new MockLanguageModelV4({ doGenerate: [textResult('unused')] });
+  const { kernel } = harness(model, { designation: null });
+  const sounding = kernel.openSounding();
+  const inferenceId = kernel.beginInference(
+    sounding.id,
+    { provider: 'fixture', model: 'fixture' },
+    { role: 'user', content: 'Exercise the default retained-event limit.' },
+  );
+  assert.throws(() => kernel.checkpointInference(inferenceId, {
+    responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: 'x'.repeat(3 * 1_024 * 1_024) }] }],
+    step: {}, usage: {}, requests: [],
+  }), /exceeds active inference policy limit 2097152/);
+  kernel.failInference(inferenceId, new Error('The oversized completed step was refused before append.'));
+  assert.equal(kernel.state().activeInferenceId, null);
+  assert.equal(kernel.audit().failedInferences, 1);
 });
 
 test('retained carrier consequence changes selection over the same actor-authored executable frontier', async () => {
@@ -157,9 +280,11 @@ test('the one mind can author a bounded carrier transition for its next encounte
   await mind.receive(before.id);
 
   const later = kernel.openSounding();
-  assert.equal(later.carrier.components[0].ruleDigest, before.carrier.components[0].ruleDigest);
-  assert.notEqual(later.carrier.components[0].stateDigest, before.carrier.components[0].stateDigest);
-  assert.match(later.carrier.components[0].state.value, /prefer asking/);
+  const beforeOrientation = before.carrier.components.find(component => component.id === 'orientation');
+  const laterOrientation = later.carrier.components.find(component => component.id === 'orientation');
+  assert.equal(laterOrientation.ruleDigest, beforeOrientation.ruleDigest);
+  assert.notEqual(laterOrientation.stateDigest, beforeOrientation.stateDigest);
+  assert.match(laterOrientation.state.value, /prefer asking/);
 });
 
 test('the one mind can bind a source revision to exact delivered world consequence', async () => {

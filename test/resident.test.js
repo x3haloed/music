@@ -169,7 +169,9 @@ test('real ingress during an AI SDK step steers the same encounter and can be in
   assert.equal(kernel.events().filter(event => event.type === 'inference_started').length, inferenceCountBefore + 1);
   const steering = kernel.events().findLast(event => event.type === 'inference_steered');
   assert.deepEqual(steering.payload.deliveredDeltaIds, ['arrived-mid-step']);
-  assert.match(JSON.stringify(steering.payload.checkpointMessages), /completed my response to the opening contact/);
+  assert.deepEqual(steering.payload.checkpointMessages, []);
+  const checkpoint = kernel.events().find(event => event.type === 'inference_checkpointed');
+  assert.match(JSON.stringify(checkpoint.payload.responseMessages), /completed my response to the opening contact/);
   assert.equal(kernel.audit().deferredConsequences, 1);
   assert.equal(kernel.audit().steeringEvents, 1);
   assert.equal(kernel.audit().pendingDeltas, 0);

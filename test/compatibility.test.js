@@ -11,7 +11,7 @@ const fixtureSha256 = 'fbcbbf784b25e89a230afc617fe76a08e2fe80e8f4a1853d86f589f74
 test('the current runtime reconstructs the retained pre-hatch compatibility ledger', () => {
   const bytes = readFileSync(fixture);
   assert.equal(createHash('sha256').update(bytes).digest('hex'), fixtureSha256);
-  assert.equal(MUSIC_EVENT_FORMAT, 'music-event-10');
+  assert.equal(MUSIC_EVENT_FORMAT, 'music-event-11');
 
   const audit = new MusicKernel(fixture).audit();
   assert.equal(audit.valid, true);
@@ -22,4 +22,11 @@ test('the current runtime reconstructs the retained pre-hatch compatibility ledg
   assert.equal(audit.pendingDeltas, 0);
   assert.equal(audit.completedInferences, 1);
   assert.equal(audit.failedInferences, 0);
+  assert.throws(
+    () => new MusicKernel(fixture).admitDelta({
+      authority: 'world', id: 'legacy-write-refused', stream: 'compatibility',
+      at: '2026-08-30T13:00:00.000Z', payload: { content: 'Do not mix event formats.' },
+    }),
+    /legacy music-event-10 ledger is read-only/,
+  );
 });
