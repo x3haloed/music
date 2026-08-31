@@ -7,10 +7,14 @@ import { canonical, digest } from './canonical.js';
 import { applyCarrierTransition, createCarrierTransition, initialCarrier, projectCarrier, readCarrier, serializeCarrier } from './carrier.js';
 import { inferencePolicyFromCarrier, inferencePolicyFromProjection } from './inference-policy.js';
 import { executeToolModule, toolModuleDigest, validateToolModule } from './tool-module.js';
+import {
+  createDevelopmentalSuccessor, initialDevelopmentalPosition, openingFromWake,
+  projectDevelopmentalPosition, readDevelopmentalPosition,
+} from './development.js';
 
-export const MUSIC_EVENT_FORMAT = 'music-event-11';
+export const MUSIC_EVENT_FORMAT = 'music-event-12';
 const FORMAT = MUSIC_EVENT_FORMAT;
-const READABLE_FORMATS = new Set(['music-event-10', FORMAT]);
+const READABLE_FORMATS = new Set(['music-event-10', 'music-event-11', FORMAT]);
 const WRITER_FORMAT = 'music-writer-1';
 const ENCOUNTER_SHAPE_TOOL_ID = 'shape_encounter';
 const MAX_TOOLS = 32;
@@ -51,15 +55,21 @@ export class MusicKernel {
     if (trimmed.length > 128) throw new Error('subject designation must be at most 128 characters');
     const initial = validateInitialTools(tools);
     const subject = { id: this.id(), name: trimmed || null, bornAt: this.clock().toISOString() };
-    assertActiveGeometryFits(new Map(initial.map(tool => [tool.id, tool])), initialCarrier(), {
+    const toolsById = new Map(initial.map(tool => [tool.id, tool]));
+    const carrier = initialCarrier();
+    const position = initialDevelopmentalPosition({
+      tools: toolsById, carrier, openingId: this.id(), at: subject.bornAt,
+    });
+    assertActiveGeometryFits(toolsById, carrier, {
       id: 'initial-sounding-capacity-check',
       name: subject.name,
       bornAt: this.clock().toISOString(),
-    });
+    }, position);
     this.append('subject_created', {
       subject,
       tools: initial,
-      carrier: serializeCarrier(initialCarrier()),
+      carrier: serializeCarrier(carrier),
+      position,
     });
     return this.state();
   }
@@ -96,6 +106,7 @@ export class MusicKernel {
       trigger,
       tools: [...state.tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
       carrier: projectCarrier(state.carrier),
+      ...(state.position ? { position: projectDevelopmentalPosition(state.position) } : {}),
     };
     base.wake = projectOpeningWake(state.nextWake, trigger, base.at);
     const surface = planSoundingSurface(state, base);
@@ -450,6 +461,12 @@ export class MusicKernel {
     const stagedCarrierTransition = state.stagedCarrierTransition ? structuredClone(state.stagedCarrierTransition) : null;
     const stagedConsequenceTransitions = state.stagedConsequenceTransitions.map(transition => structuredClone(transition));
     const stagedWakeTransition = state.stagedWakeTransition ? structuredClone(state.stagedWakeTransition) : null;
+    const activatedPosition = developmentalSuccessorForCompletion(state, {
+      revisions: stagedRevisions,
+      carrierTransition: stagedCarrierTransition,
+      consequenceTransitions: stagedConsequenceTransitions,
+      wakeTransition: stagedWakeTransition,
+    });
     const payload = jsonValue({
       inferenceId,
       soundingId: state.activeEncounter.sounding.id,
@@ -464,6 +481,7 @@ export class MusicKernel {
       activatedCarrierTransition: stagedCarrierTransition,
       activatedConsequenceTransitions: stagedConsequenceTransitions,
       activatedWakeTransition: stagedWakeTransition,
+      activatedPosition,
     }, 'inference result');
     assertInferencePayloadFits(state, payload, 'inference result');
     this.append('inference_completed', payload);
@@ -614,6 +632,7 @@ export class MusicKernel {
       subject: state.subject,
       tools: [...state.tools.values()].map(tool => ({ id: tool.id, version: tool.version, digest: toolModuleDigest(tool) })),
       carrierRoot: projectCarrier(state.carrier).root,
+      positionRoot: state.position?.root ?? null,
       pendingDeltas: state.pendingDeltas.length,
       invocations: state.invocations.length,
       failedInvocations: countInvocationStatus(state, 'failed'),
@@ -695,6 +714,7 @@ function reduceEvents(events) {
     tools: new Map(),
     toolHistory: new Map(),
     carrier: new Map(),
+    position: null,
     deltaIds: new Set(),
     pendingDeltas: [],
     soundings: new Map(),
@@ -752,7 +772,10 @@ function reduceEvents(events) {
           state.toolHistory.set(toolModuleDigest(valid), valid);
         }
         state.carrier = readCarrier(event.payload.carrier);
-        assertActiveGeometryFits(state.tools, state.carrier, state.subject);
+        state.position = event.format === FORMAT
+          ? readDevelopmentalPosition(event.payload.position, { tools: state.tools, carrier: state.carrier })
+          : null;
+        assertActiveGeometryFits(state.tools, state.carrier, state.subject, state.position);
         break;
       case 'ledger_tail_recovered':
         validateLedgerRecoveryReceipt(event.payload);
@@ -785,6 +808,11 @@ function reduceEvents(events) {
         const sounding = event.payload.sounding;
         if (event.payload.projection !== digest(sounding)) throw new Error('Sounding projection digest mismatch');
         if (digest(sounding.carrier) !== digest(projectCarrier(state.carrier))) throw new Error('Sounding carrier projection mismatch');
+        if (event.format === FORMAT) {
+          if (!state.position || digest(sounding.position) !== digest(projectDevelopmentalPosition(state.position))) {
+            throw new Error('Sounding developmental position projection mismatch');
+          }
+        }
         if (state.openSoundingId || state.activeInferenceId) throw new Error('ledger opens overlapping Soundings');
         if (state.soundings.has(sounding.id)) throw new Error(`ledger repeats Sounding id: ${sounding.id}`);
         const toolBindings = bindProjectedTools(state.tools, sounding.tools);
@@ -802,6 +830,7 @@ function reduceEvents(events) {
             trigger: sounding.trigger,
             tools: sounding.tools,
             carrier: sounding.carrier,
+            ...(sounding.position ? { position: sounding.position } : {}),
             wake: sounding.wake ?? null,
           });
           if (digest(sounding.deltas) !== digest(planned.sounding.deltas)
@@ -1048,6 +1077,14 @@ function reduceEvents(events) {
           || event.payload.activatedRevisions.some((revision, index) => digest(revision) !== digest(state.stagedRevisions[index]))) {
           throw new Error('completed inference activation does not match staged revisions');
         }
+        const expectedPosition = event.format === FORMAT
+          ? developmentalSuccessorForCompletion(state, {
+            revisions: event.payload.activatedRevisions,
+            carrierTransition: event.payload.activatedCarrierTransition,
+            consequenceTransitions: event.payload.activatedConsequenceTransitions,
+            wakeTransition: event.payload.activatedWakeTransition ?? null,
+          })
+          : null;
         for (const revision of event.payload.activatedRevisions) {
           const tool = validateToolModule(revision.tool);
           const current = state.tools.get(tool.id);
@@ -1081,6 +1118,12 @@ function reduceEvents(events) {
           throw new Error('completed inference cannot activate a wake from an incomplete invocation');
         }
         state.nextWake = state.stagedWakeTransition ? structuredClone(state.stagedWakeTransition) : null;
+        if (event.format === FORMAT) {
+          if (digest(event.payload.activatedPosition ?? null) !== digest(expectedPosition)) {
+            throw new Error('completed inference developmental position transition mismatch');
+          }
+          if (expectedPosition) state.position = expectedPosition;
+        }
         if (state.activeEncounter.sounding.frontier !== undefined) {
           const projectedConsequenceIds = new Set([
             ...state.activeEncounter.sounding.deltas.filter(delta => delta.bearsOn?.length).map(delta => delta.id),
@@ -1159,6 +1202,28 @@ function reduceEvents(events) {
     }
   }
   return state;
+}
+
+function developmentalSuccessorForCompletion(state, {
+  revisions = [], carrierTransition = null, consequenceTransitions = [], wakeTransition = null,
+}) {
+  if (!state.position) return null;
+  const changes = revisions.length + consequenceTransitions.length
+    + (carrierTransition ? 1 : 0) + (wakeTransition ? 1 : 0);
+  if (changes === 0) return null;
+  const tools = new Map(state.tools);
+  for (const revision of revisions) tools.set(revision.tool.id, revision.tool);
+  const carrier = carrierTransition ? applyCarrierTransition(state.carrier, carrierTransition) : state.carrier;
+  const opening = wakeTransition
+    ? openingFromWake(wakeTransition, state.position.activeOpening)
+    : undefined;
+  return createDevelopmentalSuccessor(state.position, {
+    tools,
+    carrier,
+    carrierTransition,
+    consequenceTransitions,
+    opening,
+  });
 }
 
 function verifyChain(events) {
@@ -1506,6 +1571,7 @@ function soundingProjectionInput(sounding) {
       projectionFact('sounding:subject', sounding.subject),
       projectionFact('sounding:tools', sounding.tools),
       projectionFact('sounding:carrier', sounding.carrier),
+      ...(sounding.position ? [projectionFact('sounding:position', sounding.position)] : []),
       projectionFact('sounding:frontier', sounding.frontier),
       ...(sounding.wake ? [projectionFact('sounding:wake', sounding.wake)] : []),
       ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
@@ -1543,10 +1609,10 @@ function assertProspectiveGeometryFits(state, { tool = null, carrierTransition =
   let carrier = state.carrier;
   if (state.stagedCarrierTransition) carrier = applyCarrierTransition(carrier, state.stagedCarrierTransition);
   if (carrierTransition) carrier = applyCarrierTransition(carrier, carrierTransition);
-  assertActiveGeometryFits(tools, carrier, state.subject);
+  assertActiveGeometryFits(tools, carrier, state.subject, state.position);
 }
 
-function assertActiveGeometryFits(tools, carrier, subject) {
+function assertActiveGeometryFits(tools, carrier, subject, position = null) {
   inferencePolicyFromCarrier(carrier);
   const binding = tools.get(ENCOUNTER_SHAPE_TOOL_ID);
   if (!binding) throw new Error(`active geometry requires ${ENCOUNTER_SHAPE_TOOL_ID}`);
@@ -1558,6 +1624,7 @@ function assertActiveGeometryFits(tools, carrier, subject) {
     trigger: 'manual',
     tools: [...tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
     carrier: projectCarrier(carrier),
+    ...(position ? { position: projectDevelopmentalPosition(position) } : {}),
     wake: null,
     deltas: [],
     unresolvedConsequences: [],
@@ -1565,7 +1632,7 @@ function assertActiveGeometryFits(tools, carrier, subject) {
   };
   const input = soundingProjectionInput(sounding);
   if (!projectionInputFits(input, { manifest: binding }, MAX_ACTIVE_SURFACE_BYTES)) {
-    throw new Error(`active tool and carrier geometry exceeds ${MAX_ACTIVE_SURFACE_BYTES} bytes`);
+    throw new Error(`active tool, carrier, and position geometry exceeds ${MAX_ACTIVE_SURFACE_BYTES} bytes`);
   }
 }
 
@@ -1587,6 +1654,7 @@ function projectionInput(state, encounter, phase, deltaIds) {
           projectionFact('sounding:subject', sounding.subject),
           projectionFact('sounding:tools', sounding.tools),
           projectionFact('sounding:carrier', sounding.carrier),
+          ...(sounding.position ? [projectionFact('sounding:position', sounding.position)] : []),
           ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
           ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
         ],

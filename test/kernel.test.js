@@ -30,12 +30,16 @@ test('opening a Sounding reserves Deltas; beginning its exact encounter acknowle
   kernel.admitDelta({ authority: 'world', id: 'reply-1', stream: 'inbox', at: '2026-08-30T12:00:00.000Z', payload: { content: 'Ask first.' } });
   const sounding = kernel.openSounding('delta');
   assert.equal(sounding.subject.id, subject.id);
+  assert.equal(sounding.position.root, kernel.state().position.root);
+  assert.deepEqual(sounding.position.activeOpening.content, { origin: 'birth' });
   assert.deepEqual(sounding.deltas.map(delta => delta.id), ['reply-1']);
   assert.equal(kernel.state().pendingDeltas.length, 1);
   assert.throws(() => kernel.openSounding(), /still awaiting an encounter/);
   const inferenceId = begin(kernel, sounding.id);
+  const positionRoot = sounding.position.root;
   assert.equal(kernel.state().pendingDeltas.length, 0);
   complete(kernel, inferenceId);
+  assert.equal(kernel.state().position.root, positionRoot);
   assert.equal(kernel.state().soundings.get(sounding.id).status, 'completed');
 });
 
@@ -194,7 +198,7 @@ test('staged learned geometry is refused before it can consume the active contac
     }
   }
   assert.equal(accepted > 0, true);
-  assert.match(rejected?.message ?? '', /active tool and carrier geometry exceeds/);
+  assert.match(rejected?.message ?? '', /active tool, carrier, and position geometry exceeds/);
   complete(kernel, inferenceId);
   const next = kernel.openSounding('manual');
   assert.equal(next.frontier.pending.remaining, 0);
@@ -225,6 +229,9 @@ test('an ordinary tool stages a durable future wake that becomes exact Sounding 
   assert.equal(waking.wake.opening, 'due');
   assert.equal(waking.wake.reason, 'Return to the unfinished thought.');
   assert.equal(waking.wake.invocationId, scheduled.invocationId);
+  assert.equal(waking.position.activeOpening.id, scheduled.wakeId);
+  assert.equal(waking.position.activeOpening.notBefore, scheduled.wakeAt);
+  assert.equal(waking.position.activeOpening.content.reason, 'Return to the unfinished thought.');
   const projected = await reconstructed.projectEncounter(waking.id, 'sounding');
   assert.match(projected.message.content, /sounding:wake/);
   assert.match(projected.message.content, /Return to the unfinished thought/);
@@ -748,6 +755,7 @@ test('carrier state stages inside an encounter and merges with stable rule ident
   const { kernel } = harness();
   const sounding = kernel.openSounding();
   const before = sounding.carrier;
+  const beforePosition = sounding.position;
   const inferenceId = begin(kernel, sounding.id);
   const staged = kernel.stageCarrierTransition(inferenceId, sounding.id, {
     componentId: 'orientation', value: 'When contact is ambiguous, prefer asking before sending.',
@@ -762,6 +770,9 @@ test('carrier state stages inside an encounter and merges with stable rule ident
     before.components.find(component => component.id === 'orientation').ruleDigest,
   );
   assert.equal(later.carrier.root, staged.successorRoot);
+  assert.equal(later.position.parentPositionRoot, beforePosition.root);
+  assert.equal(later.position.carrierRoot, later.carrier.root);
+  assert.equal(later.position.generation, beforePosition.generation + 1);
 });
 
 test('only the exact selected input can execute and a selection receipt is single-use', async () => {
@@ -854,7 +865,7 @@ test('an existing subject reconstructs in a fresh process with no ordinary seed 
   const { kernel, root } = harness();
   const isolated = join(root, 'isolated-core');
   mkdirSync(isolated);
-  for (const name of ['canonical.js', 'carrier.js', 'inference-policy.js', 'kernel.js', 'tool-module.js']) {
+  for (const name of ['canonical.js', 'carrier.js', 'development.js', 'inference-policy.js', 'kernel.js', 'tool-module.js']) {
     copyFileSync(join(process.cwd(), 'src', name), join(isolated, name));
   }
   writeFileSync(join(isolated, 'package.json'), '{"type":"module"}\n');

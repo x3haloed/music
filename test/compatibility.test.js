@@ -13,7 +13,7 @@ const currentFixtureSha256 = '806a28cf4e790b748b1d0d50d537b6b9e63d0297d6ef396df1
 test('the current runtime reconstructs the retained pre-hatch compatibility ledger', () => {
   const bytes = readFileSync(legacyFixture);
   assert.equal(createHash('sha256').update(bytes).digest('hex'), legacyFixtureSha256);
-  assert.equal(MUSIC_EVENT_FORMAT, 'music-event-11');
+  assert.equal(MUSIC_EVENT_FORMAT, 'music-event-12');
 
   const audit = new MusicKernel(legacyFixture).audit();
   assert.equal(audit.valid, true);
