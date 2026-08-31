@@ -92,8 +92,8 @@ build/Release
 
 # Dependency directories
 node_modules/
+.music/
 jspm_packages/
-.watch/
 
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/

@@ -67,6 +67,13 @@ is preserved beside the ledger and an append-only recovery receipt is added.
 A complete event with a bad digest is treated as corruption and is never
 silently truncated.
 
+The standalone `music-doctor` uses only Node built-ins and Git. It checks the
+tracked continuity runtime against committed `HEAD`; explicit restore first
+copies every divergent core file into `.music/bootstrap-recovery/`, then
+atomically restores committed bytes. This is a recovery root, not a sandbox:
+unrestricted tools can still alter these files, and the remote Git history is
+the further copy if the local doctor or repository metadata is damaged.
+
 `revise_tool` and `rollback_tool` are bootstrap meta-tools. A revision carries a
 complete replacement description, JSON Schema, optional selection geometry, and
 JavaScript function body. It remains unavailable in the current Sounding and
@@ -122,6 +129,16 @@ terminal, so a crash may repeat a display rather than silently lose it.
 
 Set `MUSIC_DEPENDENCY_ROOT` when the resident dependency habitat should live
 somewhere other than `LEDGER.dependencies`.
+
+To inspect or explicitly repair the tracked continuity bootstrap:
+
+```sh
+node bin/music-doctor.js check /path/to/music
+node bin/music-doctor.js restore /path/to/music
+```
+
+`restore` is intentionally explicit because it overwrites current core source;
+the overwritten bytes remain in the reported backup directory.
 
 To run a deliberately capped OpenRouter connectivity probe:
 

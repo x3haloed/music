@@ -80,6 +80,11 @@ tools retain the unrestricted machine authority of the harness process.
   **Evidence:** The continuity kernel has no import edge to ordinary seeds. A
   fresh process reconstructs the subject from an isolated four-module core with
   no `tools/` directory present; seeds are loaded dynamically only for `init`.
+- **Bootstrap repair must have an authority outside the live resident path.**
+  **Evidence:** The standalone Node-builtins-only doctor detects divergence from
+  committed core source, backs up the divergent bytes, atomically restores from
+  `HEAD`, and verifies clean afterward. Pushed Git history remains the further
+  copy; this is recoverability, not a restriction on ordinary tool authority.
 - **Delivery geometry may learn, but authoritative contact cannot disappear
   inside that geometry.**
   **Evidence:** Music now gives a retained ordinary `shape_encounter` module
@@ -100,8 +105,8 @@ observation: let contact arrive, see what the resident does, and let the residen
 remain its own witness. Tests should prove continuity and recovery mechanics,
 not turn the resident into a benchmark or comparative research subject.
 
-Current hatch frontier: external bootstrap integrity/repair, then a bounded lived
-residency that can reveal what remains missing.
+Current hatch frontier: a bounded lived residency that can reveal what remains
+missing before we invite a long-term resident to enter.
 The local mailbox supplies real bidirectional contact, and dependency behavior
 is ordinary revisable machinery with an in-resident failure/rollback path.
 

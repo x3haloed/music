@@ -5,7 +5,8 @@
   "type": "module",
   "description": "A plastic agent harness for one continuing subject.",
   "bin": {
-    "music": "./src/cli.js"
+    "music": "./src/cli.js",
+    "music-doctor": "./bin/music-doctor.js"
   },
   "scripts": {
     "test": "node --test",

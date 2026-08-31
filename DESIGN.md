@@ -288,6 +288,24 @@ complete and chain-valid, Music adds the missing newline and retains a receipt.
 If complete JSON fails ancestry or digest validation, repair refuses it
 unchanged as corruption. Complete historical lines are never auto-removed.
 
+## External bootstrap doctor
+
+The resident cannot be its own final repair authority if the code required to
+start it is damaged. `bin/music-doctor.js` is therefore a small external path
+using only Node built-ins and Git. It hashes a named set of continuity-runtime
+files against committed `HEAD`. `check` is read-only. Explicit `restore` first
+backs up each divergent on-disk file beneath the ignored
+`.music/bootstrap-recovery/` tree and then atomically writes the committed bytes.
+It does not touch ledger history or ledger-retained learned tools.
+
+This is defense against accidental bootstrap edits and a clear operator recovery
+root, not an immutable security boundary against arbitrary same-user code. An
+unrestricted tool can alter the doctor, Git metadata, or its remote access. If
+the doctor itself is damaged, Git can restore that one standalone file; if local
+Git is damaged, the pushed remote remains the next copy. This is also why
+coherent commits and pushes are part of hatch operations rather than mere project
+hygiene.
+
 ## Evidence and next risk frontier
 
 Automated evidence currently proves that:
@@ -324,6 +342,8 @@ Automated evidence currently proves that:
   corrupted events are refused rather than discarded;
 - a fresh Node process reconstructs an existing subject from the isolated
   continuity modules with no ordinary seed-tool files present;
+- the external doctor detects a corrupted stable-core file, preserves the bad
+  bytes, atomically restores committed source, and returns to a clean check;
 - a real filesystem Delta arriving during an AI SDK model step is appended at a
   retained steering boundary, interpreted by the same inference, and can drive
   the ordinary consequence-attention tool without opening another Sounding;
@@ -339,7 +359,7 @@ Automated evidence currently proves that:
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is external bootstrap integrity checking/repair and then
-a bounded lived residency before a long-term resident should hatch. Network messaging can grow
+The next risk frontier is a bounded lived residency before a long-term resident
+should hatch. Network messaging can grow
 as ordinary/adaptor machinery after the local lived-contact path proves what the
 resident actually needs.
