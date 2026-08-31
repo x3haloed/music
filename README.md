@@ -50,6 +50,11 @@ kernel requires every authoritative fact envelope to remain byte-exact. Their
 source is seed material for a new subject; afterward, the ledger-retained active
 version is authoritative.
 
+`manage_dependency` is ordinary revisable machinery too. It runs real npm—with
+normal lifecycle scripts and unrestricted network/process authority—inside the
+resident dependency habitat (by default `LEDGER.dependencies`). Learned tools
+can resolve installed packages from `context.environment.dependencyRoot`.
+
 `revise_tool` and `rollback_tool` are bootstrap meta-tools. A revision carries a
 complete replacement description, JSON Schema, optional selection geometry, and
 JavaScript function body. It remains unavailable in the current Sounding and
@@ -102,6 +107,9 @@ outbound invocation ID printed by Music. Both wait up to 60 seconds for a new
 explicit message-tool delivery. `listen` drains proactive or later deliveries.
 Files move to `outbound/delivered/` only after their JSON has been written to the
 terminal, so a crash may repeat a display rather than silently lose it.
+
+Set `MUSIC_DEPENDENCY_ROOT` when the resident dependency habitat should live
+somewhere other than `LEDGER.dependencies`.
 
 To run a deliberately capped OpenRouter connectivity probe:
 

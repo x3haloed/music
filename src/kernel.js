@@ -8,8 +8,9 @@ import { initialMessageTool } from '../tools/message.js';
 import { initialSelectionTool } from '../tools/select-tool-action.js';
 import { initialConsequenceTool } from '../tools/attend-consequence.js';
 import { initialEncounterShapeTool } from '../tools/shape-encounter.js';
+import { initialDependencyTool } from '../tools/manage-dependency.js';
 
-const FORMAT = 'music-event-8';
+const FORMAT = 'music-event-9';
 const ENCOUNTER_SHAPE_TOOL_ID = 'shape_encounter';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
@@ -45,7 +46,10 @@ export class MusicKernel {
     if (!trimmed || trimmed.length > 128) throw new Error('subject name must be 1-128 characters');
     this.append('subject_created', {
       subject: { id: this.id(), name: trimmed, bornAt: this.clock().toISOString() },
-      tools: [initialMessageTool(), initialFilePatchTool(), initialSelectionTool(), initialConsequenceTool(), initialEncounterShapeTool()],
+      tools: [
+        initialMessageTool(), initialFilePatchTool(), initialSelectionTool(), initialConsequenceTool(),
+        initialEncounterShapeTool(), initialDependencyTool(),
+      ],
       carrier: serializeCarrier(initialCarrier()),
     });
     return this.state();
@@ -826,9 +830,13 @@ function reduceEvents(events) {
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         if (!Array.isArray(event.payload.checkpointMessages)) throw new Error('failed inference lacks checkpoint messages');
         state.messages.push(...structuredClone(event.payload.checkpointMessages));
+        const runtimeFailure = {
+          name: String(event.payload.error?.name ?? 'Error'),
+          message: String(event.payload.error?.message ?? 'Unknown inference failure'),
+        };
         const interruptionMessage = {
           role: 'user',
-          content: `[inference_interrupted]\nThe previous inference ended unexpectedly after ${state.activeTurnMessages.length + event.payload.checkpointMessages.length} retained response and steering messages. Its error was recorded by the harness. Every world Delta delivered to that encounter has been returned to the next Sounding. Reorient from retained completed tool results rather than inventing missing output.\n[/inference_interrupted]`,
+          content: `[inference_interrupted]\nThe previous inference ended unexpectedly after ${state.activeTurnMessages.length + event.payload.checkpointMessages.length} retained response and steering messages. Every world Delta delivered to that encounter has been returned to the next Sounding. Reorient from retained completed tool results rather than inventing missing output. This kernel-authored runtime diagnostic is not world consequence and does not interpret the failure:\n[music_runtime_failure]\n${canonical(runtimeFailure)}\n[/music_runtime_failure]\n[/inference_interrupted]`,
         };
         state.messages.push(interruptionMessage);
         state.recoveryMessages = [...structuredClone(state.activeTurnMessages), ...structuredClone(event.payload.checkpointMessages), interruptionMessage];
@@ -1321,9 +1329,13 @@ function jsonValue(value, label) {
 
 function errorRecord(error) {
   if (error instanceof Error) {
-    return { name: error.name, message: error.message, stack: error.stack };
+    return {
+      name: String(error.name).slice(0, 256),
+      message: String(error.message).slice(0, 4_096),
+      ...(error.stack === undefined ? {} : { stack: String(error.stack).slice(0, 16_384) }),
+    };
   }
-  return { name: 'Error', message: String(error) };
+  return { name: 'Error', message: String(error).slice(0, 4_096) };
 }
 
 function withTimeout(promise, milliseconds, message) {

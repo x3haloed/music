@@ -14,7 +14,7 @@ function harness(model) {
   let identity = 0;
   const kernel = new MusicKernel(join(root, 'events.jsonl'), {
     id: () => `id-${++identity}`,
-    toolEnvironment: { mailboxRoot: join(root, 'mailbox') },
+    toolEnvironment: { mailboxRoot: join(root, 'mailbox'), dependencyRoot: join(root, 'dependencies') },
   });
   kernel.initialize('Aster');
   return {

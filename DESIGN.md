@@ -22,8 +22,9 @@ writers, transactional rollback of arbitrary external effects, autonomous
 scheduling, network messaging transports, dependency installation recovery, or
 survival when the bootstrap itself is corrupted.
 
-Event format 8 intentionally rejects earlier ledgers because retained delivery
-projection identity and failure recovery are now part of subject continuity.
+Event format 9 intentionally rejects earlier ledgers because retained delivery
+projection identity and bounded runtime-failure recovery are now part of
+subject continuity.
 
 ## Stable boundary
 
@@ -59,6 +60,8 @@ under [`tools/`](./tools):
   its interface, policy, and sequencing remain ordinary revisable geometry.
 - `shape_encounter` frames, orders, and emphasizes the exact Sounding or waking
   steering facts presented to the mind.
+- `manage_dependency` uses unrestricted npm execution to install, remove, or
+  inspect packages in a separate resident dependency habitat.
 
 These files seed a new subject only. Once initialized, the ledger-retained tool
 version is authoritative. The bootstrap does not re-read seed source to replace
@@ -240,6 +243,26 @@ This local transport is enough for direct lived contact and for later ordinary
 tools or adapters to grow Discord, email, or other media. Those transports do
 not belong in the immutable continuity core.
 
+## Dependencies and learned-code failure
+
+Dependency policy and installation are ordinary machinery. The seed
+`manage_dependency` module invokes real npm in the configured
+`dependencyRoot`, including normal lifecycle scripts and network authority. The
+stable loader merely supplies that machine-location value through the same
+generic execution context used for the mailbox; it does not whitelist packages,
+define an effect language, or own installation policy. A learned tool may use
+Node's `createRequire` from the habitat `package.json` to resolve an entry point
+and dynamically import it.
+
+Compilation cannot prove that a dynamic dependency exists. If activated learned
+code later fails, invocation failure and inference failure remain durable. The
+next encounter receives a bounded `music_runtime_failure` diagnostic containing
+the exact error name and message. This is kernel-authored runtime evidence, not
+a world Delta or an interpretation. It gives the same mind enough contact to
+inspect, repair, install for, or roll back its machinery. Arbitrarily long error
+objects are truncated before retention so a hostile or accidental error cannot
+prevent the failure boundary itself from being recorded.
+
 ## Evidence and next risk frontier
 
 Automated evidence currently proves that:
@@ -268,6 +291,9 @@ Automated evidence currently proves that:
 - a real AI SDK tool loop performs atomic human-visible mailbox delivery, a
   separate terminal process crosses the boundary in both directions, and a
   reply re-enters with exact message-invocation lineage;
+- the ordinary dependency module performs a real local npm install, a later
+  invented tool executes the installed package, and a missing-package successor
+  exposes its exact runtime failure so the same mind can roll it back;
 - a real filesystem Delta arriving during an AI SDK model step is appended at a
   retained steering boundary, interpreted by the same inference, and can drive
   the ordinary consequence-attention tool without opening another Sounding;
@@ -283,9 +309,7 @@ Automated evidence currently proves that:
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is a learned dependency and module-installation story
-capable of recovering when newly installed code breaks the next encounter. The
-stable process boundary also still needs stronger single-writer and
-bootstrap-survival treatment before a long-term resident should hatch. Network
-messaging can grow as ordinary/adaptor machinery after the local lived-contact
-path proves what the resident actually needs.
+The next risk frontier is the stable process boundary: single-writer exclusion,
+ledger-tail crash recovery, and bootstrap survival/repair before a long-term
+resident should hatch. Network messaging can grow as ordinary/adaptor machinery
+after the local lived-contact path proves what the resident actually needs.

@@ -13,7 +13,10 @@ try {
   if (!command || !ledger) usage();
   const mailboxRoot = command === 'reside' ? args[1] : (command === 'run' ? args[2] : undefined);
   const kernel = new MusicKernel(ledger, {
-    ...(mailboxRoot === undefined ? {} : { toolEnvironment: { mailboxRoot } }),
+    toolEnvironment: {
+      dependencyRoot: process.env.MUSIC_DEPENDENCY_ROOT ?? `${ledger}.dependencies`,
+      ...(mailboxRoot === undefined ? {} : { mailboxRoot }),
+    },
   });
   let result;
   let afterOutput = () => {};

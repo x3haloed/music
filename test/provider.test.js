@@ -84,6 +84,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.has('file_patch'));
     assert.ok(tools.has('select_tool_action'));
     assert.ok(tools.has('shape_encounter'));
+    assert.ok(tools.has('manage_dependency'));
     assert.ok(tools.has('inspect_tool'));
     assert.ok(tools.has('revise_tool'));
     assert.ok(tools.has('rollback_tool'));
@@ -91,6 +92,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.get('message').required.includes('selectionReceipt'));
     assert.equal(tools.get('select_tool_action').properties.candidates.items.properties.input.type, 'object');
     assert.deepEqual(tools.get('shape_encounter').properties.phase.enum, ['sounding', 'steering']);
+    assert.deepEqual(tools.get('manage_dependency').properties.action.enum, ['install', 'remove', 'list']);
     assert.equal(tools.get('revise_tool').properties.tool.properties.source.type, 'string');
     assert.equal(tools.get('revise_tool').properties.consequenceDeltaIds.items.type, 'string');
     assert.equal(tools.get('rollback_tool').properties.consequenceDeltaIds.items.type, 'string');

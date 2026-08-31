@@ -41,6 +41,12 @@ tools retain the unrestricted machine authority of the harness process.
   target, hypothesis, before-snapshot, later contact, evidence, and rollback
   transitions. Music's real file-patch slice retains consequence-to-invocation
   lineage on both a learned executable successor and a later rollback successor.
+- **A broken learned dependency must remain diagnosable from inside the same
+  continuing identity.**
+  **Evidence:** The ordinary dependency tool performs a real npm install and a
+  later invented tool executes the installed package. A missing-package
+  successor produces a bounded, non-world runtime diagnostic in the next
+  encounter, where the same mind restores its retained working ancestor.
 - **World change reaches the subject as a first-class runtime event.**
   **Evidence:** Watch constructs each Sounding from typed, timestamped Deltas and
   can inject waking Deltas into an inference already in progress. Music now has
@@ -83,9 +89,9 @@ observation: let contact arrive, see what the resident does, and let the residen
 remain its own witness. Tests should prove continuity and recovery mechanics,
 not turn the resident into a benchmark or comparative research subject.
 
-Current hatch frontier: recoverable dependency and module installation, stronger
-single-writer/bootstrap survival, then a bounded lived residency that can reveal
-what remains missing. The local mailbox now supplies the first real
-bidirectional-contact path; network media can remain ordinary/adaptor growth.
+Current hatch frontier: stronger single-writer, ledger-tail, and bootstrap
+survival, then a bounded lived residency that can reveal what remains missing.
+The local mailbox supplies real bidirectional contact, and dependency behavior
+is ordinary revisable machinery with an in-resident failure/rollback path.
 
 ## Prediction errors
