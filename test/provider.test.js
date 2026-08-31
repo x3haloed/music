@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { generateText, isStepCount, jsonSchema, tool } from 'ai';
+import { MusicKernel } from '../src/kernel.js';
+import { MusicMind } from '../src/mind.js';
 import { assertToolCapability, createConfiguredModel } from '../src/provider.js';
 
 test('dedicated OpenRouter provider carries the complete tool protocol with strict compatibility', async () => {
@@ -50,6 +55,36 @@ test('dedicated OpenRouter provider carries the complete tool protocol with stri
     assert.ok(requests[0].headerNames.includes('http-referer'));
     assert.ok(requests[0].headerNames.includes('x-openrouter-title'));
     assert.ok(!requests[0].headerNames.includes('authorization'));
+  } finally {
+    if (previous === undefined) delete process.env.MUSIC_TEST_OPENROUTER_KEY;
+    else process.env.MUSIC_TEST_OPENROUTER_KEY = previous;
+  }
+});
+
+test('dedicated OpenRouter strict serialization accepts Music carrier and selection tools', async () => {
+  const previous = process.env.MUSIC_TEST_OPENROUTER_KEY;
+  process.env.MUSIC_TEST_OPENROUTER_KEY = 'secret-test-key';
+  const fetch = async url => String(url).includes('/api/v1/model/')
+    ? jsonResponse({ data: { id: 'z-ai/glm-5.3-flash', supported_parameters: ['tools'] } })
+    : jsonResponse(completion({ content: 'quiet' }, 'stop'));
+  try {
+    const configured = createConfiguredModel({
+      provider: 'openrouter', model: 'z-ai/glm-5.3-flash', apiKeyEnv: 'MUSIC_TEST_OPENROUTER_KEY',
+      maxSteps: 1, maxOutputTokens: 32, maxRetries: 0,
+    }, { fetch });
+    const root = mkdtempSync(join(tmpdir(), 'music-provider-test-'));
+    const kernel = new MusicKernel(join(root, 'events.jsonl'));
+    kernel.initialize('Aster');
+    await new MusicMind(kernel, configured, configured.inference).receive(kernel.openSounding().id);
+
+    const request = configured.requests()[0].body;
+    assert.equal(request.model, 'z-ai/glm-5.3-flash');
+    const tools = new Map(request.tools.map(candidate => [candidate.function.name, candidate.function.parameters]));
+    assert.ok(tools.has('message'));
+    assert.ok(tools.has('select_tool_action'));
+    assert.ok(tools.has('revise_carrier'));
+    assert.ok(tools.get('message').required.includes('selectionReceipt'));
+    assert.equal(tools.get('select_tool_action').properties.candidates.items.properties.input.type, 'object');
   } finally {
     if (previous === undefined) delete process.env.MUSIC_TEST_OPENROUTER_KEY;
     else process.env.MUSIC_TEST_OPENROUTER_KEY = previous;

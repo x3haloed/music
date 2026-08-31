@@ -46,6 +46,11 @@ export function validateManifest(manifest) {
       if (!fieldNames.has(placeholder)) throw new Error(`template for ${action.id} references unknown field ${placeholder}`);
     }
   }
+  if (manifest.selection !== undefined) {
+    if (manifest.selection?.kind !== 'frontier') throw new Error(`unsupported selection geometry for ${manifest.id}`);
+    if (manifest.selection.coverage !== 'all-actions') throw new Error(`unsupported selection coverage for ${manifest.id}`);
+    requiredText(manifest.selection.description, `selection description for ${manifest.id}`, 1_024);
+  }
   return structuredClone(manifest);
 }
 

@@ -20,6 +20,12 @@ Soundings and Deltas and can recover when learned machinery is wrong.
   **Evidence:** Continuing-song's selector experiments distinguish executable
   retained changes from advisory state and report that proposal generation alone
   does not reliably alter later choice.
+- **Inherited machinery may shape selection but must not monopolize proposal
+  authority.**
+  **Evidence:** Continuing Song E71 held a complete actor-authored alternative
+  frontier visible and found that retained pursuit changed selection 6/6 versus
+  0/6 after erasure; its harness constrained coverage but did not author candidate
+  contents or the final choice.
 - **Learned machinery remains corrigible, attributable, and recoverable.**
   **Evidence:** Continuing-song retains parent-bound successors, cumulative world
   floors, and rejection-triggered recovery; Watch's refinement records preserve
@@ -32,21 +38,12 @@ Soundings and Deltas and can recover when learned machinery is wrong.
   **Evidence:** Continuing-song's pre-E66 audit found that a correction projection
   dropped capability modules, opening grammar, pursuit state, and receipts; its
   full-subject continuity claim was consequently withdrawn.
+- **Audit history and the currently active position must remain mechanically
+  distinct.**
+  **Evidence:** Continuing Song E68 found completed transition residue acting as
+  a current imperative; E69 restored valid action with a bounded projection that
+  kept full history outside the active interface.
 
 ## Evaluation regime
 
 ## Prediction errors
-
-- **Expected:** Complete provider messages could remain the continuing context
-  while the ledger and executable tools carried authoritative identity and
-  learning.
-  **Observed:** Every completed instruction and interpretation is replayed with
-  no active/discharged distinction, leaving salience and eventual survival to
-  provider attention and context limits.
-  **Uncertain:** The smallest subject-owned, digest-bound active carrier and
-  compiler that makes current consequence causal without installing a fixed
-  researcher-authored ontology of pursuits or personhood.
-  **Evidence:** `src/kernel.js` accumulates every inference message and
-  `src/mind.js` submits the complete repaired sequence on every encounter;
-  Continuing Song E68 independently demonstrated completed transition residue
-  governing fresh actors until E69 introduced a bounded active projection.

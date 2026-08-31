@@ -21,7 +21,7 @@ function harness(model) {
   };
 }
 
-test('completed AI SDK response messages carry one subject across later Soundings', async () => {
+test('completed conversation remains auditable but inert in later active prompts', async () => {
   const model = new MockLanguageModelV4({
     doGenerate: [textResult('I noticed the first contact.'), textResult('I remember that contact.')],
   });
@@ -33,25 +33,49 @@ test('completed AI SDK response messages carry one subject across later Sounding
   assert.equal(kernel.audit().completedInferences, 2);
   assert.equal(kernel.state().subject.name, 'Aster');
   const secondPrompt = model.doGenerateCalls[1].prompt;
-  assert.ok(secondPrompt.some(message => message.role === 'assistant' && message.content.some(part => part.type === 'text' && part.text === 'I noticed the first contact.')));
+  assert.ok(!secondPrompt.some(message => message.role === 'assistant' && message.content.some(part => part.type === 'text' && part.text === 'I noticed the first contact.')));
+  assert.match(JSON.stringify(secondPrompt), /active carrier|carrier/i);
   assert.equal(kernel.state().messages.filter(message => message.role === 'assistant').length, 2);
 });
 
+test('retained carrier consequence changes selection over the same actor-authored executable frontier', async () => {
+  const retainedModel = carrierDirectedSelectionModel();
+  const erasedModel = carrierDirectedSelectionModel();
+  const retained = harness(retainedModel);
+  const erased = harness(erasedModel);
+  primeOrientation(retained.kernel, 'When contact is ambiguous, prefer asking before sending.');
+  primeOrientation(erased.kernel, 'No learned selection consequence is currently active.');
+
+  const retainedSounding = retained.kernel.openSounding();
+  const erasedSounding = erased.kernel.openSounding();
+  assert.deepEqual(retainedSounding.tools, erasedSounding.tools);
+  assert.deepEqual(retainedSounding.deltas, erasedSounding.deltas);
+  assert.notEqual(retainedSounding.carrier.root, erasedSounding.carrier.root);
+
+  await retained.mind.receive(retainedSounding.id);
+  await erased.mind.receive(erasedSounding.id);
+
+  const retainedSelection = retained.kernel.events().findLast(event => event.type === 'tool_selection_recorded').payload;
+  const erasedSelection = erased.kernel.events().findLast(event => event.type === 'tool_selection_recorded').payload;
+  assert.deepEqual(retainedSelection.candidates, erasedSelection.candidates);
+  assert.equal(retainedSelection.tool.digest, erasedSelection.tool.digest);
+  assert.equal(retainedSelection.selected.action, 'ask');
+  assert.equal(erasedSelection.selected.action, 'send');
+  assert.match(retainedSelection.candidates[0].input.content, /actor-authored direct candidate/);
+  assert.match(retained.kernel.state().emissions.at(-1).output.body, /\[question\]/);
+  assert.doesNotMatch(erased.kernel.state().emissions.at(-1).output.body, /\[question\]/);
+});
+
 test('AI SDK tool loop invokes active Music geometry and retains the complete protocol', async () => {
-  const model = new MockLanguageModelV4({
-    doGenerate: [
-      toolCallResult('message', { recipient: 'Chad', content: 'The loop is connected.' }),
-      textResult('I sent the message.'),
-    ],
-  });
+  const model = selectionMessageModel('send', { recipient: 'Chad', content: 'The loop is connected.' }, 'I sent the message.');
   const { kernel, mind } = harness(model);
 
   const result = await mind.receive(kernel.openSounding().id);
 
-  assert.equal(result.toolCalls, 1);
+  assert.equal(result.toolCalls, 2);
   assert.equal(kernel.state().emissions.at(-1).output.body, 'to=Chad\nThe loop is connected.');
   assert.ok(kernel.state().messages.some(message => message.role === 'tool'));
-  assert.equal(model.doGenerateCalls.length, 2);
+  assert.equal(model.doGenerateCalls.length, 3);
   assert.ok(model.doGenerateCalls[1].prompt.some(message => message.role === 'tool'));
 });
 
@@ -91,12 +115,36 @@ test('the one mind can embody a new tool and encounter it on the next Sounding',
   assert.ok(model.doGenerateCalls[2].tools.some(candidate => candidate.name === 'compare'));
 });
 
+test('the one mind can author a bounded carrier transition for its next encounter', async () => {
+  const model = new MockLanguageModelV4({
+    doGenerate: [
+      toolCallResult('revise_carrier', {
+        componentId: 'orientation',
+        value: 'When contact is ambiguous, prefer asking before sending.',
+        interpretation: 'A consequence should shape later selection without replaying this conversation.',
+        evidence: ['delta:reply-1'],
+      }),
+      textResult('The later selection basis is staged.'),
+    ],
+  });
+  const { kernel, mind } = harness(model);
+  const before = kernel.openSounding();
+
+  await mind.receive(before.id);
+
+  const later = kernel.openSounding();
+  assert.equal(later.carrier.components[0].ruleDigest, before.carrier.components[0].ruleDigest);
+  assert.notEqual(later.carrier.components[0].stateDigest, before.carrier.components[0].stateDigest);
+  assert.match(later.carrier.components[0].state.value, /prefer asking/);
+});
+
 test('a provider failure retains completed tool turns and closes the inference cleanly', async () => {
   let call = 0;
   const model = new MockLanguageModelV4({
-    doGenerate: async () => {
+    doGenerate: async options => {
       call += 1;
-      if (call === 1) return toolCallResult('message', { recipient: 'Chad', content: 'This completed before failure.' });
+      if (call === 1) return selectionCall('send', { recipient: 'Chad', content: 'This completed before failure.' });
+      if (call === 2) return selectedMessageCall(options.prompt, 'send', { recipient: 'Chad', content: 'This completed before failure.' });
       throw new Error('provider connection disappeared');
     },
   });
@@ -186,11 +234,13 @@ test('a staged revision cannot change another tool call in the same Sounding', a
     },
   };
   const model = new MockLanguageModelV4({
-    doGenerate: [
-      toolCallResult('revise_tool', revision),
-      toolCallResult('message', { recipient: 'Chad', content: 'The old projection remains executable.' }),
-      textResult('The revision is staged for later.'),
-    ],
+    doGenerate: async options => {
+      const call = model.doGenerateCalls.length;
+      if (call === 1) return toolCallResult('revise_tool', revision);
+      if (call === 2) return selectionCall('send', { recipient: 'Chad', content: 'The old projection remains executable.' });
+      if (call === 3) return selectedMessageCall(options.prompt, 'send', { recipient: 'Chad', content: 'The old projection remains executable.' });
+      return textResult('The revision is staged for later.');
+    },
   });
   const { kernel, mind } = harness(model);
 
@@ -244,6 +294,102 @@ function toolCallResult(toolName, input) {
     usage: usage(),
     warnings: [],
   };
+}
+
+function selectionMessageModel(selectedAction, selectedInput, finalText) {
+  let call = 0;
+  return new MockLanguageModelV4({
+    doGenerate: async options => {
+      call += 1;
+      if (call === 1) return selectionCall(selectedAction, selectedInput);
+      if (call === 2) return selectedMessageCall(options.prompt, selectedAction, selectedInput);
+      return textResult(finalText);
+    },
+  });
+}
+
+function carrierDirectedSelectionModel() {
+  let call = 0;
+  let selectedAction;
+  const candidates = {
+    send: { recipient: 'Chad', content: 'An actor-authored direct candidate.' },
+    ask: { recipient: 'Chad', question: 'Would you like an actor-authored draft first?' },
+  };
+  return new MockLanguageModelV4({
+    doGenerate: async options => {
+      call += 1;
+      if (call === 1) {
+        selectedAction = JSON.stringify(options.prompt).includes('prefer asking before sending') ? 'ask' : 'send';
+        return toolCallResult('select_tool_action', {
+          tool: 'message',
+          candidates: [
+            { id: 'send_candidate', action: 'send', input: candidates.send },
+            { id: 'ask_candidate', action: 'ask', input: candidates.ask },
+          ],
+          selectedCandidateId: `${selectedAction}_candidate`,
+        });
+      }
+      if (call === 2) return selectedMessageCall(options.prompt, selectedAction, candidates[selectedAction]);
+      return textResult('The selected candidate executed.');
+    },
+  });
+}
+
+function primeOrientation(kernel, value) {
+  const sounding = kernel.openSounding();
+  const inferenceId = kernel.beginInference(
+    sounding.id,
+    { provider: 'fixture-provider', model: 'fixture-model' },
+    { role: 'user', content: 'Prime the bounded carrier.' },
+  );
+  kernel.stageCarrierTransition(inferenceId, sounding.id, {
+    componentId: 'orientation', value,
+    interpretation: 'Fixture an exact retained-versus-erased active consequence.',
+    evidence: [],
+  });
+  kernel.completeInference(inferenceId, {
+    responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: 'Carrier transition staged.' }] }],
+    text: 'Carrier transition staged.', finishReason: 'stop', usage: {}, steps: [], requests: [],
+  });
+}
+
+function selectionCall(selectedAction, selectedInput) {
+  return toolCallResult('select_tool_action', {
+    tool: 'message',
+    candidates: [
+      {
+        id: 'send_candidate', action: 'send',
+        input: selectedAction === 'send' ? selectedInput : { recipient: 'Chad', content: 'A direct message.' },
+      },
+      {
+        id: 'ask_candidate', action: 'ask',
+        input: selectedAction === 'ask' ? selectedInput : { recipient: 'Chad', question: 'Would a question help?' },
+      },
+    ],
+    selectedCandidateId: `${selectedAction}_candidate`,
+  });
+}
+
+function selectedMessageCall(prompt, selectedAction, selectedInput) {
+  const receipt = findToolResult(prompt, 'select_tool_action')?.selectionReceipt;
+  assert.ok(receipt, 'selection tool result should provide a receipt');
+  return toolCallResult('message', {
+    action: selectedAction,
+    ...selectedInput,
+    selectionReceipt: receipt,
+  });
+}
+
+function findToolResult(prompt, toolName) {
+  for (const message of prompt) {
+    if (message.role !== 'tool' || !Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (part.type !== 'tool-result' || part.toolName !== toolName) continue;
+      if (part.output?.type === 'json') return part.output.value;
+      return part.output;
+    }
+  }
+  return null;
 }
 
 function usage() {

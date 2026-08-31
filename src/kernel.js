@@ -1,13 +1,16 @@
 import { closeSync, existsSync, fsyncSync, openSync, readFileSync, writeSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { canonical, digest } from './canonical.js';
+import { applyCarrierTransition, createCarrierTransition, initialCarrier, projectCarrier, readCarrier, serializeCarrier } from './carrier.js';
 import { executeAction, manifestDigest, validateManifest } from './geometry.js';
 
-const FORMAT = 'music-event-2';
+const FORMAT = 'music-event-3';
 const MAX_TOOLS = 32;
+const MAX_SELECTION_CANDIDATES = 16;
+const MAX_SELECTION_BYTES = 64 * 1_024;
 const MAX_DELTA_BYTES = 64 * 1_024;
 const MAX_INFERENCE_BYTES = 2 * 1_024 * 1_024;
-const RESERVED_TOOL_IDS = new Set(['revise_tool']);
+const RESERVED_TOOL_IDS = new Set(['revise_tool', 'revise_carrier', 'select_tool_action']);
 
 export class MusicKernel {
   constructor(ledgerPath, { clock = () => new Date(), id = () => randomUUID() } = {}) {
@@ -23,6 +26,7 @@ export class MusicKernel {
     this.append('subject_created', {
       subject: { id: this.id(), name: trimmed, bornAt: this.clock().toISOString() },
       tools: [initialMessageTool()],
+      carrier: serializeCarrier(initialCarrier()),
     });
     return this.state();
   }
@@ -50,6 +54,7 @@ export class MusicKernel {
       trigger,
       deltas: structuredClone(state.pendingDeltas),
       tools: [...state.tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
+      carrier: projectCarrier(state.carrier),
     };
     this.append('sounding_opened', {
       sounding,
@@ -63,6 +68,12 @@ export class MusicKernel {
     const record = state.soundings.get(soundingId);
     if (!record) throw new Error(`unknown Sounding: ${soundingId}`);
     return structuredClone(record.sounding);
+  }
+
+  inferenceMessages(inferenceId) {
+    const state = this.state();
+    if (state.activeInferenceId !== inferenceId || !state.activeInputMessage) throw new Error(`inference is not active: ${inferenceId}`);
+    return structuredClone([...state.recoveryMessages, state.activeInputMessage]);
   }
 
   stageToolRevision(inferenceId, soundingId, proposal) {
@@ -93,18 +104,62 @@ export class MusicKernel {
     return tool;
   }
 
-  invokeTool(inferenceId, soundingId, toolId, actionId, input) {
+  stageCarrierTransition(inferenceId, soundingId, proposal) {
+    const state = this.state();
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    if (state.stagedCarrierTransition) throw new Error('only one carrier transition may be staged per encounter');
+    const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
+    if (!interpretation || interpretation.length > 4_096) throw new Error('carrier transition needs a bounded interpretation');
+    const transition = createCarrierTransition(state.carrier, proposal);
+    this.append('carrier_transition_staged', {
+      inferenceId,
+      soundingId,
+      projection: encounter.projection,
+      interpretation,
+      evidence: boundedEvidence(proposal.evidence),
+      ...transition,
+    });
+    return transition;
+  }
+
+  selectToolAction(inferenceId, soundingId, toolId, frontier) {
+    const state = this.state();
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    const binding = encounter.toolBindings.get(toolId);
+    if (!binding) throw new Error(`tool ${toolId} was not projected in Sounding ${soundingId}`);
+    if (!binding.manifest.selection) throw new Error(`tool ${toolId} does not require a selection frontier`);
+    const selection = validateSelectionFrontier(binding.manifest, frontier);
+    const selectionId = this.id();
+    this.append('tool_selection_recorded', {
+      selectionId,
+      inferenceId,
+      soundingId,
+      projection: encounter.projection,
+      carrierRoot: encounter.sounding.carrier.root,
+      tool: { id: binding.manifest.id, version: binding.manifest.version, digest: binding.digest },
+      ...selection,
+    });
+    return {
+      selectionReceipt: selectionId,
+      selectedCandidateId: selection.selectedCandidateId,
+      selected: structuredClone(selection.selected),
+    };
+  }
+
+  invokeTool(inferenceId, soundingId, toolId, actionId, input, selectionReceipt = null) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
     const binding = encounter.toolBindings.get(toolId);
     if (!binding) throw new Error(`tool ${toolId} was not projected in Sounding ${soundingId}`);
     const tool = binding.manifest;
+    const selection = authorizeSelection(state, encounter, tool, actionId, input, selectionReceipt);
     const output = executeAction(tool, actionId, input);
     this.append('tool_invoked', {
       inferenceId,
       soundingId,
       projection: encounter.projection,
       tool: { id: tool.id, version: tool.version, digest: manifestDigest(tool) },
+      selectionReceipt: selection?.selectionId ?? null,
       action: actionId,
       input: structuredClone(input),
       output,
@@ -137,6 +192,7 @@ export class MusicKernel {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
     const stagedRevisions = state.stagedRevisions.map(revision => structuredClone(revision));
+    const stagedCarrierTransition = state.stagedCarrierTransition ? structuredClone(state.stagedCarrierTransition) : null;
     const payload = jsonValue({
       inferenceId,
       soundingId: state.activeEncounter.sounding.id,
@@ -148,6 +204,7 @@ export class MusicKernel {
       steps: result.steps,
       requests: result.requests ?? [],
       activatedRevisions: stagedRevisions,
+      activatedCarrierTransition: stagedCarrierTransition,
     }, 'inference result');
     if (Buffer.byteLength(canonical(payload)) > MAX_INFERENCE_BYTES) throw new Error(`inference result exceeds ${MAX_INFERENCE_BYTES} bytes`);
     this.append('inference_completed', payload);
@@ -193,8 +250,10 @@ export class MusicKernel {
       head: state.head,
       subject: state.subject,
       tools: [...state.tools.values()].map(tool => ({ id: tool.id, version: tool.version, digest: manifestDigest(tool) })),
+      carrierRoot: projectCarrier(state.carrier).root,
       pendingDeltas: state.pendingDeltas.length,
       emissions: state.emissions.length,
+      selections: state.selectionCount,
       completedInferences: state.completedInferences,
       failedInferences: state.failedInferences,
       activeInferenceId: state.activeInferenceId,
@@ -244,16 +303,23 @@ function reduceEvents(events) {
     head: null,
     subject: null,
     tools: new Map(),
+    carrier: new Map(),
     deltaIds: new Set(),
     pendingDeltas: [],
     soundings: new Map(),
     openSoundingId: null,
     emissions: [],
     messages: [],
+    recoveryMessages: [],
+    activeInputMessage: null,
     activeInferenceId: null,
     activeEncounter: null,
     stagedRevisions: [],
     stagedToolIds: new Set(),
+    stagedCarrierTransition: null,
+    selections: new Map(),
+    usedSelectionIds: new Set(),
+    selectionCount: 0,
     inferenceIds: new Set(),
     completedInferences: 0,
     failedInferences: 0,
@@ -268,6 +334,7 @@ function reduceEvents(events) {
           const valid = validateManifest(tool);
           state.tools.set(valid.id, valid);
         }
+        state.carrier = readCarrier(event.payload.carrier);
         break;
       case 'delta_admitted': {
         requireSubject(state);
@@ -282,6 +349,7 @@ function reduceEvents(events) {
         requireSubject(state);
         const sounding = event.payload.sounding;
         if (event.payload.projection !== digest(sounding)) throw new Error('Sounding projection digest mismatch');
+        if (digest(sounding.carrier) !== digest(projectCarrier(state.carrier))) throw new Error('Sounding carrier projection mismatch');
         if (state.openSoundingId || state.activeInferenceId) throw new Error('ledger opens overlapping Soundings');
         if (state.soundings.has(sounding.id)) throw new Error(`ledger repeats Sounding id: ${sounding.id}`);
         const toolBindings = bindProjectedTools(state.tools, sounding.tools);
@@ -304,8 +372,39 @@ function reduceEvents(events) {
         state.stagedToolIds.add(revision.tool.id);
         break;
       }
+      case 'carrier_transition_staged': {
+        requireSubject(state);
+        requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        if (state.stagedCarrierTransition) throw new Error('ledger stages more than one carrier transition in an encounter');
+        const transition = projectCarrierTransition(event.payload);
+        applyCarrierTransition(state.carrier, transition);
+        state.stagedCarrierTransition = transition;
+        break;
+      }
+      case 'tool_selection_recorded': {
+        requireSubject(state);
+        const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        if (state.selections.has(event.payload.selectionId)) throw new Error('duplicate tool selection id');
+        if (event.payload.carrierRoot !== encounter.sounding.carrier.root) throw new Error('tool selection carrier binding mismatch');
+        const binding = encounter.toolBindings.get(event.payload.tool?.id);
+        if (!binding || binding.digest !== event.payload.tool.digest || binding.manifest.version !== event.payload.tool.version) {
+          throw new Error('tool selection is not bound to projected geometry');
+        }
+        const selection = validateSelectionFrontier(binding.manifest, event.payload);
+        state.selections.set(event.payload.selectionId, {
+          selectionId: event.payload.selectionId,
+          inferenceId: event.payload.inferenceId,
+          soundingId: event.payload.soundingId,
+          projection: event.payload.projection,
+          carrierRoot: event.payload.carrierRoot,
+          tool: structuredClone(event.payload.tool),
+          ...selection,
+        });
+        state.selectionCount += 1;
+        break;
+      }
       case 'tool_revision_activated': {
-        throw new Error('music-event-2 does not allow standalone tool activation');
+        throw new Error('music-event-3 does not allow standalone tool activation');
       }
       case 'tool_invoked': {
         requireSubject(state);
@@ -314,6 +413,8 @@ function reduceEvents(events) {
         if (!binding || binding.digest !== event.payload.tool.digest || binding.manifest.version !== event.payload.tool.version) {
           throw new Error('tool invocation is not bound to projected geometry');
         }
+        authorizeSelection(state, encounter, binding.manifest, event.payload.action, event.payload.input, event.payload.selectionReceipt);
+        if (event.payload.selectionReceipt) state.usedSelectionIds.add(event.payload.selectionReceipt);
         state.emissions.push(structuredClone(event.payload));
         break;
       }
@@ -339,6 +440,7 @@ function reduceEvents(events) {
         sounding.status = 'active';
         sounding.inferenceId = event.payload.inferenceId;
         state.pendingDeltas = state.pendingDeltas.filter(delta => !delivered.has(delta.id));
+        state.activeInputMessage = structuredClone(event.payload.inputMessage);
         state.messages.push(structuredClone(event.payload.inputMessage));
         break;
       }
@@ -357,12 +459,23 @@ function reduceEvents(events) {
           if ((current ? manifestDigest(current) : null) !== revision.previousTool) throw new Error('tool revision ancestry mismatch');
           state.tools.set(tool.id, tool);
         }
+        if (digest(event.payload.activatedCarrierTransition) !== digest(state.stagedCarrierTransition)) {
+          throw new Error('completed inference carrier activation does not match staged transition');
+        }
+        if (event.payload.activatedCarrierTransition) {
+          state.carrier = applyCarrierTransition(state.carrier, event.payload.activatedCarrierTransition);
+        }
         state.messages.push(...structuredClone(event.payload.responseMessages));
         state.activeEncounter.status = 'completed';
         state.activeInferenceId = null;
         state.activeEncounter = null;
         state.stagedRevisions = [];
         state.stagedToolIds = new Set();
+        state.stagedCarrierTransition = null;
+        state.selections = new Map();
+        state.usedSelectionIds = new Set();
+        state.recoveryMessages = [];
+        state.activeInputMessage = null;
         state.completedInferences += 1;
         break;
       }
@@ -371,15 +484,21 @@ function reduceEvents(events) {
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         if (!Array.isArray(event.payload.checkpointMessages)) throw new Error('failed inference lacks checkpoint messages');
         state.messages.push(...structuredClone(event.payload.checkpointMessages));
-        state.messages.push({
+        const interruptionMessage = {
           role: 'user',
           content: `[inference_interrupted]\nThe previous inference ended unexpectedly after ${event.payload.checkpointMessages.length} retained response messages. Its error was recorded by the harness. Reorient from the completed tool results and current Sounding rather than inventing missing output.\n[/inference_interrupted]`,
-        });
+        };
+        state.messages.push(interruptionMessage);
+        state.recoveryMessages = [...structuredClone(event.payload.checkpointMessages), interruptionMessage];
         state.activeEncounter.status = 'interrupted';
         state.activeInferenceId = null;
         state.activeEncounter = null;
         state.stagedRevisions = [];
         state.stagedToolIds = new Set();
+        state.stagedCarrierTransition = null;
+        state.selections = new Map();
+        state.usedSelectionIds = new Set();
+        state.activeInputMessage = null;
         state.failedInferences += 1;
         break;
       default:
@@ -467,6 +586,78 @@ function validateStagedRevision(payload, state) {
   };
 }
 
+function projectCarrierTransition(payload) {
+  const interpretation = typeof payload.interpretation === 'string' ? payload.interpretation.trim() : '';
+  if (!interpretation || interpretation.length > 4_096) throw new Error('staged carrier transition needs a bounded interpretation');
+  return {
+    interpretation,
+    evidence: boundedEvidence(payload.evidence),
+    component: structuredClone(payload.component),
+    parentRoot: payload.parentRoot,
+    parentRuleDigest: payload.parentRuleDigest,
+    parentStateDigest: payload.parentStateDigest,
+    successorRoot: payload.successorRoot,
+    successorRuleDigest: payload.successorRuleDigest,
+    successorStateDigest: payload.successorStateDigest,
+  };
+}
+
+function validateSelectionFrontier(manifest, frontier) {
+  if (!manifest.selection) throw new Error(`tool ${manifest.id} does not admit selection`);
+  if (!frontier || typeof frontier !== 'object' || Array.isArray(frontier)) throw new Error('selection frontier must be an object');
+  if (!Array.isArray(frontier.candidates) || frontier.candidates.length < 1 || frontier.candidates.length > MAX_SELECTION_CANDIDATES) {
+    throw new Error(`selection frontier needs 1-${MAX_SELECTION_CANDIDATES} candidates`);
+  }
+  if (Buffer.byteLength(canonical(frontier.candidates)) > MAX_SELECTION_BYTES) throw new Error(`selection frontier exceeds ${MAX_SELECTION_BYTES} bytes`);
+  const ids = new Set();
+  const actions = new Set();
+  const candidates = frontier.candidates.map(candidate => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) throw new Error('selection candidate must be an object');
+    if (typeof candidate.id !== 'string' || !/^[a-z][a-z0-9_-]{0,47}$/.test(candidate.id)) throw new Error('invalid selection candidate id');
+    if (ids.has(candidate.id)) throw new Error(`duplicate selection candidate id: ${candidate.id}`);
+    ids.add(candidate.id);
+    if (typeof candidate.action !== 'string') throw new Error('selection candidate needs an action');
+    if (actions.has(candidate.action)) throw new Error(`selection frontier repeats action: ${candidate.action}`);
+    actions.add(candidate.action);
+    const input = jsonValue(candidate.input, 'selection candidate input');
+    executeAction(manifest, candidate.action, input);
+    return { id: candidate.id, action: candidate.action, input };
+  });
+  if (manifest.selection.coverage === 'all-actions') {
+    const required = new Set(manifest.actions.map(action => action.id));
+    if (actions.size !== required.size || [...required].some(action => !actions.has(action))) {
+      throw new Error(`selection frontier must cover every ${manifest.id} action exactly once`);
+    }
+  }
+  if (typeof frontier.selectedCandidateId !== 'string' || !ids.has(frontier.selectedCandidateId)) {
+    throw new Error('selected candidate is absent from selection frontier');
+  }
+  const selected = candidates.find(candidate => candidate.id === frontier.selectedCandidateId);
+  return { candidates, selectedCandidateId: frontier.selectedCandidateId, selected };
+}
+
+function authorizeSelection(state, encounter, manifest, actionId, input, selectionReceipt) {
+  if (!manifest.selection) {
+    if (selectionReceipt !== null && selectionReceipt !== undefined) throw new Error(`tool ${manifest.id} does not accept a selection receipt`);
+    return null;
+  }
+  if (typeof selectionReceipt !== 'string' || !selectionReceipt) throw new Error(`tool ${manifest.id} requires a selection receipt`);
+  const selection = state.selections.get(selectionReceipt);
+  if (!selection) throw new Error(`unknown selection receipt: ${selectionReceipt}`);
+  if (state.usedSelectionIds.has(selectionReceipt)) throw new Error(`selection receipt already used: ${selectionReceipt}`);
+  if (selection.inferenceId !== state.activeInferenceId
+    || selection.soundingId !== encounter.sounding.id
+    || selection.projection !== encounter.projection
+    || selection.carrierRoot !== encounter.sounding.carrier.root
+    || selection.tool.digest !== manifestDigest(manifest)) {
+    throw new Error('selection receipt is not bound to the active encounter geometry');
+  }
+  if (selection.selected.action !== actionId || canonical(selection.selected.input) !== canonical(input)) {
+    throw new Error('tool invocation does not match the selected candidate');
+  }
+  return selection;
+}
+
 function projectTool(tool) {
   return {
     id: tool.id,
@@ -478,6 +669,7 @@ function projectTool(tool) {
       description: action.description,
       fields: structuredClone(action.fields),
     })),
+    ...(tool.selection === undefined ? {} : { selection: structuredClone(tool.selection) }),
   };
 }
 
@@ -499,7 +691,20 @@ function initialMessageTool() {
         { name: 'content', type: 'string', required: true, maxLength: 8_192 },
       ],
       effect: { kind: 'emit', channel: 'outbox', template: 'to={recipient}\n{content}' },
+    }, {
+      id: 'ask',
+      description: 'Ask a short question before committing to a composed message.',
+      fields: [
+        { name: 'recipient', type: 'string', required: true, maxLength: 256 },
+        { name: 'question', type: 'string', required: true, maxLength: 512 },
+      ],
+      effect: { kind: 'emit', channel: 'outbox', template: 'to={recipient}\n[question] {question}' },
     }],
+    selection: {
+      kind: 'frontier',
+      coverage: 'all-actions',
+      description: 'Author one concrete candidate for every available message action, then select one using the active carrier and present consequence.',
+    },
   });
 }
 

@@ -10,8 +10,9 @@ The current repository contains the first provider-connected vertical skeleton.
 It proves this causal path:
 
 ```text
-world Delta -> Sounding -> agent-authored tool revision
-            -> later Sounding -> changed executable action
+world Delta -> Sounding -> bounded active carrier
+            -> actor-authored alternatives -> selected-only executable action
+            -> staged carrier/tool change -> changed later selection
 ```
 
 State has one authority: a hash-linked append-only event ledger. The kernel
@@ -22,9 +23,10 @@ and what should change.
 
 Inference uses AI SDK 7. OpenRouter uses its dedicated AI SDK provider in
 explicit strict-compatibility mode; generic and local OpenAI-compatible servers
-use `@ai-sdk/openai-compatible` separately. Complete response messages and
-completed step checkpoints are retained so tool-call/result protocol survives
-later Soundings and provider interruption. OpenRouter runs also verify the
+use `@ai-sdk/openai-compatible` separately. Complete response messages remain
+in the audit ledger, but normal completed conversation is not replayed as active
+identity. A bounded interrupted-step tail preserves tool-call/result recovery.
+OpenRouter runs also verify the
 selected model currently declares tool support before opening a Sounding;
 generic compatible servers require an explicit `capabilities.tools` claim.
 
@@ -32,6 +34,12 @@ Opening a Sounding reserves its Deltas but does not consume them. Beginning an
 inference durably accepts that exact projection. Tool calls execute the manifest
 digest projected into that Sounding, and revisions remain staged until successful
 inference completion makes them available to a later Sounding.
+
+The active carrier contains generic subject-authored components with separate
+stable-rule and evolving-state identities. Selection policy belongs to revisable
+tool geometry: the message tool requires the subject to author one candidate per
+available action, select one, and present the single-use receipt before only that
+exact candidate can emit.
 
 ## Try it
 
@@ -57,6 +65,8 @@ The example is deliberately locked down for inexpensive smoke testing: it uses
 `z-ai/glm-5.3-flash`, permits one model step, caps generation at 32 tokens, and
 disables retries. Those three inference limits are explicit configuration, and
 the completed inference receipt records the actual model request and token use.
+Its one-step limit is for connectivity only; a selection-gated action needs
+multiple model steps.
 The CLI accepts `delta`, `sound`, `run`, and `audit` after initialization.
 Invocation and revision are agent-authority behavior and exist only inside an
 active inference; the CLI cannot self-assert them. See
