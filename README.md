@@ -156,7 +156,23 @@ inbound Delta caused one `schedule_wake` invocation and a completed inference
 with an exact retained ten-minute wake, no pending contact, and no failed or
 uncertain operation.
 
-## Try it
+## Installation and hatch
+
+Development, installed runtime bytes, and resident state are deliberately
+separate. The release installer accepts only a clean pushed commit, creates an
+independent detached clone, installs locked dependencies, runs all checks, and
+atomically updates a convenience `current` symlink. A resident is launched from
+an exact release path, never from the development checkout or `current`.
+
+`music-habitat create` prepares an empty home, state, mailbox, dependency, and
+configuration tree without creating a subject. `music-habitat init` is the
+separate explicit hatch act. Runtime starts retain the exact release commit,
+path and working-tree state beside the resident home in the append-only ledger.
+
+See [`OPERATIONS.md`](./OPERATIONS.md) for the prepared machine layout, exact
+hatch procedure, snapshot discipline, and compatibility-gated upgrades.
+
+## Development use
 
 Requires Node.js 22 or newer. The seed `search_files` tool also expects
 [`rg` (ripgrep)](https://github.com/BurntSushi/ripgrep) on `PATH`; because the
@@ -174,6 +190,8 @@ To submit a durable world Delta and run the continuing resident loop:
 
 ```sh
 node src/cli.js submit /tmp/music-inbox /path/to/delta.json
+mkdir -p /tmp/music-home
+export MUSIC_HOME=/tmp/music-home
 node src/cli.js reside /tmp/music-events.jsonl examples/openrouter.model.json /tmp/music-inbox
 ```
 
@@ -214,6 +232,8 @@ To run a deliberately capped OpenRouter connectivity probe:
 set -a
 source /Users/chad/.config/music/openrouter.env
 set +a
+mkdir -p /tmp/music-home
+export MUSIC_HOME=/tmp/music-home
 node src/cli.js run /tmp/music-events.jsonl examples/openrouter.model.json manual
 ```
 

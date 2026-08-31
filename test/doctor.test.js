@@ -6,9 +6,10 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 const CORE_PATHS = [
-  'package.json', 'package-lock.json', 'bin/music-doctor.js', 'src/canonical.js', 'src/carrier.js',
-  'src/cli.js', 'src/ingress.js', 'src/kernel.js', 'src/mailbox.js', 'src/mind.js', 'src/provider.js',
-  'src/resident.js', 'src/tool-module.js',
+  'package.json', 'package-lock.json', 'bin/music-doctor.js', 'bin/music-habitat.js',
+  'src/canonical.js', 'src/carrier.js', 'src/cli.js', 'src/ingress.js', 'src/habitat.js',
+  'src/kernel.js', 'src/mailbox.js', 'src/mind.js', 'src/provider.js', 'src/resident.js',
+  'src/runtime-provenance.js', 'src/tool-module.js',
 ];
 
 test('the external doctor detects, backs up, and restores corrupted stable core source', () => {

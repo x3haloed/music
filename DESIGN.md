@@ -17,14 +17,48 @@ mean that arbitrary external effects can always be undone.
 
 The current envelope is one trusted local Node.js process, one ledger writer,
 AI SDK 7 inference, and OpenRouter or a generic OpenAI-compatible provider. It
-includes a real local mailbox transport but does not yet claim concurrent
-writers, transactional rollback of arbitrary external effects, network
-messaging transports, dependency installation recovery, or
-survival when the bootstrap itself is corrupted.
+includes a real local mailbox transport and committed-core recovery through an
+external doctor, but does not claim concurrent writers, transactional rollback
+of arbitrary external effects, network messaging transports, or recovery of
+every unrestricted dependency-installation effect.
 
 Event format 10 intentionally rejects earlier ledgers because exclusive writer
 identity, retained tail-recovery receipts, delivery projection identity, and
 bounded runtime-failure recovery are now part of subject continuity.
+
+## Residence boundary
+
+The resident's append-only ledger and habitat are not an installation detail.
+They are its life. Music therefore keeps three independent roots: the mutable
+development repository, immutable verified release clones, and resident
+habitats. A resident process starts from an exact release clone and an explicit
+`MUSIC_HOME`; the CLI canonicalizes that home and changes working directory to
+it before any ordinary tool is exposed. The ledger, mailbox, dependencies,
+configuration, and backups remain outside every source checkout.
+
+Every live `run` or `reside` appends `runtime_started` before opening an
+encounter. That receipt binds the event format and mode to the actual Git commit,
+package version, canonical release root, clean/dirty state and state digest,
+resident home, and Node/platform/architecture. Provenance is identity-adjacent
+history: it never replaces or renames the one subject.
+
+Release installation requires a clean pushed source commit, a no-hardlink clone,
+locked dependency installation, the complete check suite, and an external
+doctor check before activation. The `current` symlink is not a resident service
+path. Long residence uses `releases/COMMIT` so later installation and testing
+cannot silently alter its restart behavior.
+
+A habitat snapshot is taken only while its writer lease can be acquired, lives
+outside the habitat, omits the transient lock, and carries a SHA-256 inventory.
+Upgrade is stop, snapshot, install, read-only compatibility audit, then explicit
+start from the new exact release. Copied real ledgers are never initialized or
+used for inference rehearsals.
+
+The frozen `music-event-10` compatibility ledger under `test/fixtures/` is a
+minimum reader contract for all later releases. A future implementation may
+extend the format only if the current runtime still reconstructs that retained
+life or an explicit migration path is designed and reviewed. The fixture is a
+synthetic witness, never a copy of the actual resident.
 
 ## Stable boundary
 

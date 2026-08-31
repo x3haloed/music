@@ -135,6 +135,14 @@ tools retain the unrestricted machine authority of the harness process.
   subprocess, and HTTP boundaries through the normal retained Music invocation
   path. They bound projected output rather than authority, retain failure and
   timeout dispositions, survive reconstruction, and remain fully revisable.
+- **The resident's life must remain physically and causally separate from Music
+  development and disposable rehearsal.**
+  **Evidence:** Live commands now require a canonical explicit resident home and
+  retain the exact release provenance before contact. Verified releases are
+  physically independent detached clones; habitats keep ledger, home, mailbox,
+  dependencies, and configuration outside source. Snapshots exclude the writer
+  lock, carry a digest inventory, and cannot race the resident. A frozen
+  synthetic event-10 ledger makes backwards reconstruction a build invariant.
 
 ## Evaluation regime
 
