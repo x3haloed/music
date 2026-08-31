@@ -397,7 +397,7 @@ Automated evidence currently proves that:
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The hatch checkpoint has now been exercised by a fresh live Aster subject using
+The hatch checkpoint has now been exercised by a fresh disposable subject using
 only `z-ai/glm-5.3-flash`. One incoming mailbox Delta caused an actor-authored
 message frontier, retained selection, and explicit outbound message with exact
 reply lineage. The inference reached `stop`, the Sounding completed, and one

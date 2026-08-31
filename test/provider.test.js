@@ -76,7 +76,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     }, { fetch });
     const root = mkdtempSync(join(tmpdir(), 'music-provider-test-'));
     const kernel = new MusicKernel(join(root, 'events.jsonl'));
-    kernel.initialize('Aster', initialTools());
+    kernel.initialize('Test Subject', initialTools());
     await new MusicMind(kernel, configured, configured.inference).receive(kernel.openSounding().id);
 
     const request = configured.requests()[0].body;

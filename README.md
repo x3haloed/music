@@ -106,7 +106,7 @@ guards. The example remains locked to `z-ai/glm-5.3-flash`.
 ## Hatch status
 
 The pre-hatch causal path has completed a bounded live rehearsal with a fresh
-Aster subject and `z-ai/glm-5.3-flash`: real inbound mailbox contact, retained
+disposable subject and `z-ai/glm-5.3-flash`: real inbound mailbox contact, retained
 actor-authored selection, explicit outbound delivery with exact Delta lineage,
 completed inference and Sounding, then clean one-signal shutdown. The final
 ledger had no pending contact, failed inference, or failed/uncertain invocation
@@ -120,7 +120,7 @@ Requires Node.js 22 or newer.
 
 ```sh
 npm test
-node src/cli.js init /tmp/music-events.jsonl Aster
+node src/cli.js init /tmp/music-events.jsonl SUBJECT_NAME
 node src/cli.js sound /tmp/music-events.jsonl manual
 node src/cli.js audit /tmp/music-events.jsonl
 ```

@@ -15,7 +15,7 @@ test('durable world ingress wakes the one mind and a deferred consequence surviv
   const ledger = join(root, 'events.jsonl');
   const ingress = join(root, 'ingress');
   const kernel = new MusicKernel(ledger);
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
   const target = join(root, 'contact.txt');
   writeFileSync(target, 'before');
   const actionSounding = kernel.openSounding();
@@ -82,7 +82,7 @@ test('a Delta arriving during inference is durably queued and wakes the next Sou
   const ledger = join(root, 'events.jsonl');
   const ingress = join(root, 'ingress');
   const kernel = new MusicKernel(ledger);
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
   let releaseFirst;
   let markStarted;
   const firstStarted = new Promise(resolve => { markStarted = resolve; });
@@ -122,7 +122,7 @@ test('real ingress during an AI SDK step steers the same encounter and can be in
   const ledger = join(root, 'events.jsonl');
   const ingress = join(root, 'ingress');
   const kernel = new MusicKernel(ledger);
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
   const target = join(root, 'steered.txt');
   writeFileSync(target, 'before');
   const actionSounding = kernel.openSounding();
@@ -181,7 +181,7 @@ test('deterministic inference failure enters retained exponential backoff instea
   const ingress = join(root, 'ingress');
   let now = Date.parse('2026-08-30T17:00:00.000Z');
   const kernel = new MusicKernel(ledger, { clock: () => new Date(now) });
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
   let attempts = 0;
   const failingMind = {
     async receive(soundingId) {
@@ -230,7 +230,7 @@ test('graceful shutdown waits for an active encounter instead of requeueing comp
   const ledger = join(root, 'events.jsonl');
   const ingress = join(root, 'ingress');
   const kernel = new MusicKernel(ledger);
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
   let releaseEncounter;
   let markStarted;
   const started = new Promise(resolve => { markStarted = resolve; });

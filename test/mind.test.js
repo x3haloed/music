@@ -17,7 +17,7 @@ function harness(model) {
     id: () => `id-${++identity}`,
     toolEnvironment: { mailboxRoot: join(root, 'mailbox'), dependencyRoot: join(root, 'dependencies') },
   });
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
   return {
     root,
     kernel,
@@ -38,7 +38,7 @@ test('completed conversation remains auditable but inert in later active prompts
   await mind.receive(kernel.openSounding().id);
 
   assert.equal(kernel.audit().completedInferences, 2);
-  assert.equal(kernel.state().subject.name, 'Aster');
+  assert.equal(kernel.state().subject.name, 'Test Subject');
   const secondPrompt = model.doGenerateCalls[1].prompt;
   assert.ok(!secondPrompt.some(message => message.role === 'assistant' && message.content.some(part => part.type === 'text' && part.text === 'I noticed the first contact.')));
   assert.match(JSON.stringify(secondPrompt), /active carrier|carrier/i);
@@ -353,7 +353,7 @@ test('MusicMind renders the retained Sounding, not a caller-modified projection'
   await mind.receive(offered.id);
 
   const prompt = JSON.stringify(model.doGenerateCalls[0].prompt);
-  assert.match(prompt, /Aster/);
+  assert.match(prompt, /Test Subject/);
   assert.doesNotMatch(prompt, /Counterfeit/);
 });
 

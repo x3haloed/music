@@ -117,7 +117,7 @@ function harness() {
     id: () => `dependency-id-${++identity}`,
     toolEnvironment: { dependencyRoot: join(root, 'dependencies') },
   });
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
   return { root, kernel };
 }
 

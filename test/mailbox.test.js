@@ -17,7 +17,7 @@ test('a delivered mailbox message and its human reply retain exact invocation li
     id: () => `id-${++identity}`,
     toolEnvironment: { mailboxRoot: mailbox },
   });
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
   const sounding = kernel.openSounding();
   const inferenceId = kernel.beginInference(
     sounding.id,
@@ -68,7 +68,7 @@ test('a separate talk process crosses the mailbox boundary in both directions', 
     id: () => `talk-id-${++identity}`,
     toolEnvironment: { mailboxRoot: mailbox },
   });
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
 
   const talk = execute(process.execPath, [join(process.cwd(), 'src/cli.js'), 'talk', mailbox, 'Chad', 'Are you there?'], {
     ...process.env,

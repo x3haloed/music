@@ -114,7 +114,7 @@ observation: let contact arrive, see what the resident does, and let the residen
 remain its own witness. Tests should prove continuity and recovery mechanics,
 not turn the resident into a benchmark or comparative research subject.
 
-Hatch checkpoint reached: a fresh Aster residency using only
+Hatch checkpoint reached: a fresh disposable residency using only
 `z-ai/glm-5.3-flash` completed a real mailbox round trip through the retained
 selection and message tools. The reply preserved its exact incoming Delta id;
 the enclosing inference then completed before one-signal graceful shutdown.

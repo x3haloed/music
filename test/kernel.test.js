@@ -20,7 +20,7 @@ function harness(kernelOptions = {}) {
     toolEnvironment: { mailboxRoot: join(root, 'mailbox'), dependencyRoot: join(root, 'dependencies') },
     ...kernelOptions,
   });
-  kernel.initialize('Aster', initialTools());
+  kernel.initialize('Test Subject', initialTools());
   return { kernel, root };
 }
 
@@ -588,7 +588,7 @@ test('an existing subject reconstructs in a fresh process with no ordinary seed 
     process.stdout.write(JSON.stringify({ subject: audit.subject.name, tools: audit.tools.length }));
   `;
   const result = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' }));
-  assert.deepEqual(result, { subject: 'Aster', tools: initialTools().length });
+  assert.deepEqual(result, { subject: 'Test Subject', tools: initialTools().length });
 });
 
 function begin(kernel, soundingId) {
