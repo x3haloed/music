@@ -1488,8 +1488,14 @@ function developmentalSuccessorForCompletion(state, {
     standingTransitions: [
       ...consequenceTransitions.map(transition => ({ kind: 'consequence', transition })),
       ...(developmentalTransaction?.decisions ?? []).map(decision => ({ kind: 'proposal', decision })),
+      ...(developmentalTransaction?.opening ? [{
+        kind: 'opening-closed',
+        closes: developmentalTransaction.opening.closes,
+        successorId: developmentalTransaction.opening.successor.id,
+      }] : []),
     ],
     opening,
+    openingTransition: developmentalTransaction?.opening ?? null,
   });
 }
 

@@ -56,6 +56,7 @@ export function createDevelopmentalSuccessor(position, {
   consequenceTransitions = [],
   standingTransitions = consequenceTransitions,
   opening = undefined,
+  openingTransition = null,
 } = {}) {
   const current = readDevelopmentalPosition(position);
   const activeOpening = opening === undefined
@@ -69,7 +70,11 @@ export function createDevelopmentalSuccessor(position, {
     : digest({ parent: current.pursuitRoot, carrierTransition });
   const openingChanged = digest(activeOpening) !== digest(current.activeOpening);
   const archiveRoot = openingChanged
-    ? digest({ parent: current.archiveRoot, opening: current.activeOpening })
+    ? digest({
+      parent: current.archiveRoot,
+      opening: current.activeOpening,
+      transition: openingTransition === null ? null : jsonValue(openingTransition, 'developmental opening transition'),
+    })
     : current.archiveRoot;
   return sealPosition({
     generation: current.generation + 1,

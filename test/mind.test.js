@@ -10,11 +10,12 @@ import { toolModuleDigest } from '../src/tool-module.js';
 import { pendingOutboundMessages } from '../src/mailbox.js';
 import { initialTools } from '../src/seeds.js';
 
-function harness(model, { designation = 'Test Subject', inference = {} } = {}) {
+function harness(model, { designation = 'Test Subject', inference = {}, clock } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'music-mind-test-'));
   let identity = 0;
   const kernel = new MusicKernel(join(root, 'events.jsonl'), {
     id: () => `id-${++identity}`,
+    ...(clock ? { clock } : {}),
     toolEnvironment: { mailboxRoot: join(root, 'mailbox'), dependencyRoot: join(root, 'dependencies') },
   });
   kernel.initialize(designation, initialTools());
@@ -241,6 +242,52 @@ test('the one mind can choose and retain its own next opening through ordinary t
   assert.equal(kernel.audit().activeOpening.content.reason, 'Continue this thought after a short interval.');
   assert.equal(kernel.audit().activeOpening.content.invocationId, kernel.state().invocations.at(-1).invocationId);
   assert.equal(kernel.state().invocations.at(-1).tool.id, 'schedule_wake');
+});
+
+test('a saturated passive opening can carry contact origination into later action and a new successor', async () => {
+  let now = Date.UTC(2026, 7, 31, 12, 0, 0);
+  let call = 0;
+  const contact = { recipient: 'Chad', question: 'What are you noticing from your side?' };
+  const model = new MockLanguageModelV4({
+    doGenerate: async options => {
+      call += 1;
+      if (call === 1) return toolCallResult('schedule_wake', {
+        afterMs: 1_000,
+        reason: 'Re-enter this quiet trajectory once, then originate contact if it remains empty.',
+        closureStatus: 'reoriented',
+        content: {
+          trajectory: 'quiet-mailbox-observation',
+          saturation: { condition: 'no new world contact', response: 'originate-contact' },
+          contact: { kind: 'message', ...contact },
+        },
+      });
+      if (call === 2) return textResult('I retained the next opening.');
+      if (call === 3) {
+        const prompt = JSON.stringify(options.prompt);
+        assert.match(prompt, /quiet-mailbox-observation/);
+        assert.match(prompt, /originate-contact/);
+        return selectionCall('ask', contact);
+      }
+      if (call === 4) return selectedMessageCall(options.prompt, 'ask', contact);
+      if (call === 5) return toolCallResult('schedule_wake', {
+        afterMs: 60_000,
+        reason: 'Allow the originated contact time to bear consequence.',
+        closureStatus: 'contact-originated',
+        content: { trajectory: 'await-contact-consequence', contact: { kind: 'mailbox-reply' } },
+      });
+      return textResult('I reached outward and opened the consequence-bearing continuation.');
+    },
+  });
+  const { root, kernel, mind } = harness(model, { clock: () => new Date(now) });
+
+  await mind.receive(kernel.openSounding('manual').id);
+  now += 1_000;
+  await mind.receive(kernel.openSounding('opening').id);
+
+  assert.equal(pendingOutboundMessages(join(root, 'mailbox')).length, 1);
+  assert.equal(kernel.audit().activeOpening.content.content.trajectory, 'await-contact-consequence');
+  const closure = kernel.events().filter(event => event.type === 'developmental_transaction_staged').at(-1).payload.opening.closes;
+  assert.equal(closure.status, 'contact-originated');
 });
 
 test('the one mind can author a new tool without clean completion prematurely embodying it', async () => {
