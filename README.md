@@ -31,6 +31,22 @@ reason into the contact Sounding. Interruption restores the wake that opened the
 failed encounter. The fixed heartbeat is only the continuity fallback when the
 subject chose no future wake.
 
+Birth does not require a preselected personal name. The ledger gives the one
+subject a stable opaque identity and the mind may later retain a self-designation
+through its own continuity machinery—or choose none. The automatically present
+`continuity` carrier component begins empty. The ordinary `retain_context` tool
+lets the subject author the bounded account of its current situation that later
+encounters should receive; completed transcripts remain inert audit history and
+larger records may live in the resident-owned home. No summary is generated and
+no update is obligatory.
+
+Inference opportunity is plastic too. The projected `inference_policy` carrier
+defaults to 120 model steps, a 2 MiB ceiling for each retained inference event,
+and a 30-minute encounter timeout. The ordinary `tune_inference` tool stages a
+successor policy for later encounters. The kernel keeps only broad physical
+ceilings (10,000 steps, 64 MiB per inference event, and 24 hours) so a malformed
+policy cannot make the continuity path physically unbounded.
+
 The first SIGINT or SIGTERM requests graceful shutdown: Music stops opening new
 encounters and waits for the active one to retain completion. A second signal is
 the explicit force-abort path. This prevents receiving an outbound effect and
@@ -93,6 +109,9 @@ version is authoritative.
 `schedule_wake` lets that same mind construct its own next temporal opening; its
 interface and executable timing policy are revised through the same ancestry as
 every other ordinary tool.
+`retain_context` and `tune_inference` expose subject-authored situational
+continuity and inference-envelope policy through the same ordinary, revisable
+tool path.
 
 A fallback heartbeat is secluded time, not a task. The seed encounter shaper
 therefore delivers heartbeat facts without appending a request, reporting
@@ -137,6 +156,16 @@ Inference uses AI SDK 7. OpenRouter has a separate dedicated provider path in
 strict compatibility mode, with tool-capability preflight and explicit spend
 guards. The example remains locked to `z-ai/glm-5.3-flash`.
 
+Each completed AI SDK step is appended immediately as an
+`inference_checkpointed` event rather than accumulating every assistant/tool
+turn in one terminal event. Completion or failure therefore closes already
+retained work instead of attempting one monolithic append. Provider requests
+retain URL, non-secret header names, model, message/tool counts, byte length,
+and an exact body digest without duplicating the expanding request body into
+every checkpoint. An explicit model-config `maxSteps` can still narrow the
+carrier policy for a disposable spend-capped probe, but the long-term habitat
+does not impose a second step authority.
+
 ## Hatch status
 
 The pre-hatch causal path has completed a bounded live rehearsal with a fresh
@@ -166,8 +195,9 @@ an exact release path, never from the development checkout or `current`.
 
 `music-habitat create` prepares an empty home, state, mailbox, dependency, and
 configuration tree without creating a subject. `music-habitat init` is the
-separate explicit hatch act. Runtime starts retain the exact release commit,
-path and working-tree state beside the resident home in the append-only ledger.
+separate explicit hatch act and requires no subject name. Runtime starts retain
+the exact release commit, path and working-tree state beside the resident home
+in the append-only ledger.
 
 See [`OPERATIONS.md`](./OPERATIONS.md) for the prepared machine layout, exact
 hatch procedure, snapshot discipline, and compatibility-gated upgrades.
@@ -181,7 +211,7 @@ embodiment without changing the kernel.
 
 ```sh
 npm test
-node src/cli.js init /tmp/music-events.jsonl SUBJECT_NAME
+node src/cli.js init /tmp/music-events.jsonl
 node src/cli.js sound /tmp/music-events.jsonl manual
 node src/cli.js audit /tmp/music-events.jsonl
 ```

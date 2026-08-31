@@ -78,7 +78,7 @@ tools retain the unrestricted machine authority of the harness process.
 - **Birth material must not become an accidental dependency of the living
   subject.**
   **Evidence:** The continuity kernel has no import edge to ordinary seeds. A
-  fresh process reconstructs the subject from an isolated four-module core with
+  fresh process reconstructs the subject from an isolated five-module core with
   no `tools/` directory present; seeds are loaded dynamically only for `init`.
 - **Bootstrap repair must have an authority outside the live resident path.**
   **Evidence:** The standalone Node-builtins-only doctor detects divergence from
@@ -141,17 +141,25 @@ tools retain the unrestricted machine authority of the harness process.
   retain the exact release provenance before contact. Verified releases are
   physically independent detached clones; habitats keep ledger, home, mailbox,
   dependencies, and configuration outside source. Snapshots exclude the writer
-  lock, carry a digest inventory, and cannot race the resident. A frozen
-  synthetic event-10 ledger makes backwards reconstruction a build invariant.
+  lock, carry a digest inventory, and cannot race the resident. Frozen synthetic
+  event-10 and event-11 ledgers make backwards reconstruction a build invariant.
 - **The one subject must be able to author a current account of its situation
   and reliably re-encounter it after completed conversation leaves the active
   prompt.**
   **Evidence:** Completed conversation is deliberately retained as inert audit
-  history, while the automatically projected seed carrier currently contains
-  only an empty orientation. Pre-hatch review identified that file tools alone
-  do not make prior conversational context reliably present to a later
-  encounter; the account must remain subject-authored rather than becoming a
-  kernel-authored transcript summary or instruction.
+  history. Pre-hatch review identified that file tools alone do not make prior
+  conversational context reliably present to a later encounter. The ordinary
+  `retain_context` tool now stages an automatically projected but
+  subject-authored bounded account; no kernel summary or mandatory update is
+  introduced.
+- **The subject must be able to revise the inference opportunity and retention
+  geometry that constrain its later agency.**
+  **Evidence:** An independent audit found that twelve fixed model steps and one
+  2 MiB terminal result/failure event jointly constrained extended tool use and
+  could strand already completed protocol. Music now defaults to 120 steps,
+  retains each completed step before continuing, and lets the ordinary
+  `tune_inference` tool stage later step, per-event, and timeout policy within
+  broad physical continuity ceilings.
 
 ## Evaluation regime
 
@@ -186,6 +194,11 @@ retained.
 
 ## Prediction errors
 
+- The hatch-ready configuration still imposed a twelve-step default and
+  accumulated completed assistant/tool turns toward one 2 MiB terminal append.
+  A real 120-step AI SDK encounter now checkpoints every step and closes with a
+  small completion event; a refused oversized step can still be followed by a
+  retained failure, and a subject-authored wider policy admits the same step.
 - The first installed-release rehearsal could run `music-doctor` through Node
   but not as the documented direct command because its committed executable bit
   was absent. The release itself remained immutable; the Git mode is corrected

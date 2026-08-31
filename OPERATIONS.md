@@ -41,16 +41,18 @@ configuration. It does not create an identity or ledger.
   create /Users/chad/.local/share/music/residents/RESIDENT
 ```
 
-Hatch is the separate, deliberate act. Run it once, from the exact pinned
-release, after choosing the resident's actual name:
+Hatch is the separate, deliberate act. Run it once from the exact pinned
+release. The final path segment `RESIDENT` is only an operator-facing habitat
+label; it is not presented to the subject as a personal name:
 
 ```sh
 /Users/chad/.local/share/music/installations/releases/COMMIT/bin/music-habitat.js \
-  init /Users/chad/.local/share/music/residents/RESIDENT 'SUBJECT NAME'
+  init /Users/chad/.local/share/music/residents/RESIDENT
 ```
 
-`init` refuses any habitat that already has a ledger. No model call occurs
-during either command.
+`init` refuses any habitat that already has a ledger. It creates a stable opaque
+subject identity with no personal designation. No model call occurs during
+either command.
 
 Keep the OpenRouter key outside the repository and habitat, readable only by
 the operating-system account. The existing location on this machine is
@@ -115,4 +117,3 @@ explicit, separately reviewed migration.
   receipt; a complete digest-invalid event is refused unchanged.
 - The development checkout, `current`, disposable habitats, and test artifacts
   are never service paths for the long-term resident.
-

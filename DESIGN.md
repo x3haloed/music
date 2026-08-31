@@ -22,9 +22,10 @@ external doctor, but does not claim concurrent writers, transactional rollback
 of arbitrary external effects, network messaging transports, or recovery of
 every unrestricted dependency-installation effect.
 
-Event format 10 intentionally rejects earlier ledgers because exclusive writer
-identity, retained tail-recovery receipts, delivery projection identity, and
-bounded runtime-failure recovery are now part of subject continuity.
+Event format 11 adds incremental inference checkpoints and subject-authored
+inference policy. The runtime still reconstructs the frozen format-10 witness,
+but format-10 ledgers are read-only: mixing new event meanings into an old chain
+is refused rather than mislabeled as compatibility.
 
 ## Residence boundary
 
@@ -54,11 +55,12 @@ Upgrade is stop, snapshot, install, read-only compatibility audit, then explicit
 start from the new exact release. Copied real ledgers are never initialized or
 used for inference rehearsals.
 
-The frozen `music-event-10` compatibility ledger under `test/fixtures/` is a
-minimum reader contract for all later releases. A future implementation may
-extend the format only if the current runtime still reconstructs that retained
-life or an explicit migration path is designed and reviewed. The fixture is a
-synthetic witness, never a copy of the actual resident.
+The frozen `music-event-10` and `music-event-11` compatibility ledgers under
+`test/fixtures/` are minimum reader contracts for all later releases. A future
+implementation may extend the format only if the current runtime still
+reconstructs those retained lives or an explicit migration path is designed and
+reviewed. The fixtures are synthetic witnesses, never copies of the actual
+resident.
 
 ## Stable boundary
 
@@ -70,6 +72,10 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - a retained exponential retry floor that contains deterministic inference
   failure without dropping or repeatedly spending the same world contact;
 - inference-provider connection and interrupted-turn recovery;
+- incremental retention of each completed model step, with terminal completion
+  and failure events closing rather than duplicating the accumulated protocol;
+- validation and enforcement of active subject-authored inference policy beneath
+  broad physical ceilings needed to keep appends and timers bounded;
 - loading and invoking a retained JavaScript tool body;
 - exact projection/digest binding plus durable invocation start, completion, and
   failure boundaries;
@@ -114,6 +120,11 @@ under [`tools/`](./tools):
   inspect packages in a separate resident dependency habitat.
 - `schedule_wake` stages the next time this same subject wants to return without
   waiting for world contact. Its source and interface are ordinary geometry.
+- `retain_context` stages the bounded current-situation account that this same
+  subject wants projected later; it neither summarizes transcripts nor requires
+  an update.
+- `tune_inference` stages later encounter step, retained-event, and timeout
+  policy. Its interface and policy choices remain ordinary revisable geometry.
 
 These files seed a new subject only. Once initialized, the ledger-retained tool
 version is authoritative. The bootstrap does not re-read seed source to replace
@@ -262,6 +273,20 @@ Normal completed conversation remains audit history and is not replayed as the
 active self. The current Sounding, current carrier, current tool geometry, and a
 bounded immediately interrupted protocol are the active encounter surface.
 
+New birth assigns only an opaque stable subject id; a personal designation is
+optional and absent by default. The seed carrier includes an empty `continuity`
+component with a deliberately generic rule. `retain_context` stages the
+subject's own bounded account into that component for the next Sounding. Files
+can embody larger memory while active continuity supplies whatever pointers and
+interpretation the subject chooses. The kernel does not summarize, replay, or
+decide what deserves remembrance.
+
+The seed `inference_policy` component begins at 120 steps, 2 MiB per retained
+inference event, and a 30-minute timeout. `tune_inference` can stage a complete
+successor within physical ceilings of 10,000 steps, 64 MiB, and 24 hours.
+Policy is sealed into the Sounding, so a staged change cannot alter its current
+encounter and becomes causal only after successful completion.
+
 ## Self-directed waking
 
 Future waking is neither another actor nor a fixed pursuit ontology. Any
@@ -289,8 +314,19 @@ no explicit wake and accept fallback contact.
 OpenRouter uses `@openrouter/ai-sdk-provider` in explicit strict mode. Generic
 OpenAI-compatible endpoints use `@ai-sdk/openai-compatible` separately.
 OpenRouter preflight requires declared tool support. Request receipts retain the
-model, body, and non-secret header names without authorization values. Tests run
-Music's full current tool schemas through the dedicated serializer.
+model, URL, non-secret header names, message and tool counts, exact serialized
+body byte length and SHA-256 digest without authorization values or repeated
+copies of the growing body. Tests run Music's full current tool schemas through
+the dedicated serializer.
+
+Every completed AI SDK step appends its newly produced assistant/tool messages,
+projected step result, usage, and compact request receipt before another step is
+allowed to become the only live copy. `inference_completed` then retains only
+terminal meaning, aggregate usage, and staged activations. A failure retains
+only material not already checkpointed plus its diagnostic. This changes
+retention growth from one fragile monolithic terminal event to bounded
+incremental events without making completed conversation active in later
+Soundings.
 
 The checked GLM Flash configuration explicitly sends OpenRouter reasoning effort
 `minimal`. A bounded live rehearsal showed why this is part of compatibility rather
