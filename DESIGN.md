@@ -21,9 +21,9 @@ does not yet claim concurrent writers, transactional rollback of arbitrary
 external effects, autonomous scheduling, live messaging transport, dependency
 installation recovery, or survival when the bootstrap itself is corrupted.
 
-Event format 5 intentionally rejects earlier ledgers because executable-tool
-invocations, world-consequence references, and staged-change lineage now have
-different meaning from the preceding experimental formats.
+Event format 6 intentionally rejects earlier ledgers because unresolved
+consequence state, staged dispositions, and the initial consequence-attention
+tool are now part of subject continuity.
 
 ## Stable boundary
 
@@ -36,6 +36,7 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
   failure boundaries;
 - `inspect_tool`, `revise_tool`, and `rollback_tool`;
 - carrier mutation and parent-bound activation mechanics;
+- staged consequence deferral and settlement mechanics;
 - the receipt primitive used by selection modules.
 
 The JavaScript loader is not a capability filter. A tool body receives `input`
@@ -49,7 +50,9 @@ under [`tools/`](./tools):
   path;
 - `message` currently produces a local outbound record;
 - `select_tool_action` invokes the stable receipt primitive, but its interface,
-  sequencing, and executable source are themselves ordinary revisable geometry.
+  sequencing, and executable source are themselves ordinary revisable geometry;
+- `attend_consequence` invokes the staged consequence-transition primitive, but
+  its interface, policy, and sequencing remain ordinary revisable geometry.
 
 These files seed a new subject only. Once initialized, the ledger-retained tool
 version is authoritative. The bootstrap does not re-read seed source to replace
@@ -67,7 +70,9 @@ world-authored Delta
   -> invocation input, output, tool digest, and encounter binding are retained
   -> later world Delta cites the exact invocation without interpreting it
   -> current Sounding delivers that consequence reference and observation
+  -> the subject may defer it; unresolved consequence returns in later Soundings
   -> revise_tool stages a complete replacement interface and source body
+  -> the subject may explicitly settle the consequence
   -> successful inference completion atomically promotes the staged successor
   -> later Sounding projects the successor digest and interface
   -> later invocation runs the changed source
@@ -115,10 +120,19 @@ harmful, corrective, or resolved. Those meanings belong to the one subject.
 
 When `revise_tool`, `revise_carrier`, or `rollback_tool` cites a
 `consequenceDeltaIds` entry, the kernel verifies that the exact consequence
-Delta was delivered in the current Sounding and retains its referenced
-invocation IDs on the staged change. A change may still be authored without
-world consequence; consequence attribution, when claimed, cannot point to an
-undelivered or invented observation.
+Delta was delivered in the current Sounding—either as a new Delta or on the
+unresolved-consequence surface—and retains its referenced invocation IDs on the
+staged change. A change may still be authored without world consequence;
+consequence attribution, when claimed, cannot point to an undelivered or
+invented observation.
+
+Consequence disposition belongs to the subject. The initial ordinary
+`attend_consequence` module can stage `defer` or `settle` through a kernel
+primitive. Deferral keeps the complete world Delta and the subject's bounded
+interpretation active in later Soundings. Settlement removes it from the active
+surface without erasing history. Like source and carrier changes, disposition
+activates only on successful inference completion; interruption leaves the
+prior consequence state intact.
 
 For uncertain invocations, audit distinguishes uncertainty with and without
 later exact world contact. Contact is not itself declared reconciliation; only
@@ -149,6 +163,20 @@ OpenRouter preflight requires declared tool support. Request receipts retain the
 model, body, and non-secret header names without authorization values. Tests run
 Music's full current tool schemas through the dedicated serializer.
 
+## Resident world ingress
+
+The resident runtime owns one durable filesystem ingress and remains the sole
+ledger writer. Producers use atomic rename into `pending/`; they report complete
+world-authored Deltas but do not construct Soundings or interpret observations.
+The resident validates and admits each Delta, archives accepted and rejected
+files separately, and treats a repeated already-admitted Delta id as recovery
+from the append-before-archive crash window rather than duplicate contact.
+
+An admitted waking Delta triggers a Sounding when the resident is idle. Arrival
+during an active inference is still durably admitted and triggers the next
+Sounding after that inference closes. Periodic heartbeats also reopen contact,
+which makes explicitly deferred consequences revisitable without new input.
+
 ## Evidence and next risk frontier
 
 Automated evidence currently proves that:
@@ -168,19 +196,26 @@ Automated evidence currently proves that:
 - a tool receipt is consumed by a durable start event before executable code
   runs; restart recovery preserves a start without completion as uncertain;
 - a real file patch receives a world Delta tied to its exact invocation, that
-  Delta is retained on a successor which adds backup behavior, a later exact
-  corrective Delta motivates append-only rollback, and the restored successor
-  patches without the backup behavior;
+  Delta is explicitly deferred, returns in a later Sounding, is retained on a
+  successor which adds backup behavior, is explicitly settled, and a later exact
+  corrective Delta motivates append-only rollback;
+- a real durable filesystem arrival wakes the AI SDK mind, its ordinary
+  consequence tool defers the observation, reconstruction preserves it, and a
+  later encounter settles it; an interrupted settlement leaves it deferred;
+- a second Delta arriving while inference is active is admitted without overlap
+  and automatically wakes the next Sounding;
 - invented invocation references and consequence claims from outside the current
   Sounding are rejected, while uncertain effects remain uncertainty rather than
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is live consequence arrival. Current evidence admits
-world Deltas through the local kernel API and delivers them in the next Sounding;
-Music does not yet have Watch-like adapters that observe external systems or
-inject a waking Delta into an inference already in progress. That boundary must
-preserve world authority and exact invocation references without turning an
-adapter into another interpreting mind. Beyond it, ordinary tools still need a
-learned dependency and module-installation story capable of recovering when
-newly installed code breaks the next encounter.
+The next risk frontier is live steering and real communication. Music now has a
+generic durable adapter boundary and follow-up wake sequencing, but it does not
+yet inject a waking Delta into an inference already in progress; same-Sounding
+steering must preserve the encounter's exact projection and staged-change
+authority. Generic non-consequence Deltas also need an interruption policy so a
+failed first encounter cannot make important contact disappear from the active
+surface. The local `message` tool remains an emission record rather than a real
+transport. Beyond those edges, ordinary tools still need a learned dependency
+and module-installation story capable of recovering when newly installed code
+breaks the next encounter.

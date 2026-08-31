@@ -201,8 +201,20 @@ test('world consequence changes real file_patch behavior and later correction re
   const learningSounding = kernel.openSounding('delta');
   assert.equal(learningSounding.deltas[0].bearsOn[0].invocationId, firstInvocationId);
   const learningInference = begin(kernel, learningSounding.id);
+  const deferred = await kernel.invokeTool(learningInference, learningSounding.id, 'attend_consequence', {
+    deltaId: 'patch-feedback-1', action: 'defer',
+    interpretation: 'This matters to file_patch, but I want to change the implementation in a later encounter.',
+  });
+  assert.equal(deferred.action, 'defer');
+  complete(kernel, learningInference);
+
+  const revisionSounding = kernel.openSounding();
+  assert.equal(revisionSounding.deltas.length, 0);
+  assert.equal(revisionSounding.unresolvedConsequences[0].delta.id, 'patch-feedback-1');
+  assert.equal(revisionSounding.unresolvedConsequences[0].status, 'deferred');
+  const revisionInference = begin(kernel, revisionSounding.id);
   const current = kernel.state().tools.get('file_patch');
-  kernel.stageToolRevision(learningInference, learningSounding.id, {
+  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
     interpretation: 'This consequence bears on file_patch: preserve the prior file beside future patched files.',
     consequenceDeltaIds: ['patch-feedback-1'],
     tool: {
@@ -217,7 +229,12 @@ await writeFile(input.path, before.split(input.oldText).join(input.newText));
 return { kind: 'backing-file-patch', path: input.path, backup: input.path + '.music-backup' };`,
     },
   });
-  complete(kernel, learningInference);
+  await kernel.invokeTool(revisionInference, revisionSounding.id, 'attend_consequence', {
+    deltaId: 'patch-feedback-1', action: 'settle',
+    interpretation: 'I have now embodied what I take this observation to require in the file_patch successor.',
+    evidence: ['tool:file_patch@2'],
+  });
+  complete(kernel, revisionInference);
   const learnedEvent = kernel.events().findLast(event => event.type === 'tool_revision_staged');
   assert.deepEqual(learnedEvent.payload.consequences, [{ deltaId: 'patch-feedback-1', invocationIds: [firstInvocationId] }]);
 
@@ -226,6 +243,7 @@ return { kind: 'backing-file-patch', path: input.path, backup: input.path + '.mu
   const changedSounding = kernel.openSounding();
   const changedInference = begin(kernel, changedSounding.id);
   const learnedTool = kernel.state().tools.get('file_patch');
+  assert.equal(changedSounding.unresolvedConsequences.length, 0);
   assert.throws(() => kernel.stageToolRevision(changedInference, changedSounding.id, {
     interpretation: 'This must not claim consequence evidence absent from the current encounter.',
     consequenceDeltaIds: ['patch-feedback-1'],
@@ -276,6 +294,41 @@ test('world consequence cannot cite an invocation Music has never retained', () 
     bearsOn: [{ kind: 'tool-invocation', invocationId: 'missing-invocation' }],
     payload: { observation: 'This reference was invented.' },
   }), /unknown tool invocation/);
+});
+
+test('an interrupted encounter cannot settle a deferred consequence', async () => {
+  const { kernel, root } = harness();
+  const target = join(root, 'deferred.txt');
+  writeFileSync(target, 'before');
+  const actionSounding = kernel.openSounding();
+  const actionInference = begin(kernel, actionSounding.id);
+  await kernel.invokeTool(actionInference, actionSounding.id, 'file_patch', {
+    path: target, oldText: 'before', newText: 'after',
+  });
+  complete(kernel, actionInference);
+  const invocationId = kernel.state().invocations.at(-1).invocationId;
+  kernel.admitDelta({
+    authority: 'world', id: 'deferred-through-failure', stream: 'workspace', at: '2026-08-30T13:00:00.000Z',
+    bearsOn: [{ kind: 'tool-invocation', invocationId }], payload: { observation: 'Revisit this later.' },
+  });
+  const first = kernel.openSounding('delta');
+  const firstInference = begin(kernel, first.id);
+  await kernel.invokeTool(firstInference, first.id, 'attend_consequence', {
+    deltaId: 'deferred-through-failure', action: 'defer', interpretation: 'I am deliberately retaining this for later attention.',
+  });
+  complete(kernel, firstInference);
+
+  const interrupted = kernel.openSounding();
+  const interruptedInference = begin(kernel, interrupted.id);
+  await kernel.invokeTool(interruptedInference, interrupted.id, 'attend_consequence', {
+    deltaId: 'deferred-through-failure', action: 'settle', interpretation: 'This judgment must not activate if the encounter fails.',
+  });
+  kernel.failInference(interruptedInference, new Error('simulated failure after disposition'));
+
+  assert.equal(kernel.audit().deferredConsequences, 1);
+  const recovered = kernel.openSounding();
+  assert.equal(recovered.unresolvedConsequences[0].delta.id, 'deferred-through-failure');
+  assert.equal(recovered.unresolvedConsequences[0].status, 'deferred');
 });
 
 test('agent authority cannot be self-asserted outside an active encounter', async () => {

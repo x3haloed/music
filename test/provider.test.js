@@ -92,6 +92,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.equal(tools.get('revise_tool').properties.tool.properties.source.type, 'string');
     assert.equal(tools.get('revise_tool').properties.consequenceDeltaIds.items.type, 'string');
     assert.equal(tools.get('rollback_tool').properties.consequenceDeltaIds.items.type, 'string');
+    assert.deepEqual(tools.get('attend_consequence').properties.action.enum, ['defer', 'settle']);
   } finally {
     if (previous === undefined) delete process.env.MUSIC_TEST_OPENROUTER_KEY;
     else process.env.MUSIC_TEST_OPENROUTER_KEY = previous;

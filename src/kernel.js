@@ -6,8 +6,9 @@ import { executeToolModule, toolModuleDigest, validateToolModule } from './tool-
 import { initialFilePatchTool } from '../tools/file-patch.js';
 import { initialMessageTool } from '../tools/message.js';
 import { initialSelectionTool } from '../tools/select-tool-action.js';
+import { initialConsequenceTool } from '../tools/attend-consequence.js';
 
-const FORMAT = 'music-event-5';
+const FORMAT = 'music-event-6';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
 const MAX_SELECTION_BYTES = 64 * 1_024;
@@ -28,7 +29,7 @@ export class MusicKernel {
     if (!trimmed || trimmed.length > 128) throw new Error('subject name must be 1-128 characters');
     this.append('subject_created', {
       subject: { id: this.id(), name: trimmed, bornAt: this.clock().toISOString() },
-      tools: [initialMessageTool(), initialFilePatchTool(), initialSelectionTool()],
+      tools: [initialMessageTool(), initialFilePatchTool(), initialSelectionTool(), initialConsequenceTool()],
       carrier: serializeCarrier(initialCarrier()),
     });
     return this.state();
@@ -57,6 +58,7 @@ export class MusicKernel {
       at: this.clock().toISOString(),
       trigger,
       deltas: structuredClone(state.pendingDeltas),
+      unresolvedConsequences: projectUnresolvedConsequences(state),
       tools: [...state.tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
       carrier: projectCarrier(state.carrier),
     };
@@ -174,6 +176,22 @@ export class MusicKernel {
     return transition;
   }
 
+  stageConsequenceTransition(inferenceId, soundingId, proposal) {
+    const state = this.state();
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    const transition = validateConsequenceTransition(proposal, state, encounter);
+    if (state.stagedConsequenceIds.has(transition.deltaId)) {
+      throw new Error(`consequence ${transition.deltaId} already has a transition staged in this encounter`);
+    }
+    this.append('consequence_transition_staged', {
+      inferenceId,
+      soundingId,
+      projection: encounter.projection,
+      ...transition,
+    });
+    return transition;
+  }
+
   selectToolAction(inferenceId, soundingId, toolId, frontier) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
@@ -222,6 +240,7 @@ export class MusicKernel {
         projection: encounter.projection,
         ledgerPath: this.ledgerPath,
         selectToolAction: (selectedToolId, frontier) => this.selectToolAction(inferenceId, soundingId, selectedToolId, frontier),
+        stageConsequenceTransition: proposal => this.stageConsequenceTransition(inferenceId, soundingId, proposal),
       });
       this.append('tool_invocation_completed', { invocationId, output });
       return output;
@@ -257,6 +276,7 @@ export class MusicKernel {
     if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
     const stagedRevisions = state.stagedRevisions.map(revision => structuredClone(revision));
     const stagedCarrierTransition = state.stagedCarrierTransition ? structuredClone(state.stagedCarrierTransition) : null;
+    const stagedConsequenceTransitions = state.stagedConsequenceTransitions.map(transition => structuredClone(transition));
     const payload = jsonValue({
       inferenceId,
       soundingId: state.activeEncounter.sounding.id,
@@ -269,6 +289,7 @@ export class MusicKernel {
       requests: result.requests ?? [],
       activatedRevisions: stagedRevisions,
       activatedCarrierTransition: stagedCarrierTransition,
+      activatedConsequenceTransitions: stagedConsequenceTransitions,
     }, 'inference result');
     if (Buffer.byteLength(canonical(payload)) > MAX_INFERENCE_BYTES) throw new Error(`inference result exceeds ${MAX_INFERENCE_BYTES} bytes`);
     this.append('inference_completed', payload);
@@ -321,6 +342,8 @@ export class MusicKernel {
       uncertainInvocations: countInvocationStatus(state, 'uncertain'),
       activeInvocations: state.activeToolInvocations.size,
       consequenceDeltas: state.consequenceDeltaIds.size,
+      unresolvedConsequences: [...state.consequences.values()].filter(consequence => consequence.status !== 'settled').length,
+      deferredConsequences: [...state.consequences.values()].filter(consequence => consequence.status === 'deferred').length,
       uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
         .filter(([invocationId, invocation]) => invocation.status === 'uncertain' && !state.contactedInvocationIds.has(invocationId)).length,
       selections: state.selectionCount,
@@ -385,6 +408,7 @@ function reduceEvents(events) {
     invocationHistory: new Map(),
     contactedInvocationIds: new Set(),
     consequenceDeltaIds: new Set(),
+    consequences: new Map(),
     messages: [],
     recoveryMessages: [],
     activeInputMessage: null,
@@ -393,6 +417,8 @@ function reduceEvents(events) {
     stagedRevisions: [],
     stagedToolIds: new Set(),
     stagedCarrierTransition: null,
+    stagedConsequenceTransitions: [],
+    stagedConsequenceIds: new Set(),
     selections: new Map(),
     usedSelectionIds: new Set(),
     selectionCount: 0,
@@ -420,7 +446,10 @@ function reduceEvents(events) {
         validateConsequenceReferences(delta, state);
         if (state.deltaIds.has(delta.id)) throw new Error(`ledger repeats delta id: ${delta.id}`);
         state.deltaIds.add(delta.id);
-        if (delta.bearsOn?.length) state.consequenceDeltaIds.add(delta.id);
+        if (delta.bearsOn?.length) {
+          state.consequenceDeltaIds.add(delta.id);
+          state.consequences.set(delta.id, { delta: structuredClone(delta), status: 'open', disposition: null });
+        }
         for (const reference of delta.bearsOn ?? []) state.contactedInvocationIds.add(reference.invocationId);
         state.pendingDeltas.push(structuredClone(delta));
         break;
@@ -430,6 +459,9 @@ function reduceEvents(events) {
         const sounding = event.payload.sounding;
         if (event.payload.projection !== digest(sounding)) throw new Error('Sounding projection digest mismatch');
         if (digest(sounding.carrier) !== digest(projectCarrier(state.carrier))) throw new Error('Sounding carrier projection mismatch');
+        if (digest(sounding.unresolvedConsequences) !== digest(projectUnresolvedConsequences(state))) {
+          throw new Error('Sounding unresolved consequence projection mismatch');
+        }
         if (state.openSoundingId || state.activeInferenceId) throw new Error('ledger opens overlapping Soundings');
         if (state.soundings.has(sounding.id)) throw new Error(`ledger repeats Sounding id: ${sounding.id}`);
         const toolBindings = bindProjectedTools(state.tools, sounding.tools);
@@ -461,6 +493,17 @@ function reduceEvents(events) {
         state.stagedCarrierTransition = transition;
         break;
       }
+      case 'consequence_transition_staged': {
+        requireSubject(state);
+        const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        const transition = validateConsequenceTransition(event.payload, state, encounter);
+        if (state.stagedConsequenceIds.has(transition.deltaId)) {
+          throw new Error(`ledger stages consequence ${transition.deltaId} twice in one encounter`);
+        }
+        state.stagedConsequenceTransitions.push(transition);
+        state.stagedConsequenceIds.add(transition.deltaId);
+        break;
+      }
       case 'tool_selection_recorded': {
         requireSubject(state);
         const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
@@ -484,7 +527,7 @@ function reduceEvents(events) {
         break;
       }
       case 'tool_revision_activated': {
-        throw new Error('music-event-5 does not allow standalone tool activation');
+        throw new Error('music-event-6 does not allow standalone tool activation');
       }
       case 'tool_invocation_started': {
         requireSubject(state);
@@ -567,6 +610,17 @@ function reduceEvents(events) {
         if (event.payload.activatedCarrierTransition) {
           state.carrier = applyCarrierTransition(state.carrier, event.payload.activatedCarrierTransition);
         }
+        if (!Array.isArray(event.payload.activatedConsequenceTransitions)
+          || event.payload.activatedConsequenceTransitions.length !== state.stagedConsequenceTransitions.length
+          || event.payload.activatedConsequenceTransitions.some((transition, index) => digest(transition) !== digest(state.stagedConsequenceTransitions[index]))) {
+          throw new Error('completed inference consequence activation does not match staged transitions');
+        }
+        for (const transition of event.payload.activatedConsequenceTransitions) {
+          const consequence = state.consequences.get(transition.deltaId);
+          if (!consequence) throw new Error(`completed inference cites unknown consequence: ${transition.deltaId}`);
+          consequence.status = transition.action === 'defer' ? 'deferred' : 'settled';
+          consequence.disposition = structuredClone(transition);
+        }
         state.messages.push(...structuredClone(event.payload.responseMessages));
         state.activeEncounter.status = 'completed';
         state.activeInferenceId = null;
@@ -574,6 +628,8 @@ function reduceEvents(events) {
         state.stagedRevisions = [];
         state.stagedToolIds = new Set();
         state.stagedCarrierTransition = null;
+        state.stagedConsequenceTransitions = [];
+        state.stagedConsequenceIds = new Set();
         state.selections = new Map();
         state.usedSelectionIds = new Set();
         state.recoveryMessages = [];
@@ -604,6 +660,8 @@ function reduceEvents(events) {
         state.stagedRevisions = [];
         state.stagedToolIds = new Set();
         state.stagedCarrierTransition = null;
+        state.stagedConsequenceTransitions = [];
+        state.stagedConsequenceIds = new Set();
         state.selections = new Map();
         state.usedSelectionIds = new Set();
         state.activeInputMessage = null;
@@ -681,7 +739,7 @@ function retainConsequenceEvidence(deltaIds, encounter) {
     || new Set(deltaIds).size !== deltaIds.length) {
     throw new Error('consequenceDeltaIds must contain at most 32 unique bounded ids');
   }
-  const delivered = new Map(encounter.sounding.deltas.map(delta => [delta.id, delta]));
+  const delivered = deliveredConsequences(encounter);
   return deltaIds.map(deltaId => {
     const delta = delivered.get(deltaId);
     if (!delta) throw new Error(`consequence Delta was not delivered in this Sounding: ${deltaId}`);
@@ -691,6 +749,43 @@ function retainConsequenceEvidence(deltaIds, encounter) {
       invocationIds: delta.bearsOn.map(reference => reference.invocationId),
     };
   });
+}
+
+function deliveredConsequences(encounter) {
+  return new Map([
+    ...encounter.sounding.deltas
+      .filter(delta => delta.bearsOn?.length)
+      .map(delta => [delta.id, delta]),
+    ...(encounter.sounding.unresolvedConsequences ?? [])
+      .map(consequence => [consequence.delta.id, consequence.delta]),
+  ]);
+}
+
+function validateConsequenceTransition(proposal, state, encounter) {
+  if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) {
+    throw new Error('consequence transition must be an object');
+  }
+  const deltaId = typeof proposal.deltaId === 'string' ? proposal.deltaId.trim() : '';
+  if (!deltaId || deltaId.length > 128) throw new Error('consequence transition needs a bounded Delta id');
+  if (!['defer', 'settle'].includes(proposal.action)) throw new Error('consequence transition action must be defer or settle');
+  const interpretation = typeof proposal.interpretation === 'string' ? proposal.interpretation.trim() : '';
+  if (!interpretation || interpretation.length > 4_096) throw new Error('consequence transition needs a bounded interpretation');
+  const consequence = state.consequences.get(deltaId);
+  if (!consequence || consequence.status === 'settled') throw new Error(`consequence is not unresolved: ${deltaId}`);
+  const delivered = deliveredConsequences(encounter).get(deltaId);
+  if (!delivered || digest(delivered) !== digest(consequence.delta)) {
+    throw new Error(`unresolved consequence was not delivered in this Sounding: ${deltaId}`);
+  }
+  const priorStatus = proposal.priorStatus ?? consequence.status;
+  if (priorStatus !== consequence.status) throw new Error(`consequence prior status mismatch: ${deltaId}`);
+  return {
+    deltaId,
+    action: proposal.action,
+    priorStatus,
+    interpretation,
+    evidence: boundedEvidence(proposal.evidence),
+    invocationIds: consequence.delta.bearsOn.map(reference => reference.invocationId),
+  };
 }
 
 function validateRetainedConsequences(consequences, encounter) {
@@ -839,6 +934,28 @@ function projectTool(tool) {
     description: tool.description,
     inputSchema: structuredClone(tool.inputSchema),
     ...(tool.selection === undefined ? {} : { selection: structuredClone(tool.selection) }),
+  };
+}
+
+function projectUnresolvedConsequences(state) {
+  const pendingIds = new Set(state.pendingDeltas.map(delta => delta.id));
+  return [...state.consequences.values()]
+    .filter(consequence => consequence.status !== 'settled' && !pendingIds.has(consequence.delta.id))
+    .sort((left, right) => left.delta.at.localeCompare(right.delta.at) || left.delta.id.localeCompare(right.delta.id))
+    .map(projectConsequence);
+}
+
+function projectConsequence(consequence) {
+  return {
+    delta: structuredClone(consequence.delta),
+    status: consequence.status,
+    ...(consequence.disposition === null ? {} : {
+      disposition: {
+        action: consequence.disposition.action,
+        interpretation: consequence.disposition.interpretation,
+        evidence: structuredClone(consequence.disposition.evidence),
+      },
+    }),
   };
 }
 

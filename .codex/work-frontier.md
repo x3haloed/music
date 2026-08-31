@@ -43,7 +43,16 @@ tools retain the unrestricted machine authority of the harness process.
   lineage on both a learned executable successor and a later rollback successor.
 - **World change reaches the subject as a first-class runtime event.**
   **Evidence:** Watch constructs each Sounding from typed, timestamped Deltas and
-  can inject waking Deltas into an inference already in progress.
+  can inject waking Deltas into an inference already in progress. Music now has
+  a durable adapter-neutral filesystem ingress whose admitted arrivals wake the
+  resident, including a follow-up Sounding for contact arriving during inference;
+  same-Sounding steering remains unproved.
+- **The subject may leave consequence meaning genuinely unresolved across
+  encounters.**
+  **Evidence:** Music's ordinary consequence-attention tool now stages explicit
+  deferral or settlement. A deferred world Delta and the subject's disposition
+  survive reconstruction and return in later Soundings; failed settlement does
+  not activate.
 - **The durable self cannot be silently replaced by a lossy projection.**
   **Evidence:** Continuing-song's pre-E66 audit found that a correction projection
   dropped capability modules, opening grammar, pursuit state, and receipts; its

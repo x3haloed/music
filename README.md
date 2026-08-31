@@ -12,6 +12,12 @@ binds invocations to exact Soundings and module digests, and stages, activates,
 or rolls back executable revisions. Recoverability comes from append-only
 ancestry and deferred activation—not from limiting what ordinary tools can do.
 
+A resident runtime watches a durable filesystem ingress. External adapters
+atomically submit world-authored Delta files without writing the subject ledger;
+the one resident runtime admits them, wakes an encounter, and archives each
+arrival. A Delta arriving during inference is durably queued for a follow-up
+Sounding.
+
 The current causal path is:
 
 ```text
@@ -25,9 +31,10 @@ world Delta -> Sounding -> active carrier
 
 Initial ordinary modules live in [`tools/`](./tools). `file_patch` performs a
 real atomic textual replacement on any path visible to the process. `message`
-and even `select_tool_action` are ordinary revisable modules. Their source is
-seed material for a new subject; afterward, the ledger-retained active version
-is authoritative.
+and even `select_tool_action` are ordinary revisable modules.
+`attend_consequence` lets the one mind defer or settle a consequence; deferred
+consequences return in later Soundings. Their source is seed material for a new
+subject; afterward, the ledger-retained active version is authoritative.
 
 `revise_tool` and `rollback_tool` are bootstrap meta-tools. A revision carries a
 complete replacement description, JSON Schema, optional selection geometry, and
@@ -56,6 +63,17 @@ node src/cli.js init /tmp/music-events.jsonl Aster
 node src/cli.js sound /tmp/music-events.jsonl manual
 node src/cli.js audit /tmp/music-events.jsonl
 ```
+
+To submit a durable world Delta and run the continuing resident loop:
+
+```sh
+node src/cli.js submit /tmp/music-inbox /path/to/delta.json
+node src/cli.js reside /tmp/music-events.jsonl examples/openrouter.model.json /tmp/music-inbox
+```
+
+`submit` writes atomically into `pending/`. The resident is the sole ledger
+writer and moves arrivals to `accepted/` or `rejected/`; replay of an already
+admitted Delta id is archived without duplicating world contact.
 
 To run a deliberately capped OpenRouter connectivity probe:
 
