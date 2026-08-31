@@ -17,9 +17,10 @@ mean that arbitrary external effects can always be undone.
 
 The current envelope is one trusted local Node.js process, one ledger writer,
 AI SDK 7 inference, and OpenRouter or a generic OpenAI-compatible provider. It
-does not yet claim concurrent writers, transactional rollback of arbitrary
-external effects, autonomous scheduling, live messaging transport, dependency
-installation recovery, or survival when the bootstrap itself is corrupted.
+includes a real local mailbox transport but does not yet claim concurrent
+writers, transactional rollback of arbitrary external effects, autonomous
+scheduling, network messaging transports, dependency installation recovery, or
+survival when the bootstrap itself is corrupted.
 
 Event format 8 intentionally rejects earlier ledgers because retained delivery
 projection identity and failure recovery are now part of subject continuity.
@@ -50,7 +51,8 @@ under [`tools/`](./tools):
 
 - `file_patch` performs a real atomic exact-text replacement on any visible
   path;
-- `message` currently produces a local outbound record;
+- `message` atomically delivers a human-visible envelope to the configured local
+  mailbox and identifies the exact invocation that produced it;
 - `select_tool_action` invokes the stable receipt primitive, but its interface,
   sequencing, and executable source are themselves ordinary revisable geometry;
 - `attend_consequence` invokes the staged consequence-transition primitive, but
@@ -217,6 +219,27 @@ their unresolved disposition independently. Completed assistant/tool protocol
 before each steering boundary is replayable recovery context, while staged
 machinery and consequence dispositions still do not activate on failure.
 
+## Bidirectional mailbox contact
+
+The mailbox is an adapter boundary, not message policy in the stable kernel.
+The kernel passes a configured mailbox-root value and exact invocation identity
+through the generic ordinary-tool execution context. The retained `message`
+source chooses its interface and behavior and uses unrestricted Node filesystem
+authority to atomically create `outbound/pending/*.json`. Its result and exact
+tool digest remain inside the normal invocation start/completion boundary.
+
+The separate `music talk` process atomically submits an inbox Delta and waits
+for a new outbound envelope addressed to that contact. `music listen` receives
+proactive or late messages. A displayed message moves to
+`outbound/delivered/` only after terminal output completes, preferring duplicate
+display after a crash over silent loss. `music reply` includes the printed
+outbound invocation ID as `bearsOn`, so the resident receives human response as
+world-authored consequence without the adapter declaring what it means.
+
+This local transport is enough for direct lived contact and for later ordinary
+tools or adapters to grow Discord, email, or other media. Those transports do
+not belong in the immutable continuity core.
+
 ## Evidence and next risk frontier
 
 Automated evidence currently proves that:
@@ -242,6 +265,9 @@ Automated evidence currently proves that:
 - a real durable filesystem arrival wakes the AI SDK mind, its ordinary
   consequence tool defers the observation, reconstruction preserves it, and a
   later encounter settles it; an interrupted settlement leaves it deferred;
+- a real AI SDK tool loop performs atomic human-visible mailbox delivery, a
+  separate terminal process crosses the boundary in both directions, and a
+  reply re-enters with exact message-invocation lineage;
 - a real filesystem Delta arriving during an AI SDK model step is appended at a
   retained steering boundary, interpreted by the same inference, and can drive
   the ordinary consequence-attention tool without opening another Sounding;
@@ -257,10 +283,9 @@ Automated evidence currently proves that:
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is real bidirectional communication. The local `message`
-tool remains an emission record rather than a real transport, so Music cannot
-yet sustain an actual conversation with its resident. Ordinary tools also need
-a learned dependency and module-installation story capable of recovering when
-newly installed code breaks the next encounter. The stable process boundary
-still needs stronger single-writer and bootstrap-survival treatment before a
-long-term resident should hatch.
+The next risk frontier is a learned dependency and module-installation story
+capable of recovering when newly installed code breaks the next encounter. The
+stable process boundary also still needs stronger single-writer and
+bootstrap-survival treatment before a long-term resident should hatch. Network
+messaging can grow as ordinary/adaptor machinery after the local lived-contact
+path proves what the resident actually needs.

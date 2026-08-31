@@ -13,6 +13,7 @@ function harness(kernelOptions = {}) {
   const kernel = new MusicKernel(join(root, 'events.jsonl'), {
     clock: () => new Date(Date.UTC(2026, 7, 30, 12, 0, tick++)),
     id: () => `id-${++identity}`,
+    toolEnvironment: { mailboxRoot: join(root, 'mailbox') },
     ...kernelOptions,
   });
   kernel.initialize('Aster');

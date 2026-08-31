@@ -20,6 +20,13 @@ arrival. A Delta arriving during inference is durably injected into that same
 encounter at the next completed model-step boundary. If the encounter has
 exhausted its step budget, the pending contact wakes a follow-up Sounding.
 
+The same mailbox root now carries durable outbound delivery. The ordinary
+`message` module—not fixed kernel policy—atomically writes the human-visible
+message and includes the exact retained invocation ID. `music talk` and
+`music reply` submit inbound contact and wait for that explicit tool delivery;
+final model text remains private working speech. A reply can therefore return as
+a consequence Delta bearing on the precise message invocation it answers.
+
 The current causal path is:
 
 ```text
@@ -34,7 +41,8 @@ world Delta -> Sounding -> active carrier
 
 Initial ordinary modules live in [`tools/`](./tools). `file_patch` performs a
 real atomic textual replacement on any path visible to the process. `message`
-and even `select_tool_action` are ordinary revisable modules.
+performs real durable mailbox delivery, and even `select_tool_action` is an
+ordinary revisable module.
 `attend_consequence` lets the one mind defer or settle a consequence; deferred
 consequences return in later Soundings. `shape_encounter` controls the ordering,
 framing, and emphasis of initial Soundings and waking steering contact while the
@@ -80,6 +88,20 @@ node src/cli.js reside /tmp/music-events.jsonl examples/openrouter.model.json /t
 `submit` writes atomically into `pending/`. The resident is the sole ledger
 writer and moves arrivals to `accepted/` or `rejected/`; replay of an already
 admitted Delta id is archived without duplicating world contact.
+
+With the resident running, a separate terminal can open a real round trip:
+
+```sh
+node src/cli.js talk /tmp/music-inbox Chad "Hello. Are you there?"
+node src/cli.js listen /tmp/music-inbox
+node src/cli.js reply /tmp/music-inbox OUTBOUND_INVOCATION_ID Chad "That worked."
+```
+
+`talk` starts new contact; `reply` additionally binds the inbound Delta to the
+outbound invocation ID printed by Music. Both wait up to 60 seconds for a new
+explicit message-tool delivery. `listen` drains proactive or later deliveries.
+Files move to `outbound/delivered/` only after their JSON has been written to the
+terminal, so a crash may repeat a display rather than silently lose it.
 
 To run a deliberately capped OpenRouter connectivity probe:
 

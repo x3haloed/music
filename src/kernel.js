@@ -19,7 +19,12 @@ const MAX_INFERENCE_BYTES = 2 * 1_024 * 1_024;
 const RESERVED_TOOL_IDS = new Set(['inspect_tool', 'revise_tool', 'rollback_tool', 'revise_carrier']);
 
 export class MusicKernel {
-  constructor(ledgerPath, { clock = () => new Date(), id = () => randomUUID(), deliveryProjectionTimeoutMs = 5_000 } = {}) {
+  constructor(ledgerPath, {
+    clock = () => new Date(),
+    id = () => randomUUID(),
+    deliveryProjectionTimeoutMs = 5_000,
+    toolEnvironment = {},
+  } = {}) {
     if (!Number.isInteger(deliveryProjectionTimeoutMs) || deliveryProjectionTimeoutMs < 10 || deliveryProjectionTimeoutMs > 120_000) {
       throw new Error('deliveryProjectionTimeoutMs must be an integer from 10 to 120000');
     }
@@ -27,6 +32,11 @@ export class MusicKernel {
     this.clock = clock;
     this.id = id;
     this.deliveryProjectionTimeoutMs = deliveryProjectionTimeoutMs;
+    const environment = jsonValue(toolEnvironment, 'tool environment');
+    if (!environment || typeof environment !== 'object' || Array.isArray(environment)) {
+      throw new Error('tool environment must be an object');
+    }
+    this.toolEnvironment = Object.freeze(environment);
   }
 
   initialize(name) {
@@ -108,6 +118,7 @@ export class MusicKernel {
         projection: encounter.projection,
         ledgerPath: this.ledgerPath,
         deliveryPhase: phase,
+        environment: structuredClone(this.toolEnvironment),
       }), this.deliveryProjectionTimeoutMs, `delivery projection exceeded ${this.deliveryProjectionTimeoutMs}ms`);
       const message = validateProjectionMessage(output, input);
       this.append('delivery_projection_completed', { projectionId, message });
@@ -308,10 +319,12 @@ export class MusicKernel {
     });
     try {
       const output = await executeToolModule(tool, input, {
+        invocationId,
         inferenceId,
         soundingId,
         projection: encounter.projection,
         ledgerPath: this.ledgerPath,
+        environment: structuredClone(this.toolEnvironment),
         selectToolAction: (selectedToolId, frontier) => this.selectToolAction(inferenceId, soundingId, selectedToolId, frontier),
         stageConsequenceTransition: proposal => this.stageConsequenceTransition(inferenceId, soundingId, proposal),
       });

@@ -48,6 +48,11 @@ tools retain the unrestricted machine authority of the harness process.
   resident. Real ingress during an AI SDK step now appends the completed protocol
   and exact new contact into the same inference without changing its projected
   tool or carrier geometry. Initial and steered Deltas return after interruption.
+- **Human-visible speech must cross an explicit, consequence-bearing tool path.**
+  **Evidence:** Final inference text remains private. The ordinary retained
+  `message` module now atomically delivers through a configured mailbox with its
+  exact invocation ID. A separate `music talk` process completes a real round
+  trip, and `music reply` can return contact bearing on that exact invocation.
 - **The subject may leave consequence meaning genuinely unresolved across
   encounters.**
   **Evidence:** Music's ordinary consequence-attention tool now stages explicit
@@ -78,8 +83,9 @@ observation: let contact arrive, see what the resident does, and let the residen
 remain its own witness. Tests should prove continuity and recovery mechanics,
 not turn the resident into a benchmark or comparative research subject.
 
-Current hatch frontier: real bidirectional communication, recoverable dependency
-and module installation, stronger single-writer/bootstrap survival, then a
-bounded lived residency that can reveal what remains missing.
+Current hatch frontier: recoverable dependency and module installation, stronger
+single-writer/bootstrap survival, then a bounded lived residency that can reveal
+what remains missing. The local mailbox now supplies the first real
+bidirectional-contact path; network media can remain ordinary/adaptor growth.
 
 ## Prediction errors

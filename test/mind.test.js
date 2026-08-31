@@ -7,13 +7,18 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { MusicKernel } from '../src/kernel.js';
 import { MusicMind, repairIncompleteToolTurns } from '../src/mind.js';
 import { toolModuleDigest } from '../src/tool-module.js';
+import { pendingOutboundMessages } from '../src/mailbox.js';
 
 function harness(model) {
   const root = mkdtempSync(join(tmpdir(), 'music-mind-test-'));
   let identity = 0;
-  const kernel = new MusicKernel(join(root, 'events.jsonl'), { id: () => `id-${++identity}` });
+  const kernel = new MusicKernel(join(root, 'events.jsonl'), {
+    id: () => `id-${++identity}`,
+    toolEnvironment: { mailboxRoot: join(root, 'mailbox') },
+  });
   kernel.initialize('Aster');
   return {
+    root,
     kernel,
     mind: new MusicMind(kernel, {
       model,
@@ -67,14 +72,18 @@ test('retained carrier consequence changes selection over the same actor-authore
   assert.doesNotMatch(erased.kernel.state().invocations.at(-1).output.body, /\[question\]/);
 });
 
-test('AI SDK tool loop invokes active Music geometry and retains the complete protocol', async () => {
+test('AI SDK tool loop invokes active Music geometry and performs durable human-visible delivery', async () => {
   const model = selectionMessageModel('send', { recipient: 'Chad', content: 'The loop is connected.' }, 'I sent the message.');
-  const { kernel, mind } = harness(model);
+  const { root, kernel, mind } = harness(model);
 
   const result = await mind.receive(kernel.openSounding().id);
 
   assert.equal(result.toolCalls, 2);
   assert.equal(kernel.state().invocations.at(-1).output.body, 'to=Chad\nThe loop is connected.');
+  const outbound = pendingOutboundMessages(join(root, 'mailbox'));
+  assert.equal(outbound.length, 1);
+  assert.equal(outbound[0].message.content, 'The loop is connected.');
+  assert.equal(outbound[0].message.invocationId, kernel.state().invocations.at(-1).invocationId);
   assert.ok(kernel.state().messages.some(message => message.role === 'tool'));
   assert.equal(model.doGenerateCalls.length, 3);
   assert.ok(model.doGenerateCalls[1].prompt.some(message => message.role === 'tool'));
