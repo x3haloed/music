@@ -141,7 +141,7 @@ export function createTools(kernel, inferenceId, soundingId) {
     execute: async input => kernel.inspectTool(inferenceId, soundingId, input.toolId),
   });
   tools.revise_tool = tool({
-    description: 'Replace the interface and unrestricted JavaScript implementation of an existing ordinary tool, or invent a new executable tool. When world feedback bears on an invocation, cite its delivered Delta id in consequenceDeltaIds. The kernel supplies ancestry and activates the result for later Soundings; it does not become available midway through this Sounding.',
+    description: 'Replace the interface and unrestricted JavaScript implementation of an existing ordinary tool, or invent a new executable tool. Source is the executable body of an async function: write statements using input and context and return a JSON value directly; do not wrap it in function or async function syntax. When world feedback bears on an invocation, cite its delivered Delta id in consequenceDeltaIds. The kernel supplies ancestry and activates the result for later Soundings; it does not become available midway through this Sounding.',
     inputSchema: jsonSchema(revisionSchema()),
     execute: async input => {
       const staged = kernel.stageToolRevision(inferenceId, soundingId, input);
@@ -271,7 +271,10 @@ function revisionSchema() {
           id: { type: 'string', pattern: '^[a-z][a-z0-9_-]{0,47}$' },
           description: { type: 'string', minLength: 1, maxLength: 4_096 },
           inputSchema: { type: 'object', additionalProperties: true },
-          source: { type: 'string', minLength: 1, maxLength: 262_144 },
+          source: {
+            type: 'string', minLength: 1, maxLength: 262_144,
+            description: 'Executable async-function body statements. Use input and context directly and return a JSON value. Do not provide a function declaration or function wrapper.',
+          },
           selection: {
             type: 'object',
             properties: {

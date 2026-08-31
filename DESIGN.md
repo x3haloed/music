@@ -134,6 +134,13 @@ while reconstruction of an existing subject loads its complete active modules
 from the ledger. An obsolete or broken seed implementation therefore cannot
 strand a living identity.
 
+Retained tool `source` is the body of an async function, not a complete function
+declaration: it receives `input` and `context` directly and must return a JSON
+value. The revision schema exposes this contract. If a learned source instead
+defines a function and therefore returns `undefined`, execution reports the
+wrapper mistake explicitly so the subject can revise its own source rather than
+misdiagnose serialization.
+
 ## Causal map
 
 ```text

@@ -113,6 +113,12 @@ every other ordinary tool.
 continuity and inference-envelope policy through the same ordinary, revisable
 tool path.
 
+When inventing or revising a tool, `source` contains executable async-function
+body statements. It uses `input` and `context` directly and returns a JSON value;
+it is not wrapped in `function` or `async function` syntax. Music returns a
+specific corrective diagnostic when a wrapper would otherwise only yield
+`undefined`.
+
 A fallback heartbeat is secluded time, not a task. The seed encounter shaper
 therefore delivers heartbeat facts without appending a request, reporting
 obligation, or behavioral instruction. The heartbeat continues to carry exact

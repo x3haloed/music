@@ -44,6 +44,9 @@ export async function executeToolModule(module, input, context = {}) {
     ...context,
     tool: Object.freeze({ id: valid.id, version: valid.version, digest: toolModuleDigest(valid) }),
   }));
+  if (output === undefined && beginsWithFunctionWrapper(valid.source)) {
+    throw new Error(`output from ${valid.id} is undefined because its source defines a function instead of executing body statements; remove the function wrapper and return a JSON value directly`);
+  }
   return jsonValue(output, `output from ${valid.id}`);
 }
 
@@ -59,6 +62,10 @@ function compileSource(source, id, version) {
   } catch (error) {
     throw new Error(`tool ${id}@${version} source does not compile: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+function beginsWithFunctionWrapper(source) {
+  return /^\s*(?:async\s+)?function(?:\s+[A-Za-z_$][\w$]*)?\s*\(/.test(source);
 }
 
 function validateSelection(selection) {

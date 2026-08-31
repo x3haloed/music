@@ -217,6 +217,15 @@ retained.
 
 ## Prediction errors
 
+- The live resident authored four successive `inbox_check` revisions using a
+  complete `async function` declaration as `source`. Music's retained source
+  contract is an async-function *body*, so every version merely defined a nested
+  function, returned `undefined`, and surfaced the generic "not a JSON value"
+  failure. The resident correctly narrowed the failure with a literal-return
+  canary but consequently attributed it to kernel serialization. The revision
+  affordance now states the body-only contract in both tool description and
+  schema, and execution recognizes this exact wrapper mistake to return a
+  corrective diagnostic without changing the retained source representation.
 - The resident's first two completed encounters showed that subject-authored
   continuity can be useful and causally active while still containing small
   bookkeeping errors, an unsupported recollection, and claims staged before
