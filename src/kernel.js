@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { canonical, digest } from './canonical.js';
 import { executeAction, manifestDigest, validateManifest } from './geometry.js';
 
-const FORMAT = 'music-event-1';
+const FORMAT = 'music-event-2';
 const MAX_TOOLS = 32;
 const MAX_DELTA_BYTES = 64 * 1_024;
 const MAX_INFERENCE_BYTES = 2 * 1_024 * 1_024;
@@ -40,6 +40,7 @@ export class MusicKernel {
     const state = this.state();
     requireSubject(state);
     if (state.activeInferenceId) throw new Error(`cannot open a Sounding while inference is active: ${state.activeInferenceId}`);
+    if (state.openSoundingId) throw new Error(`an opened Sounding is still awaiting an encounter: ${state.openSoundingId}`);
     if (!['delta', 'heartbeat', 'manual'].includes(trigger)) throw new Error('invalid Sounding trigger');
     const sounding = {
       id: this.id(),
@@ -53,48 +54,56 @@ export class MusicKernel {
     this.append('sounding_opened', {
       sounding,
       projection: digest(sounding),
-      deliveredDeltaIds: sounding.deltas.map(delta => delta.id),
     });
     return sounding;
   }
 
-  activateToolRevision(proposal) {
+  getSounding(soundingId) {
     const state = this.state();
-    requireSubject(state);
-    if (proposal?.authority !== 'agent') throw new Error('tool revision must have agent authority');
-    if (proposal.parent !== state.head) throw new Error('tool revision is not bound to the current authoritative self');
-    const interpretation = typeof proposal.interpretation === 'string' ? proposal.interpretation.trim() : '';
+    const record = state.soundings.get(soundingId);
+    if (!record) throw new Error(`unknown Sounding: ${soundingId}`);
+    return structuredClone(record.sounding);
+  }
+
+  stageToolRevision(inferenceId, soundingId, proposal) {
+    const state = this.state();
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
     if (!interpretation || interpretation.length > 4_096) throw new Error('revision needs a bounded interpretation');
-    const tool = validateManifest(proposal.tool);
+    const requested = proposal?.tool;
+    const current = state.tools.get(requested?.id);
+    const tool = validateManifest({
+      ...requested,
+      version: current ? current.version + 1 : 1,
+      parent: current ? manifestDigest(current) : null,
+    });
     if (RESERVED_TOOL_IDS.has(tool.id)) throw new Error(`${tool.id} is reserved by the continuity kernel`);
-    const current = state.tools.get(tool.id);
-    if (!current && state.tools.size >= MAX_TOOLS) throw new Error(`tool limit ${MAX_TOOLS} reached`);
-    if (current) {
-      if (tool.version !== current.version + 1) throw new Error('tool revision must increment the active version by one');
-      if (tool.parent !== manifestDigest(current)) throw new Error('tool revision is not bound to the active tool geometry');
-    } else if (tool.version !== 1 || tool.parent !== null) {
-      throw new Error('a new tool must begin at version 1 with no tool parent');
-    }
-    this.append('tool_revision_activated', {
-      authority: 'agent',
+    const stagedNewTools = state.stagedRevisions.filter(revision => revision.previousTool === null).length;
+    if (!current && state.tools.size + stagedNewTools >= MAX_TOOLS) throw new Error(`tool limit ${MAX_TOOLS} reached`);
+    if (state.stagedToolIds.has(tool.id)) throw new Error(`tool ${tool.id} already has a revision staged in this encounter`);
+    this.append('tool_revision_staged', {
+      inferenceId,
+      soundingId,
+      projection: encounter.projection,
       interpretation,
       evidence: boundedEvidence(proposal.evidence),
       previousTool: current ? manifestDigest(current) : null,
       tool,
     });
-    return this.state().tools.get(tool.id);
+    return tool;
   }
 
-  invokeTool(toolId, actionId, input, { soundingId = null } = {}) {
+  invokeTool(inferenceId, soundingId, toolId, actionId, input) {
     const state = this.state();
-    requireSubject(state);
-    const tool = state.tools.get(toolId);
-    if (!tool) throw new Error(`unknown tool: ${toolId}`);
-    if (soundingId !== null && !state.soundingIds.has(soundingId)) throw new Error(`unknown Sounding: ${soundingId}`);
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    const binding = encounter.toolBindings.get(toolId);
+    if (!binding) throw new Error(`tool ${toolId} was not projected in Sounding ${soundingId}`);
+    const tool = binding.manifest;
     const output = executeAction(tool, actionId, input);
     this.append('tool_invoked', {
-      authority: 'agent',
+      inferenceId,
       soundingId,
+      projection: encounter.projection,
       tool: { id: tool.id, version: tool.version, digest: manifestDigest(tool) },
       action: actionId,
       input: structuredClone(input),
@@ -106,14 +115,18 @@ export class MusicKernel {
   beginInference(soundingId, model, inputMessage) {
     const state = this.state();
     requireSubject(state);
-    if (!state.soundingIds.has(soundingId)) throw new Error(`unknown Sounding: ${soundingId}`);
     if (state.activeInferenceId) throw new Error(`inference already active: ${state.activeInferenceId}`);
+    const sounding = state.soundings.get(soundingId);
+    if (!sounding) throw new Error(`unknown Sounding: ${soundingId}`);
+    if (sounding.status !== 'opened') throw new Error(`Sounding ${soundingId} is ${sounding.status}, not opened`);
     if (typeof model?.provider !== 'string' || typeof model?.model !== 'string') throw new Error('inference needs provider and model identity');
     const message = jsonValue(inputMessage, 'inference input message');
     const inferenceId = this.id();
     this.append('inference_started', {
       inferenceId,
       soundingId,
+      projection: sounding.projection,
+      deliveredDeltaIds: sounding.sounding.deltas.map(delta => delta.id),
       model: { provider: model.provider, model: model.model },
       inputMessage: message,
     });
@@ -123,14 +136,18 @@ export class MusicKernel {
   completeInference(inferenceId, result) {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
+    const stagedRevisions = state.stagedRevisions.map(revision => structuredClone(revision));
     const payload = jsonValue({
       inferenceId,
+      soundingId: state.activeEncounter.sounding.id,
+      projection: state.activeEncounter.projection,
       responseMessages: result.responseMessages,
       text: result.text,
       finishReason: result.finishReason,
       usage: result.usage,
       steps: result.steps,
       requests: result.requests ?? [],
+      activatedRevisions: stagedRevisions,
     }, 'inference result');
     if (Buffer.byteLength(canonical(payload)) > MAX_INFERENCE_BYTES) throw new Error(`inference result exceeds ${MAX_INFERENCE_BYTES} bytes`);
     this.append('inference_completed', payload);
@@ -142,6 +159,8 @@ export class MusicKernel {
     if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
     const payload = jsonValue({
       inferenceId,
+      soundingId: state.activeEncounter.sounding.id,
+      projection: state.activeEncounter.projection,
       checkpointMessages,
       error: errorRecord(error),
       requests,
@@ -179,6 +198,11 @@ export class MusicKernel {
       completedInferences: state.completedInferences,
       failedInferences: state.failedInferences,
       activeInferenceId: state.activeInferenceId,
+      openSoundingId: state.openSoundingId,
+      soundings: [...state.soundings.values()].reduce((counts, sounding) => {
+        counts[sounding.status] = (counts[sounding.status] ?? 0) + 1;
+        return counts;
+      }, {}),
     };
   }
 
@@ -222,10 +246,14 @@ function reduceEvents(events) {
     tools: new Map(),
     deltaIds: new Set(),
     pendingDeltas: [],
-    soundingIds: new Set(),
+    soundings: new Map(),
+    openSoundingId: null,
     emissions: [],
     messages: [],
     activeInferenceId: null,
+    activeEncounter: null,
+    stagedRevisions: [],
+    stagedToolIds: new Set(),
     inferenceIds: new Set(),
     completedInferences: 0,
     failedInferences: 0,
@@ -254,49 +282,104 @@ function reduceEvents(events) {
         requireSubject(state);
         const sounding = event.payload.sounding;
         if (event.payload.projection !== digest(sounding)) throw new Error('Sounding projection digest mismatch');
-        state.soundingIds.add(sounding.id);
-        const delivered = new Set(event.payload.deliveredDeltaIds);
-        state.pendingDeltas = state.pendingDeltas.filter(delta => !delivered.has(delta.id));
+        if (state.openSoundingId || state.activeInferenceId) throw new Error('ledger opens overlapping Soundings');
+        if (state.soundings.has(sounding.id)) throw new Error(`ledger repeats Sounding id: ${sounding.id}`);
+        const toolBindings = bindProjectedTools(state.tools, sounding.tools);
+        state.soundings.set(sounding.id, {
+          sounding: structuredClone(sounding),
+          projection: event.payload.projection,
+          toolBindings,
+          status: 'opened',
+          inferenceId: null,
+        });
+        state.openSoundingId = sounding.id;
+        break;
+      }
+      case 'tool_revision_staged': {
+        requireSubject(state);
+        requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        const revision = validateStagedRevision(event.payload, state);
+        if (state.stagedToolIds.has(revision.tool.id)) throw new Error(`ledger stages tool ${revision.tool.id} twice in one encounter`);
+        state.stagedRevisions.push(revision);
+        state.stagedToolIds.add(revision.tool.id);
         break;
       }
       case 'tool_revision_activated': {
-        requireSubject(state);
-        const tool = validateManifest(event.payload.tool);
-        const current = state.tools.get(tool.id);
-        if (current && event.payload.previousTool !== manifestDigest(current)) throw new Error('tool revision ancestry mismatch');
-        if (!current && event.payload.previousTool !== null) throw new Error('new tool has a previous-tool digest');
-        state.tools.set(tool.id, tool);
-        break;
+        throw new Error('music-event-2 does not allow standalone tool activation');
       }
-      case 'tool_invoked':
+      case 'tool_invoked': {
         requireSubject(state);
+        const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        const binding = encounter.toolBindings.get(event.payload.tool?.id);
+        if (!binding || binding.digest !== event.payload.tool.digest || binding.manifest.version !== event.payload.tool.version) {
+          throw new Error('tool invocation is not bound to projected geometry');
+        }
         state.emissions.push(structuredClone(event.payload));
         break;
-      case 'inference_started':
+      }
+      case 'inference_started': {
         requireSubject(state);
         if (state.activeInferenceId) throw new Error('ledger starts overlapping inference');
-        if (!state.soundingIds.has(event.payload.soundingId)) throw new Error('inference cites an unknown Sounding');
+        const sounding = state.soundings.get(event.payload.soundingId);
+        if (!sounding) throw new Error('inference cites an unknown Sounding');
+        if (sounding.status !== 'opened' || state.openSoundingId !== event.payload.soundingId) {
+          throw new Error('inference does not claim the currently opened Sounding');
+        }
+        if (event.payload.projection !== sounding.projection) throw new Error('inference projection binding mismatch');
         if (state.inferenceIds.has(event.payload.inferenceId)) throw new Error('duplicate inference id');
+        const delivered = new Set(event.payload.deliveredDeltaIds);
+        const projectedDeltaIds = sounding.sounding.deltas.map(delta => delta.id);
+        if (delivered.size !== projectedDeltaIds.length || projectedDeltaIds.some(id => !delivered.has(id))) {
+          throw new Error('inference Delta acknowledgement does not match its Sounding');
+        }
         state.inferenceIds.add(event.payload.inferenceId);
         state.activeInferenceId = event.payload.inferenceId;
+        state.activeEncounter = sounding;
+        state.openSoundingId = null;
+        sounding.status = 'active';
+        sounding.inferenceId = event.payload.inferenceId;
+        state.pendingDeltas = state.pendingDeltas.filter(delta => !delivered.has(delta.id));
         state.messages.push(structuredClone(event.payload.inputMessage));
         break;
-      case 'inference_completed':
+      }
+      case 'inference_completed': {
         if (state.activeInferenceId !== event.payload.inferenceId) throw new Error('completed inference is not active');
+        requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         if (!Array.isArray(event.payload.responseMessages)) throw new Error('completed inference lacks response messages');
+        if (!Array.isArray(event.payload.activatedRevisions)) throw new Error('completed inference lacks activated revisions');
+        if (event.payload.activatedRevisions.length !== state.stagedRevisions.length
+          || event.payload.activatedRevisions.some((revision, index) => digest(revision) !== digest(state.stagedRevisions[index]))) {
+          throw new Error('completed inference activation does not match staged revisions');
+        }
+        for (const revision of event.payload.activatedRevisions) {
+          const tool = validateManifest(revision.tool);
+          const current = state.tools.get(tool.id);
+          if ((current ? manifestDigest(current) : null) !== revision.previousTool) throw new Error('tool revision ancestry mismatch');
+          state.tools.set(tool.id, tool);
+        }
         state.messages.push(...structuredClone(event.payload.responseMessages));
+        state.activeEncounter.status = 'completed';
         state.activeInferenceId = null;
+        state.activeEncounter = null;
+        state.stagedRevisions = [];
+        state.stagedToolIds = new Set();
         state.completedInferences += 1;
         break;
+      }
       case 'inference_failed':
         if (state.activeInferenceId !== event.payload.inferenceId) throw new Error('failed inference is not active');
+        requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         if (!Array.isArray(event.payload.checkpointMessages)) throw new Error('failed inference lacks checkpoint messages');
         state.messages.push(...structuredClone(event.payload.checkpointMessages));
         state.messages.push({
           role: 'user',
           content: `[inference_interrupted]\nThe previous inference ended unexpectedly after ${event.payload.checkpointMessages.length} retained response messages. Its error was recorded by the harness. Reorient from the completed tool results and current Sounding rather than inventing missing output.\n[/inference_interrupted]`,
         });
+        state.activeEncounter.status = 'interrupted';
         state.activeInferenceId = null;
+        state.activeEncounter = null;
+        state.stagedRevisions = [];
+        state.stagedToolIds = new Set();
         state.failedInferences += 1;
         break;
       default:
@@ -334,6 +417,54 @@ function boundedEvidence(evidence) {
     throw new Error('revision evidence must be at most 32 bounded references');
   }
   return [...evidence];
+}
+
+function requireActiveEncounter(state, inferenceId, soundingId, projection = undefined) {
+  if (state.activeInferenceId !== inferenceId || !state.activeEncounter) {
+    throw new Error(`inference is not active: ${inferenceId}`);
+  }
+  if (state.activeEncounter.sounding.id !== soundingId) throw new Error('active inference is bound to another Sounding');
+  if (projection !== undefined && state.activeEncounter.projection !== projection) throw new Error('active inference projection binding mismatch');
+  return state.activeEncounter;
+}
+
+function bindProjectedTools(activeTools, projectedTools) {
+  if (!Array.isArray(projectedTools) || activeTools.size !== projectedTools.length) throw new Error('Sounding tools do not match active geometry');
+  const projected = new Map(projectedTools.map(tool => [tool.id, tool]));
+  const result = new Map();
+  for (const [id, active] of activeTools) {
+    const manifest = validateManifest(active);
+    const manifestHash = manifestDigest(manifest);
+    const projection = projected.get(id);
+    if (!projection || projection.digest !== manifestHash || projection.version !== manifest.version) {
+      throw new Error(`Sounding tool binding mismatch: ${id}`);
+    }
+    result.set(id, { digest: manifestHash, manifest });
+  }
+  return result;
+}
+
+function validateStagedRevision(payload, state) {
+  const tool = validateManifest(payload.tool);
+  if (RESERVED_TOOL_IDS.has(tool.id)) throw new Error(`${tool.id} is reserved by the continuity kernel`);
+  const current = state.tools.get(tool.id);
+  const previousTool = current ? manifestDigest(current) : null;
+  if (payload.previousTool !== previousTool) throw new Error('staged tool revision ancestry mismatch');
+  if (current && (tool.version !== current.version + 1 || tool.parent !== previousTool)) {
+    throw new Error('staged tool revision does not succeed the active geometry');
+  }
+  if (!current && (tool.version !== 1 || tool.parent !== null)) throw new Error('staged new tool has invalid ancestry');
+  const interpretation = typeof payload.interpretation === 'string' ? payload.interpretation.trim() : '';
+  if (!interpretation || interpretation.length > 4_096) throw new Error('staged revision needs a bounded interpretation');
+  return {
+    inferenceId: payload.inferenceId,
+    soundingId: payload.soundingId,
+    projection: payload.projection,
+    interpretation,
+    evidence: boundedEvidence(payload.evidence),
+    previousTool,
+    tool,
+  };
 }
 
 function projectTool(tool) {

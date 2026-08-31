@@ -27,8 +27,8 @@ test('completed AI SDK response messages carry one subject across later Sounding
   });
   const { kernel, mind } = harness(model);
 
-  await mind.receive(kernel.openSounding());
-  await mind.receive(kernel.openSounding());
+  await mind.receive(kernel.openSounding().id);
+  await mind.receive(kernel.openSounding().id);
 
   assert.equal(kernel.audit().completedInferences, 2);
   assert.equal(kernel.state().subject.name, 'Aster');
@@ -46,7 +46,7 @@ test('AI SDK tool loop invokes active Music geometry and retains the complete pr
   });
   const { kernel, mind } = harness(model);
 
-  const result = await mind.receive(kernel.openSounding());
+  const result = await mind.receive(kernel.openSounding().id);
 
   assert.equal(result.toolCalls, 1);
   assert.equal(kernel.state().emissions.at(-1).output.body, 'to=Chad\nThe loop is connected.');
@@ -82,11 +82,11 @@ test('the one mind can embody a new tool and encounter it on the next Sounding',
   });
   const { kernel, mind } = harness(model);
 
-  await mind.receive(kernel.openSounding());
+  await mind.receive(kernel.openSounding().id);
   assert.ok(kernel.state().tools.has('compare'));
   const later = kernel.openSounding();
   assert.ok(later.tools.some(tool => tool.id === 'compare'));
-  await mind.receive(later);
+  await mind.receive(later.id);
 
   assert.ok(model.doGenerateCalls[2].tools.some(candidate => candidate.name === 'compare'));
 });
@@ -102,7 +102,7 @@ test('a provider failure retains completed tool turns and closes the inference c
   });
   const { kernel, mind } = harness(model);
 
-  await assert.rejects(() => mind.receive(kernel.openSounding()), /provider connection disappeared/);
+  await assert.rejects(() => mind.receive(kernel.openSounding().id), /provider connection disappeared/);
 
   assert.equal(kernel.audit().failedInferences, 1);
   assert.equal(kernel.audit().activeInferenceId, null);
@@ -148,13 +148,84 @@ test('a process restart explicitly closes an orphaned inference before reopening
     model: resumedModel,
     identity: { provider: resumedModel.provider, model: resumedModel.modelId },
   });
-  await resumedMind.receive(kernel.openSounding());
+  await resumedMind.receive(kernel.openSounding().id);
   assert.equal(kernel.audit().completedInferences, 1);
   assert.ok(resumedModel.doGenerateCalls[0].prompt.some(message =>
     message.role === 'user'
     && Array.isArray(message.content)
     && message.content.some(part => part.type === 'text' && part.text.includes('inference_interrupted')),
   ));
+});
+
+test('MusicMind renders the retained Sounding, not a caller-modified projection', async () => {
+  const model = new MockLanguageModelV4({ doGenerate: textResult('I received the authoritative projection.') });
+  const { kernel, mind } = harness(model);
+  const offered = kernel.openSounding();
+  offered.subject.name = 'Counterfeit';
+
+  await assert.rejects(() => mind.receive(offered), /authoritative Sounding id/);
+  await mind.receive(offered.id);
+
+  const prompt = JSON.stringify(model.doGenerateCalls[0].prompt);
+  assert.match(prompt, /Aster/);
+  assert.doesNotMatch(prompt, /Counterfeit/);
+});
+
+test('a staged revision cannot change another tool call in the same Sounding', async () => {
+  const revision = {
+    interpretation: 'A later encounter should ask before sending.',
+    evidence: ['delta:reply-1'],
+    tool: {
+      id: 'message',
+      description: 'Ask before sending.',
+      actions: [{
+        id: 'ask', description: 'Ask a question.',
+        fields: [{ name: 'question', type: 'string', required: true, maxLength: 512 }],
+        effect: { kind: 'emit', channel: 'outbox', template: '[question] {question}' },
+      }],
+    },
+  };
+  const model = new MockLanguageModelV4({
+    doGenerate: [
+      toolCallResult('revise_tool', revision),
+      toolCallResult('message', { recipient: 'Chad', content: 'The old projection remains executable.' }),
+      textResult('The revision is staged for later.'),
+    ],
+  });
+  const { kernel, mind } = harness(model);
+
+  await mind.receive(kernel.openSounding().id);
+
+  assert.equal(kernel.state().emissions.at(-1).output.body, 'to=Chad\nThe old projection remains executable.');
+  assert.deepEqual(kernel.state().tools.get('message').actions.map(action => action.id), ['ask']);
+});
+
+test('a revision staged by an interrupted inference remains historical but does not activate', async () => {
+  let call = 0;
+  const model = new MockLanguageModelV4({
+    doGenerate: async () => {
+      call += 1;
+      if (call === 1) return toolCallResult('revise_tool', {
+        interpretation: 'This proposal must not survive a failed encounter as active geometry.',
+        tool: {
+          id: 'compare', description: 'Compare two values.',
+          actions: [{
+            id: 'render', description: 'Render a comparison.',
+            fields: [{ name: 'value', type: 'string', required: true, maxLength: 512 }],
+            effect: { kind: 'emit', channel: 'comparison', template: '{value}' },
+          }],
+        },
+      });
+      throw new Error('failure after staging');
+    },
+  });
+  const { kernel, mind } = harness(model);
+
+  await assert.rejects(() => mind.receive(kernel.openSounding().id), /failure after staging/);
+
+  assert.equal(kernel.state().tools.has('compare'), false);
+  assert.equal(kernel.state().soundings.values().next().value.status, 'interrupted');
+  assert.ok(kernel.events().some(event => event.type === 'tool_revision_staged'));
 });
 
 function textResult(text) {

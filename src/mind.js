@@ -22,11 +22,13 @@ export class MusicMind {
     this.maxRetries = maxRetries;
   }
 
-  async receive(sounding, { abortSignal, timeoutMs = 120_000 } = {}) {
+  async receive(soundingId, { abortSignal, timeoutMs = 120_000 } = {}) {
     await this.preflight();
+    if (typeof soundingId !== 'string') throw new Error('MusicMind.receive needs an authoritative Sounding id');
+    const sounding = this.kernel.getSounding(soundingId);
     const requestOffset = this.requests().length;
     const inputMessage = { role: 'user', content: renderSounding(sounding) };
-    const inferenceId = this.kernel.beginInference(sounding.id, this.identity, inputMessage);
+    const inferenceId = this.kernel.beginInference(soundingId, this.identity, inputMessage);
     const checkpointMessages = [];
     const effectiveSignal = abortSignal
       ? AbortSignal.any([abortSignal, AbortSignal.timeout(timeoutMs)])
@@ -36,7 +38,7 @@ export class MusicMind {
       const agent = new ToolLoopAgent({
         model: this.model,
         instructions: instructions(this.kernel.state().subject),
-        tools: createTools(this.kernel, sounding.id),
+        tools: createTools(this.kernel, inferenceId, soundingId),
         stopWhen: isStepCount(this.maxSteps),
         maxOutputTokens: this.maxOutputTokens,
         maxRetries: this.maxRetries,
@@ -73,35 +75,24 @@ export class MusicMind {
   }
 }
 
-export function createTools(kernel, soundingId) {
-  const active = kernel.state().tools;
+export function createTools(kernel, inferenceId, soundingId) {
+  const sounding = kernel.getSounding(soundingId);
   const tools = {};
-  for (const manifest of active.values()) {
+  for (const manifest of sounding.tools) {
     tools[manifest.id] = tool({
       description: manifest.description,
       inputSchema: jsonSchema(schemaForManifest(manifest)),
-      execute: async input => kernel.invokeTool(manifest.id, resolveAction(manifest, input), stripAction(input), { soundingId }),
+      execute: async input => kernel.invokeTool(inferenceId, soundingId, manifest.id, resolveAction(manifest, input), stripAction(input)),
     });
   }
   tools.revise_tool = tool({
     description: 'Change the executable geometry of an existing tool or invent a new bounded tool. The kernel supplies ancestry and activates the result for later Soundings; it does not become available midway through this Sounding.',
     inputSchema: jsonSchema(revisionSchema()),
     execute: async input => {
-      const current = kernel.state().tools.get(input.tool.id);
-      const activated = kernel.activateToolRevision({
-        authority: 'agent',
-        parent: kernel.state().head,
-        interpretation: input.interpretation,
-        evidence: input.evidence,
-        tool: {
-          ...input.tool,
-          version: current ? current.version + 1 : 1,
-          parent: current ? manifestDigest(current) : null,
-        },
-      });
+      const staged = kernel.stageToolRevision(inferenceId, soundingId, input);
       return {
         ok: true,
-        activated: { id: activated.id, version: activated.version, digest: manifestDigest(activated) },
+        staged: { id: staged.id, version: staged.version, digest: manifestDigest(staged) },
         visible: 'next-sounding',
       };
     },

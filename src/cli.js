@@ -23,11 +23,8 @@ try {
       result = kernel.openSounding(args[0] ?? 'manual');
       break;
     case 'revise':
-      result = kernel.activateToolRevision(readJsonFile(args[0]));
-      break;
     case 'invoke':
-      result = kernel.invokeTool(args[0], args[1], JSON.parse(args[2] ?? '{}'), { soundingId: args[3] ?? null });
-      break;
+      throw new Error(`${command} is agent-authority behavior and is only available inside an active Music inference`);
     case 'audit':
       result = kernel.audit();
       break;
@@ -35,8 +32,8 @@ try {
       kernel.recoverInterruptedInference('The previous Music process ended before its active inference could complete.');
       const configured = createConfiguredModel(readJsonFile(args[0]));
       await configured.preflight();
-      const sounding = kernel.openSounding(args[1] ?? 'manual');
-      result = await new MusicMind(kernel, configured, configured.inference).receive(sounding);
+      const soundingId = kernel.state().openSoundingId ?? kernel.openSounding(args[1] ?? 'manual').id;
+      result = await new MusicMind(kernel, configured, configured.inference).receive(soundingId);
       break;
     }
     default:
@@ -54,5 +51,5 @@ function readJsonFile(path) {
 }
 
 function usage() {
-  throw new Error('usage: music <init|delta|sound|revise|invoke|run|audit> LEDGER [arguments]');
+  throw new Error('usage: music <init|delta|sound|run|audit> LEDGER [arguments]');
 }

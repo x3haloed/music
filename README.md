@@ -15,9 +15,10 @@ world Delta -> Sounding -> agent-authored tool revision
 ```
 
 State has one authority: a hash-linked append-only event ledger. The kernel
-preserves subject identity, world/agent authorship, ancestry, activation bounds,
-and exact invocation receipts. The agent—not a tool-local learner—decides what
-a consequence means and what should change.
+preserves subject identity, authority provenance, exact Sounding lifecycle,
+projection and tool bindings, ancestry, activation bounds, and invocation
+receipts. The agent—not a tool-local learner—decides what a consequence means
+and what should change.
 
 Inference uses AI SDK 7. OpenRouter uses its dedicated AI SDK provider in
 explicit strict-compatibility mode; generic and local OpenAI-compatible servers
@@ -26,6 +27,11 @@ completed step checkpoints are retained so tool-call/result protocol survives
 later Soundings and provider interruption. OpenRouter runs also verify the
 selected model currently declares tool support before opening a Sounding;
 generic compatible servers require an explicit `capabilities.tools` claim.
+
+Opening a Sounding reserves its Deltas but does not consume them. Beginning an
+inference durably accepts that exact projection. Tool calls execute the manifest
+digest projected into that Sounding, and revisions remain staged until successful
+inference completion makes them available to a later Sounding.
 
 ## Try it
 
@@ -51,6 +57,8 @@ The example is deliberately locked down for inexpensive smoke testing: it uses
 `z-ai/glm-5.3-flash`, permits one model step, caps generation at 32 tokens, and
 disables retries. Those three inference limits are explicit configuration, and
 the completed inference receipt records the actual model request and token use.
-The CLI also accepts `delta`, `revise`, and `invoke` commands. See
+The CLI accepts `delta`, `sound`, `run`, and `audit` after initialization.
+Invocation and revision are agent-authority behavior and exist only inside an
+active inference; the CLI cannot self-assert them. See
 [`DESIGN.md`](./DESIGN.md) for the explicit capability envelope, causal map,
 deliberate exclusions, and next risk frontier.

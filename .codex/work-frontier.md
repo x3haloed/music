@@ -36,3 +36,17 @@ Soundings and Deltas and can recover when learned machinery is wrong.
 ## Evaluation regime
 
 ## Prediction errors
+
+- **Expected:** Complete provider messages could remain the continuing context
+  while the ledger and executable tools carried authoritative identity and
+  learning.
+  **Observed:** Every completed instruction and interpretation is replayed with
+  no active/discharged distinction, leaving salience and eventual survival to
+  provider attention and context limits.
+  **Uncertain:** The smallest subject-owned, digest-bound active carrier and
+  compiler that makes current consequence causal without installing a fixed
+  researcher-authored ontology of pursuits or personhood.
+  **Evidence:** `src/kernel.js` accumulates every inference message and
+  `src/mind.js` submits the complete repaired sequence on every encounter;
+  Continuing Song E68 independently demonstrated completed transition residue
+  governing fresh actors until E69 introduced a bounded active projection.
