@@ -32,6 +32,7 @@ export function createConfiguredModel(config, { fetch: fetchImplementation = glo
     return {
       model: provider.chat(config.model, config.modelSettings),
       identity: { provider: 'openrouter', model: config.model },
+      inference: inferenceSettings(config),
       requests: () => structuredClone(requests),
       preflight,
     };
@@ -48,6 +49,7 @@ export function createConfiguredModel(config, { fetch: fetchImplementation = glo
   return {
     model: provider.chatModel(config.model),
     identity: { provider: config.name ?? 'openai-compatible', model: config.model },
+    inference: inferenceSettings(config),
     requests: () => structuredClone(requests),
     preflight,
   };
@@ -85,6 +87,25 @@ function validateConfig(config) {
   if (config.provider === 'openai-compatible' && (typeof config.baseURL !== 'string' || !config.baseURL.trim())) {
     throw new Error('openai-compatible config needs a baseURL');
   }
+  validatePositiveInteger(config.maxSteps, 'maxSteps');
+  validatePositiveInteger(config.maxOutputTokens, 'maxOutputTokens');
+  if (config.maxRetries !== undefined && (!Number.isInteger(config.maxRetries) || config.maxRetries < 0)) {
+    throw new Error('maxRetries must be a non-negative integer');
+  }
+}
+
+function validatePositiveInteger(value, name) {
+  if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+}
+
+function inferenceSettings(config) {
+  return {
+    ...(config.maxSteps === undefined ? {} : { maxSteps: config.maxSteps }),
+    ...(config.maxOutputTokens === undefined ? {} : { maxOutputTokens: config.maxOutputTokens }),
+    ...(config.maxRetries === undefined ? {} : { maxRetries: config.maxRetries }),
+  };
 }
 
 function readKey(environmentName, optional) {

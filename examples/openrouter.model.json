@@ -1,6 +1,6 @@
 {
   "provider": "openrouter",
-  "model": "openai/gpt-4o-mini",
+  "model": "z-ai/glm-5.3-flash",
   "apiKeyEnv": "OPENROUTER_API_KEY",
   "appName": "Music"
 }

@@ -2,9 +2,14 @@ import { ToolLoopAgent, isStepCount, jsonSchema, tool } from 'ai';
 import { manifestDigest } from './geometry.js';
 
 const MAX_STEPS = 12;
+const MAX_OUTPUT_TOKENS = 2_048;
 
 export class MusicMind {
-  constructor(kernel, { model, identity, requests = () => [], preflight = async () => ({ tools: true, source: 'injected' }) }, { maxSteps = MAX_STEPS } = {}) {
+  constructor(kernel, { model, identity, requests = () => [], preflight = async () => ({ tools: true, source: 'injected' }) }, {
+    maxSteps = MAX_STEPS,
+    maxOutputTokens = MAX_OUTPUT_TOKENS,
+    maxRetries = 0,
+  } = {}) {
     if (!model) throw new Error('MusicMind needs an AI SDK language model');
     if (!identity?.provider || !identity?.model) throw new Error('MusicMind needs provider identity');
     this.kernel = kernel;
@@ -13,6 +18,8 @@ export class MusicMind {
     this.requests = requests;
     this.preflight = preflight;
     this.maxSteps = maxSteps;
+    this.maxOutputTokens = maxOutputTokens;
+    this.maxRetries = maxRetries;
   }
 
   async receive(sounding, { abortSignal, timeoutMs = 120_000 } = {}) {
@@ -31,6 +38,8 @@ export class MusicMind {
         instructions: instructions(this.kernel.state().subject),
         tools: createTools(this.kernel, sounding.id),
         stopWhen: isStepCount(this.maxSteps),
+        maxOutputTokens: this.maxOutputTokens,
+        maxRetries: this.maxRetries,
         onStepEnd: step => {
           checkpointMessages.push(...jsonClone(step.response.messages));
         },
@@ -52,6 +61,7 @@ export class MusicMind {
         text: result.text,
         finishReason: result.finishReason,
         toolCalls: result.steps.flatMap(step => step.toolCalls).length,
+        usage: result.totalUsage,
       };
     } catch (error) {
       this.kernel.failInference(inferenceId, error, {

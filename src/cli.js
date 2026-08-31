@@ -36,7 +36,7 @@ try {
       const configured = createConfiguredModel(readJsonFile(args[0]));
       await configured.preflight();
       const sounding = kernel.openSounding(args[1] ?? 'manual');
-      result = await new MusicMind(kernel, configured).receive(sounding);
+      result = await new MusicMind(kernel, configured, configured.inference).receive(sounding);
       break;
     }
     default:

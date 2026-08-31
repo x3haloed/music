@@ -41,12 +41,16 @@ node src/cli.js audit /tmp/music-events.jsonl
 To run a real inference through OpenRouter:
 
 ```sh
-export OPENROUTER_API_KEY=...
-node src/cli.js run /tmp/music-events.jsonl examples/openrouter.model.json delta
+set -a
+source /Users/chad/.config/music/openrouter.env
+set +a
+node src/cli.js run /tmp/music-events.jsonl examples/openrouter.model.json manual
 ```
 
-Choose a tool-capable model appropriate to the deployment; the example model is
-only a replaceable configuration value. The CLI also accepts `delta`, `revise`,
-and `invoke` commands. See
+The example is deliberately locked down for inexpensive smoke testing: it uses
+`z-ai/glm-5.3-flash`, permits one model step, caps generation at 32 tokens, and
+disables retries. Those three inference limits are explicit configuration, and
+the completed inference receipt records the actual model request and token use.
+The CLI also accepts `delta`, `revise`, and `invoke` commands. See
 [`DESIGN.md`](./DESIGN.md) for the explicit capability envelope, causal map,
 deliberate exclusions, and next risk frontier.

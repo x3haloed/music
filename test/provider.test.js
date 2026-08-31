@@ -98,6 +98,18 @@ test('generic providers require an explicit tool-capability claim', async () => 
   }), /capabilities\.tools=true/);
 });
 
+test('provider config carries explicit inference spend guards', () => {
+  const configured = createConfiguredModel({
+    provider: 'openai-compatible', model: 'local', baseURL: 'http://localhost:1234/v1',
+    capabilities: { tools: true }, maxSteps: 1, maxOutputTokens: 32, maxRetries: 0,
+  });
+  assert.deepEqual(configured.inference, { maxSteps: 1, maxOutputTokens: 32, maxRetries: 0 });
+  assert.throws(() => createConfiguredModel({
+    provider: 'openai-compatible', model: 'local', baseURL: 'http://localhost:1234/v1',
+    capabilities: { tools: true }, maxRetries: -1,
+  }), /maxRetries/);
+});
+
 function completion(message, finishReason) {
   return {
     id: 'generation-1',
