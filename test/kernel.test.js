@@ -6,6 +6,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
+import { serializeCarrier } from '../src/carrier.js';
 import { MusicKernel } from '../src/kernel.js';
 import { toolModuleDigest } from '../src/tool-module.js';
 import { initialTools } from '../src/seeds.js';
@@ -987,6 +988,73 @@ test('an existing subject reconstructs in a fresh process with no ordinary seed 
   assert.deepEqual(result, { subject: 'Test Subject', tools: initialTools().length });
 });
 
+test('a migration checkpoint preserves rollback history, active contact, and future consequence ancestry', async () => {
+  const { kernel: source } = harness();
+  const first = source.openSounding();
+  const firstInference = begin(source, first.id);
+  const firstProposal = source.authorToolProposal(firstInference, first.id, {
+    interpretation: 'Create migration history version one.',
+    tool: {
+      id: 'migration_probe', description: 'Retain migration history.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      source: 'return { version: 1 };',
+    },
+  });
+  complete(source, firstInference);
+  await exerciseAndAdmitProposal(source, firstProposal.proposalId, {});
+  const second = source.openSounding();
+  const secondInference = begin(source, second.id);
+  const secondProposal = source.authorToolProposal(secondInference, second.id, {
+    interpretation: 'Create migration history version two.',
+    tool: {
+      id: 'migration_probe', description: 'Retain migration history.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      source: 'return { version: 2 };',
+    },
+  });
+  complete(source, secondInference);
+  await exerciseAndAdmitProposal(source, secondProposal.proposalId, {});
+  const action = source.openSounding();
+  const actionInference = begin(source, action.id);
+  assert.deepEqual(await source.invokeTool(actionInference, action.id, 'migration_probe', {}), { version: 2 });
+  complete(source, actionInference);
+  const invocationId = source.state().invocations.at(-1).invocationId;
+  source.admitDelta({
+    authority: 'world', id: 'migration-consequence', stream: 'migration', at: '2026-08-30T13:00:00.000Z',
+    bearsOn: [{ kind: 'tool-invocation', invocationId }], payload: { observation: 'Still awaiting interpretation.' },
+  });
+  source.admitDelta({
+    authority: 'world', id: 'migration-contact', stream: 'migration', at: '2026-08-30T13:01:00.000Z',
+    payload: { observation: 'Still awaiting encounter.' },
+  });
+  const state = source.state();
+  const targetRoot = mkdtempSync(join(tmpdir(), 'music-migrated-checkpoint-'));
+  const target = new MusicKernel(join(targetRoot, 'events.jsonl'));
+  target.initializeMigrated({
+    subject: state.subject,
+    tools: [...state.tools.values()],
+    toolHistory: [...state.toolHistory.values()],
+    carrier: serializeCarrier(state.carrier),
+    lineage: {
+      format: 'music-legacy-lineage-1', sourceFormat: 'music-event-11', sourceHead: '1'.repeat(64),
+      sourceSha256: '2'.repeat(64), eventCount: 100, archive: 'state/lineage/fixture.jsonl',
+      migratedAt: '2026-08-31T20:00:00.000Z',
+    },
+    checkpoint: checkpointFromState(state),
+  });
+
+  const migrated = target.state();
+  assert.equal(migrated.tools.get('migration_probe').version, 2);
+  assert.equal(migrated.toolHistory.size, state.toolHistory.size);
+  assert.deepEqual(migrated.pendingDeltas.map(delta => delta.id), ['migration-consequence', 'migration-contact']);
+  assert.equal(migrated.consequences.get('migration-consequence').status, 'open');
+  assert.equal(migrated.invocationHistory.has(invocationId), true);
+  assert.doesNotThrow(() => target.admitDelta({
+    authority: 'world', id: 'post-migration-consequence', stream: 'migration', at: '2026-08-31T20:01:00.000Z',
+    bearsOn: [{ kind: 'tool-invocation', invocationId }], payload: { observation: 'Lineage remains live.' },
+  }));
+});
+
 function begin(kernel, soundingId) {
   return kernel.beginInference(soundingId, { provider: 'test-provider', model: 'test-model' }, { role: 'user', content: `Sounding ${soundingId}` });
 }
@@ -1005,6 +1073,22 @@ function complete(kernel, inferenceId) {
     responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: 'done' }] }],
     text: 'done', finishReason: 'stop', usage: {}, steps: [], requests: [],
   });
+}
+
+function checkpointFromState(state) {
+  return {
+    format: 'music-legacy-checkpoint-1',
+    deltaIds: [...state.deltaIds],
+    pendingDeltas: structuredClone(state.pendingDeltas),
+    consequences: [...state.consequences.entries()].map(([deltaId, consequence]) => ({ deltaId, consequence })),
+    invocationHistory: [...state.invocationHistory.entries()].map(([invocationId, invocation]) => ({ invocationId, invocation })),
+    invocations: structuredClone(state.invocations),
+    contactedInvocationIds: [...state.contactedInvocationIds],
+    consequenceSweepActive: state.consequenceSweepActive,
+    consequenceSweepIds: [...state.consequenceSweepIds],
+    nextWake: state.nextWake,
+    runtimeFailure: state.runtimeFailure ?? null,
+  };
 }
 
 async function exerciseAndAdmitProposal(kernel, proposalId, input, disposition = 'admit') {

@@ -1949,6 +1949,7 @@ function validateLegacyCheckpoint(value) {
 
 function hydrateLegacyCheckpoint(state, checkpoint) {
   state.invocationHistory = new Map(checkpoint.invocationHistory.map(entry => [entry.invocationId, structuredClone(entry.invocation)]));
+  state.invocationIds = new Set(state.invocationHistory.keys());
   state.invocations = structuredClone(checkpoint.invocations);
   state.contactedInvocationIds = new Set(checkpoint.contactedInvocationIds);
   state.deltaIds = new Set(checkpoint.deltaIds);
