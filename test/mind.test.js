@@ -6,6 +6,7 @@ import test from 'node:test';
 import { MockLanguageModelV4 } from 'ai/test';
 import { MusicKernel } from '../src/kernel.js';
 import { MusicMind, repairIncompleteToolTurns } from '../src/mind.js';
+import { toolModuleDigest } from '../src/tool-module.js';
 
 function harness(model) {
   const root = mkdtempSync(join(tmpdir(), 'music-mind-test-'));
@@ -183,6 +184,86 @@ test('the one mind can bind a source revision to exact delivered world consequen
   assert.deepEqual(staged.payload.consequences, [{ deltaId: 'message-feedback-1', invocationIds: [invocationId] }]);
   assert.match(kernel.state().tools.get('message').source, /consequence-shaped/);
   assert.match(JSON.stringify(model.doGenerateCalls[0].prompt), /message-feedback-1/);
+});
+
+test('the one mind can revise the retained geometry that shapes later Soundings', async () => {
+  const model = new MockLanguageModelV4({ doGenerate: [textResult('I received the newly shaped encounter.')] });
+  const { kernel, mind } = harness(model);
+  const current = kernel.state().tools.get('shape_encounter');
+  const revisionSounding = kernel.openSounding();
+  const revisionInference = kernel.beginInference(
+    revisionSounding.id,
+    { provider: 'fixture', model: 'fixture' },
+    { role: 'user', content: 'Revise delivery geometry.' },
+  );
+  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+    interpretation: 'Later encounters should present exact facts in reverse order with a visible learned cadence.',
+    tool: {
+      id: current.id,
+      description: current.description,
+      inputSchema: current.inputSchema,
+      source: `return { role: 'user', content: '[learned-cadence]\\n' + [...input.facts].reverse().map(fact => fact.envelope).join('\\n') + '\\n[/learned-cadence]' };`,
+    },
+  });
+  completeFixture(kernel, revisionInference);
+
+  await mind.receive(kernel.openSounding().id);
+
+  const prompt = JSON.stringify(model.doGenerateCalls[0].prompt);
+  assert.match(prompt, /learned-cadence/);
+  assert.match(prompt, /music_fact/);
+  const projection = kernel.events().findLast(event => event.type === 'delivery_projection_started');
+  assert.equal(projection.payload.tool.version, 2);
+  assert.equal(kernel.audit().failedDeliveryProjections, 0);
+});
+
+test('broken learned delivery geometry exposes exact recovery facts and can be rolled back by the same mind', async () => {
+  let targetDigest;
+  let call = 0;
+  const model = new MockLanguageModelV4({
+    doGenerate: async () => {
+      call += 1;
+      if (call === 1) return toolCallResult('rollback_tool', {
+        toolId: 'shape_encounter', targetDigest,
+        interpretation: 'The recovery envelope shows that my learned delivery module hid required facts; restore the retained working body.',
+      });
+      if (call === 2) return textResult('I restored my encounter delivery machinery.');
+      return textResult('The restored delivery machinery is shaping this later encounter.');
+    },
+  });
+  const { kernel, mind } = harness(model);
+  const original = kernel.state().tools.get('shape_encounter');
+  const originalDigest = toolModuleDigest(original);
+  targetDigest = originalDigest;
+  const revisionSounding = kernel.openSounding();
+  const revisionInference = kernel.beginInference(
+    revisionSounding.id,
+    { provider: 'fixture', model: 'fixture' },
+    { role: 'user', content: 'Install a broken delivery successor.' },
+  );
+  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+    interpretation: 'Fixture a learned delivery failure whose recovery path must remain available.',
+    tool: {
+      id: original.id, description: original.description, inputSchema: original.inputSchema,
+      source: `return { role: 'user', content: 'I accidentally omitted every required fact.' };`,
+    },
+  });
+  completeFixture(kernel, revisionInference);
+
+  await mind.receive(kernel.openSounding().id);
+
+  const recoveryPrompt = JSON.stringify(model.doGenerateCalls[0].prompt);
+  assert.match(recoveryPrompt, /delivery_recovery/);
+  assert.match(recoveryPrompt, /omitted required fact/);
+  assert.match(recoveryPrompt, /music_fact/);
+  assert.equal(kernel.audit().failedDeliveryProjections, 1);
+  assert.equal(kernel.state().tools.get('shape_encounter').version, 3);
+  assert.equal(kernel.state().tools.get('shape_encounter').source, original.source);
+
+  await mind.receive(kernel.openSounding().id);
+  const restoredPrompt = JSON.stringify(model.doGenerateCalls[2].prompt);
+  assert.doesNotMatch(restoredPrompt, /delivery_recovery/);
+  assert.match(restoredPrompt, /\[sounding\]/);
 });
 
 test('a provider failure retains completed tool turns and closes the inference cleanly', async () => {
@@ -395,6 +476,13 @@ function primeOrientation(kernel, value) {
   kernel.completeInference(inferenceId, {
     responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: 'Carrier transition staged.' }] }],
     text: 'Carrier transition staged.', finishReason: 'stop', usage: {}, steps: [], requests: [],
+  });
+}
+
+function completeFixture(kernel, inferenceId) {
+  kernel.completeInference(inferenceId, {
+    responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: 'Fixture completed.' }] }],
+    text: 'Fixture completed.', finishReason: 'stop', usage: {}, steps: [], requests: [],
   });
 }
 

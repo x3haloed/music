@@ -21,9 +21,8 @@ does not yet claim concurrent writers, transactional rollback of arbitrary
 external effects, autonomous scheduling, live messaging transport, dependency
 installation recovery, or survival when the bootstrap itself is corrupted.
 
-Event format 7 intentionally rejects earlier ledgers because live steering,
-step-boundary protocol retention, and lossless interrupted Delta delivery are
-now part of subject continuity.
+Event format 8 intentionally rejects earlier ledgers because retained delivery
+projection identity and failure recovery are now part of subject continuity.
 
 ## Stable boundary
 
@@ -34,6 +33,9 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - loading and invoking a retained JavaScript tool body;
 - exact projection/digest binding plus durable invocation start, completion, and
   failure boundaries;
+- construction of byte-exact authoritative fact envelopes, durable delivery
+  projection receipts, a stable execution deadline, and an emergency projection
+  that cannot omit those facts;
 - `inspect_tool`, `revise_tool`, and `rollback_tool`;
 - carrier mutation and parent-bound activation mechanics;
 - staged consequence deferral and settlement mechanics;
@@ -53,6 +55,8 @@ under [`tools/`](./tools):
   sequencing, and executable source are themselves ordinary revisable geometry;
 - `attend_consequence` invokes the staged consequence-transition primitive, but
   its interface, policy, and sequencing remain ordinary revisable geometry.
+- `shape_encounter` frames, orders, and emphasizes the exact Sounding or waking
+  steering facts presented to the mind.
 
 These files seed a new subject only. Once initialized, the ledger-retained tool
 version is authoritative. The bootstrap does not re-read seed source to replace
@@ -63,6 +67,9 @@ an active learned version.
 ```text
 world-authored Delta
   -> durable Sounding offer
+  -> stable kernel constructs exact, digested fact envelopes
+  -> projected shape_encounter version constructs the inference message
+  -> invalid, failed, or late shaping falls back to the exact facts
   -> inference accepts its exact projection and acknowledges its Deltas
   -> waking world contact may append inside the same inference at a step boundary
   -> subject encounters current carrier and ordinary-tool digests/interfaces
@@ -83,6 +90,26 @@ world-authored Delta
 Tool source is omitted from the default Sounding projection to avoid replaying
 every implementation into every prompt. `inspect_tool` returns the exact source
 bound to that encounter, so modification is informed rather than blind.
+
+## Plastic encounter delivery
+
+The stable kernel decides which current facts exist and encodes each as a
+byte-exact `music_fact` envelope with its own digest. The ordinary retained
+`shape_encounter` module decides how those envelopes are sequenced, framed, and
+emphasized in both the initial Sounding message and live steering messages. Its
+exact version and digest, input digest, fact digests, start, completion, or
+failure are retained before inference consumes the result.
+
+Learned delivery code cannot remove an authoritative fact: the kernel rejects
+any output missing an exact envelope. If the module throws, returns malformed
+output, omits a fact, or exceeds its stable deadline, the kernel exposes a small
+recovery preface followed by every exact required fact. The same mind can then
+inspect or roll back the failing module. A process death after projection starts
+leaves an uncertain projection which startup recovery explicitly abandons.
+
+The deadline bounds how long the continuity path waits. It does not cancel,
+sandbox, or undo arbitrary work begun by unrestricted learned code; such later
+effects remain part of the ordinary consequence-reconciliation problem.
 
 ## Tool identity and activation
 
@@ -220,16 +247,20 @@ Automated evidence currently proves that:
   the ordinary consequence-attention tool without opening another Sounding;
 - initial and live-steered ordinary Deltas both return after failure and remain
   exactly once across reconstruction and repeated interruption;
+- revising `shape_encounter` changes the exact later inference prompt while
+  preserving every authoritative envelope;
+- malformed and indefinitely waiting learned shapers fall back to exact facts,
+  a real recovery encounter can roll malformed geometry back, and restart marks
+  an in-flight projection abandoned rather than silently treating it as complete;
 - invented invocation references and consequence claims from outside the current
   Sounding are rejected, while uncertain effects remain uncertainty rather than
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is real communication and plastic delivery geometry. The
-local `message` tool remains an emission record rather than a real transport,
-so Music cannot yet sustain an actual conversation with its resident. Sounding
-and steering text are also still shaped by fixed harness functions rather than
-revisable retained machinery; changing that must not let learned projection code
-hide world contact or corrupt the continuity path. Beyond those edges, ordinary
-tools still need a learned dependency and module-installation story capable of
-recovering when newly installed code breaks the next encounter.
+The next risk frontier is real bidirectional communication. The local `message`
+tool remains an emission record rather than a real transport, so Music cannot
+yet sustain an actual conversation with its resident. Ordinary tools also need
+a learned dependency and module-installation story capable of recovering when
+newly installed code breaks the next encounter. The stable process boundary
+still needs stronger single-writer and bootstrap-survival treatment before a
+long-term resident should hatch.

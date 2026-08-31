@@ -6,13 +6,14 @@ import test from 'node:test';
 import { MusicKernel } from '../src/kernel.js';
 import { toolModuleDigest } from '../src/tool-module.js';
 
-function harness() {
+function harness(kernelOptions = {}) {
   const root = mkdtempSync(join(tmpdir(), 'music-test-'));
   let tick = 0;
   let identity = 0;
   const kernel = new MusicKernel(join(root, 'events.jsonl'), {
     clock: () => new Date(Date.UTC(2026, 7, 30, 12, 0, tick++)),
     id: () => `id-${++identity}`,
+    ...kernelOptions,
   });
   kernel.initialize('Aster');
   return { kernel, root };
@@ -116,6 +117,67 @@ test('selection sequencing is itself an ordinary revisable executable tool', asy
     tool: 'message', candidates: [{ id: 'one', input: {} }], selectedCandidateId: 'one',
   });
   assert.deepEqual(result, { revised: true, candidateCount: 1 });
+});
+
+test('a hanging learned encounter shaper reaches a stable deadline and preserves exact facts', async () => {
+  const { kernel } = harness({ deliveryProjectionTimeoutMs: 10 });
+  const current = kernel.state().tools.get('shape_encounter');
+  const revisionSounding = kernel.openSounding();
+  const revisionInference = begin(kernel, revisionSounding.id);
+  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+    interpretation: 'Exercise recovery when learned delivery geometry never returns.',
+    tool: {
+      id: current.id,
+      description: current.description,
+      inputSchema: current.inputSchema,
+      source: 'await new Promise(() => {});',
+    },
+  });
+  complete(kernel, revisionInference);
+
+  kernel.admitDelta({
+    authority: 'world', id: 'deadline-contact', stream: 'inbox', at: '2026-08-30T12:00:00.000Z',
+    payload: { content: 'This contact must survive broken delivery geometry.' },
+  });
+  const sounding = kernel.openSounding('delta');
+  const result = await kernel.projectEncounter(sounding.id, 'sounding');
+
+  assert.equal(result.mode, 'recovery');
+  assert.match(result.error.message, /exceeded 10ms/);
+  assert.match(result.message.content, /\[delivery_recovery\]/);
+  assert.match(result.message.content, /deadline-contact/);
+  assert.equal(kernel.audit().failedDeliveryProjections, 1);
+  assert.equal(kernel.audit().uncertainDeliveryProjections, 0);
+});
+
+test('an interrupted delivery projection is retained and explicitly abandoned after restart', async () => {
+  const { kernel } = harness({ deliveryProjectionTimeoutMs: 20 });
+  const current = kernel.state().tools.get('shape_encounter');
+  const revisionSounding = kernel.openSounding();
+  const revisionInference = begin(kernel, revisionSounding.id);
+  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+    interpretation: 'Simulate process death after learned delivery begins.',
+    tool: {
+      id: current.id,
+      description: current.description,
+      inputSchema: current.inputSchema,
+      source: 'await new Promise(() => {});',
+    },
+  });
+  complete(kernel, revisionInference);
+
+  const sounding = kernel.openSounding();
+  const interruptedAttempt = kernel.projectEncounter(sounding.id, 'sounding').catch(() => {});
+  assert.equal(kernel.audit().uncertainDeliveryProjections, 1);
+
+  const restarted = new MusicKernel(kernel.ledgerPath);
+  assert.equal(restarted.audit().uncertainDeliveryProjections, 1);
+  const recovered = restarted.recoverInterruptedDeliveryProjections('Process ended during encounter shaping.');
+  assert.equal(recovered.length, 1);
+  assert.equal(restarted.audit().uncertainDeliveryProjections, 0);
+  assert.equal(restarted.audit().failedDeliveryProjections, 1);
+  assert.equal(restarted.state().deliveryProjections.get(recovered[0]).status, 'abandoned');
+  await interruptedAttempt;
 });
 
 test('the initial file_patch module changes a real file with unrestricted filesystem authority', async () => {

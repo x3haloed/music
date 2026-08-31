@@ -9,7 +9,8 @@ modules, and arbitrary code are not sandboxed by the harness.
 
 The stable bootstrap retains the subject and encounter loop, loads tool modules,
 binds invocations to exact Soundings and module digests, and stages, activates,
-or rolls back executable revisions. Recoverability comes from append-only
+or rolls back executable revisions. It also supplies exact fact envelopes and a
+bounded emergency projection when learned delivery geometry fails. Recoverability comes from append-only
 ancestry and deferred activation—not from limiting what ordinary tools can do.
 
 A resident runtime watches a durable filesystem ingress. External adapters
@@ -23,6 +24,7 @@ The current causal path is:
 
 ```text
 world Delta -> Sounding -> active carrier
+            -> exact fact envelopes -> revisable encounter shape
             -> exact prior invocation reference
             -> actor-authored alternatives -> selected executable input
             -> unrestricted tool module -> retained invocation
@@ -34,8 +36,11 @@ Initial ordinary modules live in [`tools/`](./tools). `file_patch` performs a
 real atomic textual replacement on any path visible to the process. `message`
 and even `select_tool_action` are ordinary revisable modules.
 `attend_consequence` lets the one mind defer or settle a consequence; deferred
-consequences return in later Soundings. Their source is seed material for a new
-subject; afterward, the ledger-retained active version is authoritative.
+consequences return in later Soundings. `shape_encounter` controls the ordering,
+framing, and emphasis of initial Soundings and waking steering contact while the
+kernel requires every authoritative fact envelope to remain byte-exact. Their
+source is seed material for a new subject; afterward, the ledger-retained active
+version is authoritative.
 
 `revise_tool` and `rollback_tool` are bootstrap meta-tools. A revision carries a
 complete replacement description, JSON Schema, optional selection geometry, and

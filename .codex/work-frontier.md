@@ -58,6 +58,13 @@ tools retain the unrestricted machine authority of the harness process.
   **Evidence:** Continuing-song's pre-E66 audit found that a correction projection
   dropped capability modules, opening grammar, pursuit state, and receipts; its
   full-subject continuity claim was consequently withdrawn.
+- **Delivery geometry may learn, but authoritative contact cannot disappear
+  inside that geometry.**
+  **Evidence:** Music now gives a retained ordinary `shape_encounter` module
+  control over ordering, framing, and emphasis while the stable kernel supplies
+  byte-exact fact envelopes. Real prompt evidence shows a successor changes a
+  later encounter; malformed and hanging successors receive exact-fact fallback,
+  can be rolled back by the same mind, and interrupted attempts remain explicit.
 - **Audit history and the currently active position must remain mechanically
   distinct.**
   **Evidence:** Continuing Song E68 found completed transition residue acting as
@@ -65,5 +72,14 @@ tools retain the unrestricted machine authority of the harness process.
   kept full history outside the active interface.
 
 ## Evaluation regime
+
+Judge hatch readiness through complete causal behavior and direct lived
+observation: let contact arrive, see what the resident does, and let the resident
+remain its own witness. Tests should prove continuity and recovery mechanics,
+not turn the resident into a benchmark or comparative research subject.
+
+Current hatch frontier: real bidirectional communication, recoverable dependency
+and module installation, stronger single-writer/bootstrap survival, then a
+bounded lived residency that can reveal what remains missing.
 
 ## Prediction errors

@@ -25,7 +25,9 @@ export class MusicResident {
   }
 
   async recover() {
-    return this.kernel.recoverInterruptedInference('The resident process ended before its active encounter completed.');
+    const inferenceId = this.kernel.recoverInterruptedInference('The resident process ended before its active encounter completed.');
+    const projectionIds = this.kernel.recoverInterruptedDeliveryProjections('The resident process ended before delivery projection completion was retained.');
+    return { inferenceId, projectionIds };
   }
 
   async pump() {

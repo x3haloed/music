@@ -7,8 +7,10 @@ import { initialFilePatchTool } from '../tools/file-patch.js';
 import { initialMessageTool } from '../tools/message.js';
 import { initialSelectionTool } from '../tools/select-tool-action.js';
 import { initialConsequenceTool } from '../tools/attend-consequence.js';
+import { initialEncounterShapeTool } from '../tools/shape-encounter.js';
 
-const FORMAT = 'music-event-7';
+const FORMAT = 'music-event-8';
+const ENCOUNTER_SHAPE_TOOL_ID = 'shape_encounter';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
 const MAX_SELECTION_BYTES = 64 * 1_024;
@@ -17,10 +19,14 @@ const MAX_INFERENCE_BYTES = 2 * 1_024 * 1_024;
 const RESERVED_TOOL_IDS = new Set(['inspect_tool', 'revise_tool', 'rollback_tool', 'revise_carrier']);
 
 export class MusicKernel {
-  constructor(ledgerPath, { clock = () => new Date(), id = () => randomUUID() } = {}) {
+  constructor(ledgerPath, { clock = () => new Date(), id = () => randomUUID(), deliveryProjectionTimeoutMs = 5_000 } = {}) {
+    if (!Number.isInteger(deliveryProjectionTimeoutMs) || deliveryProjectionTimeoutMs < 10 || deliveryProjectionTimeoutMs > 120_000) {
+      throw new Error('deliveryProjectionTimeoutMs must be an integer from 10 to 120000');
+    }
     this.ledgerPath = ledgerPath;
     this.clock = clock;
     this.id = id;
+    this.deliveryProjectionTimeoutMs = deliveryProjectionTimeoutMs;
   }
 
   initialize(name) {
@@ -29,7 +35,7 @@ export class MusicKernel {
     if (!trimmed || trimmed.length > 128) throw new Error('subject name must be 1-128 characters');
     this.append('subject_created', {
       subject: { id: this.id(), name: trimmed, bornAt: this.clock().toISOString() },
-      tools: [initialMessageTool(), initialFilePatchTool(), initialSelectionTool(), initialConsequenceTool()],
+      tools: [initialMessageTool(), initialFilePatchTool(), initialSelectionTool(), initialConsequenceTool(), initialEncounterShapeTool()],
       carrier: serializeCarrier(initialCarrier()),
     });
     return this.state();
@@ -76,6 +82,44 @@ export class MusicKernel {
     return structuredClone(record.sounding);
   }
 
+  async projectEncounter(soundingId, phase, deltaIds = undefined) {
+    const state = this.state();
+    const encounter = state.soundings.get(soundingId);
+    if (!encounter) throw new Error(`unknown Sounding: ${soundingId}`);
+    const input = projectionInput(state, encounter, phase, deltaIds);
+    const binding = encounter.toolBindings.get(ENCOUNTER_SHAPE_TOOL_ID);
+    if (!binding) throw new Error(`Sounding ${soundingId} lacks ${ENCOUNTER_SHAPE_TOOL_ID}`);
+    const projectedDeltaIds = phase === 'steering' ? [...deltaIds] : [];
+    const projectionId = this.id();
+    this.append('delivery_projection_started', {
+      projectionId,
+      soundingId,
+      inferenceId: phase === 'steering' ? state.activeInferenceId : null,
+      projection: encounter.projection,
+      phase,
+      deltaIds: projectedDeltaIds,
+      tool: { id: binding.manifest.id, version: binding.manifest.version, digest: binding.digest },
+      inputDigest: digest(input),
+      factDigests: input.facts.map(fact => ({ id: fact.id, digest: fact.digest })),
+    });
+    try {
+      const output = await withTimeout(executeToolModule(binding.manifest, input, {
+        soundingId,
+        projection: encounter.projection,
+        ledgerPath: this.ledgerPath,
+        deliveryPhase: phase,
+      }), this.deliveryProjectionTimeoutMs, `delivery projection exceeded ${this.deliveryProjectionTimeoutMs}ms`);
+      const message = validateProjectionMessage(output, input);
+      this.append('delivery_projection_completed', { projectionId, message });
+      return { projectionId, mode: 'tool', message };
+    } catch (error) {
+      const failure = deliveryProjectionErrorRecord(error);
+      const message = emergencyProjection(input, binding, failure.message);
+      this.append('delivery_projection_failed', { projectionId, error: failure, fallbackMessage: message });
+      return { projectionId, mode: 'recovery', message, error: failure };
+    }
+  }
+
   inferenceMessages(inferenceId) {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId || !state.activeInputMessage) throw new Error(`inference is not active: ${inferenceId}`);
@@ -88,11 +132,10 @@ export class MusicKernel {
     return structuredClone(state.pendingDeltas);
   }
 
-  steerInference(inferenceId, deltaIds, checkpointMessages, inputMessage) {
+  steerInference(inferenceId, deltaIds, checkpointMessages, inputMessage, deliveryProjectionId = null) {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId || !state.activeEncounter) throw new Error(`inference is not active: ${inferenceId}`);
-    const expected = state.pendingDeltas.map(delta => delta.id);
-    if (!Array.isArray(deltaIds) || digest(deltaIds) !== digest(expected) || deltaIds.length === 0) {
+    if (!matchesPendingPrefix(state.pendingDeltas, deltaIds)) {
       throw new Error('steering Delta acknowledgement does not match pending world contact');
     }
     const checkpoints = jsonValue(checkpointMessages, 'steering checkpoint messages');
@@ -105,6 +148,7 @@ export class MusicKernel {
       deliveredDeltaIds: [...deltaIds],
       checkpointMessages: checkpoints,
       inputMessage: message,
+      deliveryProjectionId,
     };
     if (Buffer.byteLength(canonical(payload)) > MAX_INFERENCE_BYTES) throw new Error(`steering checkpoint exceeds ${MAX_INFERENCE_BYTES} bytes`);
     this.append('inference_steered', payload);
@@ -279,7 +323,7 @@ export class MusicKernel {
     }
   }
 
-  beginInference(soundingId, model, inputMessage) {
+  beginInference(soundingId, model, inputMessage, deliveryProjectionId = null) {
     const state = this.state();
     requireSubject(state);
     if (state.activeInferenceId) throw new Error(`inference already active: ${state.activeInferenceId}`);
@@ -296,6 +340,7 @@ export class MusicKernel {
       deliveredDeltaIds: sounding.sounding.deltas.map(delta => delta.id),
       model: { provider: model.provider, model: model.model },
       inputMessage: message,
+      deliveryProjectionId,
     });
     return inferenceId;
   }
@@ -351,6 +396,17 @@ export class MusicKernel {
     return inferenceId;
   }
 
+  recoverInterruptedDeliveryProjections(reason = 'The prior process ended before delivery projection completion was retained.') {
+    const state = this.state();
+    const message = typeof reason === 'string' ? reason.trim() : '';
+    if (!message || message.length > 2_048) throw new Error('delivery recovery reason must be 1-2048 characters');
+    const projectionIds = [...state.activeDeliveryProjections.keys()];
+    for (const projectionId of projectionIds) {
+      this.append('delivery_projection_abandoned', { projectionId, reason: message });
+    }
+    return projectionIds;
+  }
+
   state() {
     return reduceEvents(this.events());
   }
@@ -373,6 +429,9 @@ export class MusicKernel {
       consequenceDeltas: state.consequenceDeltaIds.size,
       steeringEvents: state.steeringEvents,
       steeredDeltas: state.steeredDeltaCount,
+      deliveryProjections: state.deliveryProjectionCount,
+      failedDeliveryProjections: state.failedDeliveryProjectionCount,
+      uncertainDeliveryProjections: state.activeDeliveryProjections.size,
       unresolvedConsequences: [...state.consequences.values()].filter(consequence => consequence.status !== 'settled').length,
       deferredConsequences: [...state.consequences.values()].filter(consequence => consequence.status === 'deferred').length,
       uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
@@ -459,6 +518,12 @@ function reduceEvents(events) {
     failedInferences: 0,
     steeringEvents: 0,
     steeredDeltaCount: 0,
+    deliveryProjectionIds: new Set(),
+    activeDeliveryProjections: new Map(),
+    deliveryProjections: new Map(),
+    usedDeliveryProjectionIds: new Set(),
+    deliveryProjectionCount: 0,
+    failedDeliveryProjectionCount: 0,
   };
   for (const event of events) {
     state.head = event.hash;
@@ -508,6 +573,48 @@ function reduceEvents(events) {
           inferenceId: null,
         });
         state.openSoundingId = sounding.id;
+        break;
+      }
+      case 'delivery_projection_started': {
+        const projection = validateDeliveryProjectionStart(event.payload, state);
+        if (state.deliveryProjectionIds.has(projection.projectionId)) throw new Error('duplicate delivery projection id');
+        state.deliveryProjectionIds.add(projection.projectionId);
+        state.activeDeliveryProjections.set(projection.projectionId, projection);
+        break;
+      }
+      case 'delivery_projection_completed': {
+        const projection = state.activeDeliveryProjections.get(event.payload.projectionId);
+        if (!projection) throw new Error('completed delivery projection is not active');
+        const message = validateProjectionMessage(event.payload.message, projection.input);
+        state.activeDeliveryProjections.delete(projection.projectionId);
+        state.deliveryProjections.set(projection.projectionId, { ...projection, status: 'completed', message });
+        state.deliveryProjectionCount += 1;
+        break;
+      }
+      case 'delivery_projection_failed': {
+        const projection = state.activeDeliveryProjections.get(event.payload.projectionId);
+        if (!projection) throw new Error('failed delivery projection is not active');
+        const message = validateProjectionMessage(event.payload.fallbackMessage, projection.input);
+        state.activeDeliveryProjections.delete(projection.projectionId);
+        state.deliveryProjections.set(projection.projectionId, {
+          ...projection, status: 'recovery', message, error: structuredClone(event.payload.error),
+        });
+        state.deliveryProjectionCount += 1;
+        state.failedDeliveryProjectionCount += 1;
+        break;
+      }
+      case 'delivery_projection_abandoned': {
+        const projection = state.activeDeliveryProjections.get(event.payload.projectionId);
+        if (!projection) throw new Error('abandoned delivery projection is not active');
+        if (typeof event.payload.reason !== 'string' || !event.payload.reason.trim() || event.payload.reason.length > 2_048) {
+          throw new Error('abandoned delivery projection lacks a bounded reason');
+        }
+        state.activeDeliveryProjections.delete(projection.projectionId);
+        state.deliveryProjections.set(projection.projectionId, {
+          ...projection, status: 'abandoned', reason: event.payload.reason,
+        });
+        state.deliveryProjectionCount += 1;
+        state.failedDeliveryProjectionCount += 1;
         break;
       }
       case 'tool_revision_staged': {
@@ -562,7 +669,7 @@ function reduceEvents(events) {
         break;
       }
       case 'tool_revision_activated': {
-        throw new Error('music-event-7 does not allow standalone tool activation');
+        throw new Error(`${FORMAT} does not allow standalone tool activation`);
       }
       case 'tool_invocation_started': {
         requireSubject(state);
@@ -603,6 +710,10 @@ function reduceEvents(events) {
           throw new Error('inference does not claim the currently opened Sounding');
         }
         if (event.payload.projection !== sounding.projection) throw new Error('inference projection binding mismatch');
+        consumeDeliveryProjection(state, event.payload.deliveryProjectionId ?? null, {
+          phase: 'sounding', soundingId: event.payload.soundingId, projection: event.payload.projection,
+          deltaIds: [], message: event.payload.inputMessage,
+        });
         if (state.inferenceIds.has(event.payload.inferenceId)) throw new Error('duplicate inference id');
         const delivered = new Set(event.payload.deliveredDeltaIds);
         const projectedDeltaIds = sounding.sounding.deltas.map(delta => delta.id);
@@ -623,17 +734,20 @@ function reduceEvents(events) {
       }
       case 'inference_steered': {
         const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
-        const expected = state.pendingDeltas.map(delta => delta.id);
         if (!Array.isArray(event.payload.deliveredDeltaIds)
-          || event.payload.deliveredDeltaIds.length === 0
-          || digest(event.payload.deliveredDeltaIds) !== digest(expected)) {
+          || !matchesPendingPrefix(state.pendingDeltas, event.payload.deliveredDeltaIds)) {
           throw new Error('steered Delta acknowledgement does not match pending world contact');
         }
         if (!Array.isArray(event.payload.checkpointMessages)) throw new Error('steered inference lacks checkpoint messages');
         const message = validateSteeringMessage(event.payload.inputMessage);
-        const delivered = structuredClone(state.pendingDeltas);
+        consumeDeliveryProjection(state, event.payload.deliveryProjectionId ?? null, {
+          phase: 'steering', soundingId: event.payload.soundingId, projection: event.payload.projection,
+          deltaIds: event.payload.deliveredDeltaIds, message,
+        });
+        const deliveredCount = event.payload.deliveredDeltaIds.length;
+        const delivered = structuredClone(state.pendingDeltas.slice(0, deliveredCount));
         encounter.steeringDeltas.push(...delivered);
-        state.pendingDeltas = [];
+        state.pendingDeltas = state.pendingDeltas.slice(deliveredCount);
         const retainedMessages = [...structuredClone(event.payload.checkpointMessages), message];
         state.activeTurnMessages.push(...retainedMessages);
         state.messages.push(...retainedMessages);
@@ -821,6 +935,137 @@ function deliveredConsequences(encounter) {
       .filter(delta => delta.bearsOn?.length)
       .map(delta => [delta.id, delta]),
   ]);
+}
+
+function projectionInput(state, encounter, phase, deltaIds) {
+  if (!['sounding', 'steering'].includes(phase)) throw new Error('delivery projection phase must be sounding or steering');
+  const sounding = encounter.sounding;
+  if (phase === 'sounding') {
+    if (encounter.status !== 'opened') throw new Error('initial delivery projection requires an opened Sounding');
+    if (deltaIds !== undefined && (!Array.isArray(deltaIds) || deltaIds.length !== 0)) {
+      throw new Error('initial delivery projection does not accept steering Delta ids');
+    }
+    return {
+      phase,
+      soundingId: sounding.id,
+      facts: [
+        projectionFact('sounding:meta', { id: sounding.id, parent: sounding.parent, at: sounding.at, trigger: sounding.trigger }),
+        projectionFact('sounding:subject', sounding.subject),
+        projectionFact('sounding:tools', sounding.tools),
+        projectionFact('sounding:carrier', sounding.carrier),
+        ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
+        ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
+      ],
+    };
+  }
+  if (state.activeEncounter !== encounter || state.activeInferenceId === null) {
+    throw new Error('steering delivery projection requires the active encounter');
+  }
+  if (!matchesPendingPrefix(state.pendingDeltas, deltaIds)) {
+    throw new Error('steering delivery projection does not match pending world contact');
+  }
+  const deltas = state.pendingDeltas.slice(0, deltaIds.length);
+  return {
+    phase,
+    soundingId: sounding.id,
+    facts: [
+      projectionFact('steering:meta', { soundingId: sounding.id, projection: encounter.projection }),
+      ...deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
+    ],
+  };
+}
+
+function projectionFact(id, value) {
+  const factDigest = digest(value);
+  const encoded = canonical(value);
+  return {
+    id,
+    digest: factDigest,
+    envelope: `[music_fact id=${JSON.stringify(id)} digest=${factDigest}]\n${encoded}\n[/music_fact]`,
+  };
+}
+
+function validateDeliveryProjectionStart(payload, state) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('invalid delivery projection start');
+  const encounter = state.soundings.get(payload.soundingId);
+  if (!encounter) throw new Error('delivery projection cites unknown Sounding');
+  if (payload.projection !== encounter.projection) throw new Error('delivery projection Sounding binding mismatch');
+  if (payload.phase === 'sounding') {
+    if (payload.inferenceId !== null) throw new Error('initial delivery projection cannot cite an inference');
+  } else if (payload.phase === 'steering') {
+    if (payload.inferenceId !== state.activeInferenceId) throw new Error('steering delivery projection inference mismatch');
+  }
+  const input = projectionInput(state, encounter, payload.phase, payload.deltaIds);
+  if (payload.inputDigest !== digest(input)) throw new Error('delivery projection input digest mismatch');
+  if (digest(payload.factDigests) !== digest(input.facts.map(fact => ({ id: fact.id, digest: fact.digest })))) {
+    throw new Error('delivery projection fact binding mismatch');
+  }
+  const binding = encounter.toolBindings.get(ENCOUNTER_SHAPE_TOOL_ID);
+  if (!binding || payload.tool?.id !== ENCOUNTER_SHAPE_TOOL_ID
+    || payload.tool.version !== binding.manifest.version || payload.tool.digest !== binding.digest) {
+    throw new Error('delivery projection tool binding mismatch');
+  }
+  if (typeof payload.projectionId !== 'string' || !payload.projectionId) throw new Error('delivery projection needs an id');
+  return {
+    projectionId: payload.projectionId,
+    soundingId: payload.soundingId,
+    inferenceId: payload.inferenceId,
+    projection: payload.projection,
+    phase: payload.phase,
+    deltaIds: [...payload.deltaIds],
+    tool: structuredClone(payload.tool),
+    input,
+  };
+}
+
+function validateProjectionMessage(value, input) {
+  const message = jsonValue(value, 'delivery projection message');
+  if (!message || typeof message !== 'object' || Array.isArray(message)
+    || message.role !== 'user' || typeof message.content !== 'string' || !message.content
+    || Object.keys(message).some(key => !['role', 'content'].includes(key))) {
+    throw new Error('delivery projection must produce one nonempty user text message');
+  }
+  for (const fact of input.facts) {
+    if (!message.content.includes(fact.envelope)) throw new Error(`delivery projection omitted required fact: ${fact.id}`);
+  }
+  if (Buffer.byteLength(canonical(message)) > MAX_INFERENCE_BYTES) throw new Error(`delivery projection exceeds ${MAX_INFERENCE_BYTES} bytes`);
+  return message;
+}
+
+function emergencyProjection(input, binding, reason) {
+  return validateProjectionMessage({
+    role: 'user',
+    content: `[delivery_recovery]\nThe retained ${binding.manifest.id}@${binding.manifest.version} delivery module failed validation or execution: ${reason}\nExact required facts follow so the continuing subject can inspect or roll back its delivery machinery.\n[/delivery_recovery]\n${input.facts.map(fact => fact.envelope).join('\n')}`,
+  }, input);
+}
+
+function deliveryProjectionErrorRecord(error) {
+  const record = errorRecord(error);
+  return {
+    name: record.name.slice(0, 256),
+    message: record.message.slice(0, 2_048),
+    ...(record.stack === undefined ? {} : { stack: record.stack.slice(0, 16_384) }),
+  };
+}
+
+function consumeDeliveryProjection(state, projectionId, expected) {
+  if (projectionId === null) return;
+  if (typeof projectionId !== 'string' || state.usedDeliveryProjectionIds.has(projectionId)) {
+    throw new Error('delivery projection receipt is invalid or already used');
+  }
+  const projection = state.deliveryProjections.get(projectionId);
+  if (!projection || !['completed', 'recovery'].includes(projection.status)
+    || projection.phase !== expected.phase || projection.soundingId !== expected.soundingId
+    || projection.projection !== expected.projection || digest(projection.deltaIds) !== digest(expected.deltaIds)
+    || digest(projection.message) !== digest(expected.message)) {
+    throw new Error('delivery projection receipt does not match encounter input');
+  }
+  state.usedDeliveryProjectionIds.add(projectionId);
+}
+
+function matchesPendingPrefix(pendingDeltas, deltaIds) {
+  if (!Array.isArray(deltaIds) || deltaIds.length === 0 || deltaIds.length > pendingDeltas.length) return false;
+  return deltaIds.every((id, index) => id === pendingDeltas[index].id);
 }
 
 function requeueDeliveredDeltas(encounter, pendingDeltas) {
@@ -1066,4 +1311,12 @@ function errorRecord(error) {
     return { name: error.name, message: error.message, stack: error.stack };
   }
   return { name: 'Error', message: String(error) };
+}
+
+function withTimeout(promise, milliseconds, message) {
+  let timeout;
+  const deadline = new Promise((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), milliseconds);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timeout));
 }
