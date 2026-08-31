@@ -21,9 +21,9 @@ does not yet claim concurrent writers, transactional rollback of arbitrary
 external effects, autonomous scheduling, live messaging transport, dependency
 installation recovery, or survival when the bootstrap itself is corrupted.
 
-Event format 4 intentionally rejects earlier ledgers because the former bounded
-manifest/effect language has been removed. Tool source and invocation now have
-different meaning.
+Event format 5 intentionally rejects earlier ledgers because executable-tool
+invocations, world-consequence references, and staged-change lineage now have
+different meaning from the preceding experimental formats.
 
 ## Stable boundary
 
@@ -65,6 +65,8 @@ world-authored Delta
   -> inspect_tool retrieves exact projected source when needed
   -> ordinary module executes with unrestricted Node authority
   -> invocation input, output, tool digest, and encounter binding are retained
+  -> later world Delta cites the exact invocation without interpreting it
+  -> current Sounding delivers that consequence reference and observation
   -> revise_tool stages a complete replacement interface and source body
   -> successful inference completion atomically promotes the staged successor
   -> later Sounding projects the successor digest and interface
@@ -98,6 +100,30 @@ Rollback is append-only. It does not reactivate an old node or erase descendants
 it creates a new child of the current version whose executable body and interface
 exactly match a cited retained digest. Replay verifies both current ancestry and
 the restored body.
+
+## Consequence lineage
+
+A world Delta may contain `bearsOn` references of the form:
+
+```json
+{ "kind": "tool-invocation", "invocationId": "..." }
+```
+
+The kernel admits the reference only when that invocation has already started
+and retains the world payload unchanged. It does not label the result successful,
+harmful, corrective, or resolved. Those meanings belong to the one subject.
+
+When `revise_tool`, `revise_carrier`, or `rollback_tool` cites a
+`consequenceDeltaIds` entry, the kernel verifies that the exact consequence
+Delta was delivered in the current Sounding and retains its referenced
+invocation IDs on the staged change. A change may still be authored without
+world consequence; consequence attribution, when claimed, cannot point to an
+undelivered or invented observation.
+
+For uncertain invocations, audit distinguishes uncertainty with and without
+later exact world contact. Contact is not itself declared reconciliation; only
+the subject may interpret what the observation settles and what machinery
+should consequently change.
 
 ## Selection and continuing identity
 
@@ -141,13 +167,20 @@ Automated evidence currently proves that:
 - failed inference retains staged history but does not activate it;
 - a tool receipt is consumed by a durable start event before executable code
   runs; restart recovery preserves a start without completion as uncertain;
+- a real file patch receives a world Delta tied to its exact invocation, that
+  Delta is retained on a successor which adds backup behavior, a later exact
+  corrective Delta motivates append-only rollback, and the restored successor
+  patches without the backup behavior;
+- invented invocation references and consequence claims from outside the current
+  Sounding are rejected, while uncertain effects remain uncertainty rather than
+  being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is consequence lineage and reconciliation of uncertain
-effects. Music now durably consumes authorization before code runs and records
-completion or failure afterward, but a process death can still leave a started
-effect whose world outcome is unknown. A later Delta must cite that exact
-invocation, reconcile what actually happened, and let the subject revise or
-roll back machinery without pretending it can transactionally undo the world.
-Beyond that, ordinary tools still need a learned dependency and module-installation
-story capable of recovering when newly installed code breaks the next encounter.
+The next risk frontier is live consequence arrival. Current evidence admits
+world Deltas through the local kernel API and delivers them in the next Sounding;
+Music does not yet have Watch-like adapters that observe external systems or
+inject a waking Delta into an inference already in progress. That boundary must
+preserve world authority and exact invocation references without turning an
+adapter into another interpreting mind. Beyond it, ordinary tools still need a
+learned dependency and module-installation story capable of recovering when
+newly installed code breaks the next encounter.

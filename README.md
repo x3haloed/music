@@ -16,6 +16,7 @@ The current causal path is:
 
 ```text
 world Delta -> Sounding -> active carrier
+            -> exact prior invocation reference
             -> actor-authored alternatives -> selected executable input
             -> unrestricted tool module -> retained invocation
             -> staged source revision -> changed later execution
@@ -34,6 +35,12 @@ JavaScript function body. It remains unavailable in the current Sounding and
 becomes active only when the inference completes successfully. Rollback does not
 erase history: it copies a retained earlier executable body into a new child of
 the current version.
+
+A world-authored Delta may declare that it `bearsOn` an exact retained tool
+invocation. That reference assigns no meaning to the observation. The one mind
+may cite consequence Deltas delivered in its current Sounding when staging a
+tool or carrier successor or an append-only rollback; the ledger then retains
+the exact Delta-to-invocation-to-successor lineage.
 
 Inference uses AI SDK 7. OpenRouter has a separate dedicated provider path in
 strict compatibility mode, with tool-capability preflight and explicit spend

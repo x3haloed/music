@@ -7,7 +7,7 @@ import { initialFilePatchTool } from '../tools/file-patch.js';
 import { initialMessageTool } from '../tools/message.js';
 import { initialSelectionTool } from '../tools/select-tool-action.js';
 
-const FORMAT = 'music-event-4';
+const FORMAT = 'music-event-5';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
 const MAX_SELECTION_BYTES = 64 * 1_024;
@@ -38,6 +38,7 @@ export class MusicKernel {
     const state = this.state();
     requireSubject(state);
     validateDelta(delta);
+    validateConsequenceReferences(delta, state);
     if (state.deltaIds.has(delta.id)) throw new Error(`duplicate delta id: ${delta.id}`);
     this.append('delta_admitted', { delta: structuredClone(delta) });
     return this.state();
@@ -101,6 +102,7 @@ export class MusicKernel {
       projection: encounter.projection,
       interpretation,
       evidence: boundedEvidence(proposal.evidence),
+      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter),
       previousTool: current ? toolModuleDigest(current) : null,
       tool,
       rollbackOf: null,
@@ -145,6 +147,7 @@ export class MusicKernel {
       projection: encounter.projection,
       interpretation,
       evidence: boundedEvidence(proposal.evidence),
+      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter),
       previousTool: toolModuleDigest(current),
       tool,
       rollbackOf: targetDigest,
@@ -165,6 +168,7 @@ export class MusicKernel {
       projection: encounter.projection,
       interpretation,
       evidence: boundedEvidence(proposal.evidence),
+      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter),
       ...transition,
     });
     return transition;
@@ -313,9 +317,12 @@ export class MusicKernel {
       carrierRoot: projectCarrier(state.carrier).root,
       pendingDeltas: state.pendingDeltas.length,
       invocations: state.invocations.length,
-      failedInvocations: state.failedInvocations,
-      uncertainInvocations: state.uncertainInvocations,
+      failedInvocations: countInvocationStatus(state, 'failed'),
+      uncertainInvocations: countInvocationStatus(state, 'uncertain'),
       activeInvocations: state.activeToolInvocations.size,
+      consequenceDeltas: state.consequenceDeltaIds.size,
+      uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
+        .filter(([invocationId, invocation]) => invocation.status === 'uncertain' && !state.contactedInvocationIds.has(invocationId)).length,
       selections: state.selectionCount,
       completedInferences: state.completedInferences,
       failedInferences: state.failedInferences,
@@ -375,8 +382,9 @@ function reduceEvents(events) {
     invocations: [],
     activeToolInvocations: new Map(),
     invocationIds: new Set(),
-    failedInvocations: 0,
-    uncertainInvocations: 0,
+    invocationHistory: new Map(),
+    contactedInvocationIds: new Set(),
+    consequenceDeltaIds: new Set(),
     messages: [],
     recoveryMessages: [],
     activeInputMessage: null,
@@ -409,8 +417,11 @@ function reduceEvents(events) {
         requireSubject(state);
         const delta = event.payload.delta;
         validateDelta(delta);
+        validateConsequenceReferences(delta, state);
         if (state.deltaIds.has(delta.id)) throw new Error(`ledger repeats delta id: ${delta.id}`);
         state.deltaIds.add(delta.id);
+        if (delta.bearsOn?.length) state.consequenceDeltaIds.add(delta.id);
+        for (const reference of delta.bearsOn ?? []) state.contactedInvocationIds.add(reference.invocationId);
         state.pendingDeltas.push(structuredClone(delta));
         break;
       }
@@ -445,7 +456,7 @@ function reduceEvents(events) {
         requireSubject(state);
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         if (state.stagedCarrierTransition) throw new Error('ledger stages more than one carrier transition in an encounter');
-        const transition = projectCarrierTransition(event.payload);
+        const transition = projectCarrierTransition(event.payload, state.activeEncounter);
         applyCarrierTransition(state.carrier, transition);
         state.stagedCarrierTransition = transition;
         break;
@@ -473,7 +484,7 @@ function reduceEvents(events) {
         break;
       }
       case 'tool_revision_activated': {
-        throw new Error('music-event-4 does not allow standalone tool activation');
+        throw new Error('music-event-5 does not allow standalone tool activation');
       }
       case 'tool_invocation_started': {
         requireSubject(state);
@@ -487,19 +498,22 @@ function reduceEvents(events) {
         if (event.payload.selectionReceipt) state.usedSelectionIds.add(event.payload.selectionReceipt);
         state.invocationIds.add(event.payload.invocationId);
         state.activeToolInvocations.set(event.payload.invocationId, structuredClone(event.payload));
+        state.invocationHistory.set(event.payload.invocationId, { ...structuredClone(event.payload), status: 'started' });
         break;
       }
       case 'tool_invocation_completed': {
         const invocation = state.activeToolInvocations.get(event.payload.invocationId);
         if (!invocation) throw new Error('completed tool invocation is not active');
         state.invocations.push({ ...invocation, output: jsonValue(event.payload.output, 'tool invocation output') });
+        state.invocationHistory.set(event.payload.invocationId, { ...invocation, status: 'completed', output: jsonValue(event.payload.output, 'tool invocation output') });
         state.activeToolInvocations.delete(event.payload.invocationId);
         break;
       }
       case 'tool_invocation_failed': {
-        if (!state.activeToolInvocations.has(event.payload.invocationId)) throw new Error('failed tool invocation is not active');
+        const invocation = state.activeToolInvocations.get(event.payload.invocationId);
+        if (!invocation) throw new Error('failed tool invocation is not active');
+        state.invocationHistory.set(event.payload.invocationId, { ...invocation, status: 'failed', error: structuredClone(event.payload.error) });
         state.activeToolInvocations.delete(event.payload.invocationId);
-        state.failedInvocations += 1;
         break;
       }
       case 'inference_started': {
@@ -581,7 +595,7 @@ function reduceEvents(events) {
         for (const [invocationId, invocation] of state.activeToolInvocations) {
           if (invocation.inferenceId === event.payload.inferenceId) {
             state.activeToolInvocations.delete(invocationId);
-            state.uncertainInvocations += 1;
+            state.invocationHistory.set(invocationId, { ...invocation, status: 'uncertain' });
           }
         }
         state.activeEncounter.status = 'interrupted';
@@ -621,7 +635,35 @@ function validateDelta(delta) {
   if (typeof delta.id !== 'string' || !delta.id.trim() || delta.id.length > 128) throw new Error('Delta needs a bounded id');
   if (typeof delta.stream !== 'string' || !delta.stream.trim() || delta.stream.length > 128) throw new Error('Delta needs a bounded stream');
   if (typeof delta.at !== 'string' || Number.isNaN(Date.parse(delta.at))) throw new Error('Delta needs an ISO timestamp');
+  if (delta.bearsOn !== undefined) {
+    if (!Array.isArray(delta.bearsOn) || delta.bearsOn.length < 1 || delta.bearsOn.length > 32) {
+      throw new Error('Delta bearsOn must contain 1-32 invocation references');
+    }
+    const invocationIds = new Set();
+    for (const reference of delta.bearsOn) {
+      if (!reference || typeof reference !== 'object' || Array.isArray(reference)
+        || reference.kind !== 'tool-invocation'
+        || typeof reference.invocationId !== 'string' || !reference.invocationId.trim() || reference.invocationId.length > 128
+        || Object.keys(reference).some(key => !['kind', 'invocationId'].includes(key))) {
+        throw new Error('invalid Delta invocation reference');
+      }
+      if (invocationIds.has(reference.invocationId)) throw new Error(`Delta repeats invocation reference: ${reference.invocationId}`);
+      invocationIds.add(reference.invocationId);
+    }
+  }
   if (Buffer.byteLength(canonical(delta)) > MAX_DELTA_BYTES) throw new Error(`Delta exceeds ${MAX_DELTA_BYTES} bytes`);
+}
+
+function validateConsequenceReferences(delta, state) {
+  for (const reference of delta.bearsOn ?? []) {
+    if (!state.invocationIds.has(reference.invocationId)) {
+      throw new Error(`Delta cites unknown tool invocation: ${reference.invocationId}`);
+    }
+  }
+}
+
+function countInvocationStatus(state, status) {
+  return [...state.invocationHistory.values()].filter(invocation => invocation.status === status).length;
 }
 
 function boundedEvidence(evidence) {
@@ -630,6 +672,32 @@ function boundedEvidence(evidence) {
     throw new Error('revision evidence must be at most 32 bounded references');
   }
   return [...evidence];
+}
+
+function retainConsequenceEvidence(deltaIds, encounter) {
+  if (deltaIds === undefined) return [];
+  if (!Array.isArray(deltaIds) || deltaIds.length > 32
+    || deltaIds.some(id => typeof id !== 'string' || !id.trim() || id.length > 128)
+    || new Set(deltaIds).size !== deltaIds.length) {
+    throw new Error('consequenceDeltaIds must contain at most 32 unique bounded ids');
+  }
+  const delivered = new Map(encounter.sounding.deltas.map(delta => [delta.id, delta]));
+  return deltaIds.map(deltaId => {
+    const delta = delivered.get(deltaId);
+    if (!delta) throw new Error(`consequence Delta was not delivered in this Sounding: ${deltaId}`);
+    if (!delta.bearsOn?.length) throw new Error(`Delta does not bear on a tool invocation: ${deltaId}`);
+    return {
+      deltaId,
+      invocationIds: delta.bearsOn.map(reference => reference.invocationId),
+    };
+  });
+}
+
+function validateRetainedConsequences(consequences, encounter) {
+  if (!Array.isArray(consequences)) throw new Error('staged change lacks consequence lineage');
+  const expected = retainConsequenceEvidence(consequences.map(consequence => consequence?.deltaId), encounter);
+  if (digest(expected) !== digest(consequences)) throw new Error('staged consequence lineage does not match delivered Deltas');
+  return expected;
 }
 
 function requireActiveEncounter(state, inferenceId, soundingId, projection = undefined) {
@@ -681,18 +749,20 @@ function validateStagedRevision(payload, state) {
     projection: payload.projection,
     interpretation,
     evidence: boundedEvidence(payload.evidence),
+    consequences: validateRetainedConsequences(payload.consequences, state.activeEncounter),
     previousTool,
     tool,
     rollbackOf,
   };
 }
 
-function projectCarrierTransition(payload) {
+function projectCarrierTransition(payload, encounter) {
   const interpretation = typeof payload.interpretation === 'string' ? payload.interpretation.trim() : '';
   if (!interpretation || interpretation.length > 4_096) throw new Error('staged carrier transition needs a bounded interpretation');
   return {
     interpretation,
     evidence: boundedEvidence(payload.evidence),
+    consequences: validateRetainedConsequences(payload.consequences, encounter),
     component: structuredClone(payload.component),
     parentRoot: payload.parentRoot,
     parentRuleDigest: payload.parentRuleDigest,

@@ -135,6 +135,56 @@ test('the one mind can author a bounded carrier transition for its next encounte
   assert.match(later.carrier.components[0].state.value, /prefer asking/);
 });
 
+test('the one mind can bind a source revision to exact delivered world consequence', async () => {
+  const revision = {
+    interpretation: 'The observed response bears on how later direct messages should be marked.',
+    consequenceDeltaIds: ['message-feedback-1'],
+    tool: {
+      id: 'message',
+      description: 'Mark later direct messages as consequence-shaped.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['send', 'ask'] },
+          recipient: { type: 'string' }, content: { type: 'string' }, question: { type: 'string' },
+        },
+        required: ['action', 'recipient'], additionalProperties: false,
+      },
+      source: `return { kind: 'emission', channel: 'outbox', body: '[consequence-shaped] ' + (input.content ?? input.question) };`,
+    },
+  };
+  const model = new MockLanguageModelV4({
+    doGenerate: [toolCallResult('revise_tool', revision), textResult('I retained what the feedback bears on.')],
+  });
+  const { kernel, mind } = harness(model);
+  const first = kernel.openSounding();
+  const firstInference = kernel.beginInference(first.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Create a result.' });
+  const selection = kernel.selectToolAction(firstInference, first.id, 'message', {
+    candidates: [
+      { id: 'send', input: { action: 'send', recipient: 'Chad', content: 'Initial.' } },
+      { id: 'ask', input: { action: 'ask', recipient: 'Chad', question: 'Initial?' } },
+    ],
+    selectedCandidateId: 'send',
+  });
+  await kernel.invokeTool(firstInference, first.id, 'message', selection.selected.input, selection.selectionReceipt);
+  kernel.completeInference(firstInference, {
+    responseMessages: [], text: '', finishReason: 'stop', usage: {}, steps: [], requests: [],
+  });
+  const invocationId = kernel.state().invocations.at(-1).invocationId;
+  kernel.admitDelta({
+    authority: 'world', id: 'message-feedback-1', stream: 'inbox', at: '2026-08-30T13:00:00.000Z',
+    bearsOn: [{ kind: 'tool-invocation', invocationId }],
+    payload: { observation: 'The direct message felt too abrupt.' },
+  });
+
+  await mind.receive(kernel.openSounding('delta').id);
+
+  const staged = kernel.events().findLast(event => event.type === 'tool_revision_staged');
+  assert.deepEqual(staged.payload.consequences, [{ deltaId: 'message-feedback-1', invocationIds: [invocationId] }]);
+  assert.match(kernel.state().tools.get('message').source, /consequence-shaped/);
+  assert.match(JSON.stringify(model.doGenerateCalls[0].prompt), /message-feedback-1/);
+});
+
 test('a provider failure retains completed tool turns and closes the inference cleanly', async () => {
   let call = 0;
   const model = new MockLanguageModelV4({

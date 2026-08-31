@@ -15,7 +15,9 @@ tools retain the unrestricted machine authority of the harness process.
   of it.**
   **Evidence:** Continuing-song's validated carrier gives world receipts separate
   authority and does not allow actor transitions to rewrite them; its experimental
-  frontier identifies this separation as necessary to its causal claims.
+  frontier identifies this separation as necessary to its causal claims. Music
+  now retains a world Delta's exact invocation reference separately from the
+  subject-authored interpretation and successor it may later support.
 - **A retained lesson must participate in constructing or selecting a later
   action.**
   **Evidence:** Continuing-song's selector experiments distinguish executable
@@ -37,7 +39,8 @@ tools retain the unrestricted machine authority of the harness process.
   **Evidence:** Continuing-song retains parent-bound successors, cumulative world
   floors, and rejection-triggered recovery; Watch's refinement records preserve
   target, hypothesis, before-snapshot, later contact, evidence, and rollback
-  transitions.
+  transitions. Music's real file-patch slice retains consequence-to-invocation
+  lineage on both a learned executable successor and a later rollback successor.
 - **World change reaches the subject as a first-class runtime event.**
   **Evidence:** Watch constructs each Sounding from typed, timestamped Deltas and
   can inject waking Deltas into an inference already in progress.

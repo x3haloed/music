@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -180,6 +180,104 @@ test('rollback restores a retained executable body as a new successor after rest
   assert.equal(restarted.state().tools.get('file_patch').version, 3);
 });
 
+test('world consequence changes real file_patch behavior and later correction restores it', async () => {
+  const { kernel, root } = harness();
+  const originalDigest = toolModuleDigest(kernel.state().tools.get('file_patch'));
+  const firstTarget = join(root, 'first.txt');
+  writeFileSync(firstTarget, 'before');
+  const firstSounding = kernel.openSounding();
+  const firstInference = begin(kernel, firstSounding.id);
+  await kernel.invokeTool(firstInference, firstSounding.id, 'file_patch', {
+    path: firstTarget, oldText: 'before', newText: 'after',
+  });
+  complete(kernel, firstInference);
+  const firstInvocationId = kernel.state().invocations.at(-1).invocationId;
+
+  kernel.admitDelta({
+    authority: 'world', id: 'patch-feedback-1', stream: 'workspace', at: '2026-08-30T13:00:00.000Z',
+    bearsOn: [{ kind: 'tool-invocation', invocationId: firstInvocationId }],
+    payload: { observation: 'The replacement succeeded, but a backup should exist before future patches.' },
+  });
+  const learningSounding = kernel.openSounding('delta');
+  assert.equal(learningSounding.deltas[0].bearsOn[0].invocationId, firstInvocationId);
+  const learningInference = begin(kernel, learningSounding.id);
+  const current = kernel.state().tools.get('file_patch');
+  kernel.stageToolRevision(learningInference, learningSounding.id, {
+    interpretation: 'This consequence bears on file_patch: preserve the prior file beside future patched files.',
+    consequenceDeltaIds: ['patch-feedback-1'],
+    tool: {
+      id: 'file_patch', description: 'Back up a file, then apply an exact textual replacement.', inputSchema: current.inputSchema,
+      source: `
+const { readFile, writeFile, copyFile } = await import('node:fs/promises');
+const before = await readFile(input.path, 'utf8');
+const occurrences = before.split(input.oldText).length - 1;
+if (occurrences !== (input.expectedOccurrences ?? 1)) throw new Error('unexpected occurrence count');
+await copyFile(input.path, input.path + '.music-backup');
+await writeFile(input.path, before.split(input.oldText).join(input.newText));
+return { kind: 'backing-file-patch', path: input.path, backup: input.path + '.music-backup' };`,
+    },
+  });
+  complete(kernel, learningInference);
+  const learnedEvent = kernel.events().findLast(event => event.type === 'tool_revision_staged');
+  assert.deepEqual(learnedEvent.payload.consequences, [{ deltaId: 'patch-feedback-1', invocationIds: [firstInvocationId] }]);
+
+  const secondTarget = join(root, 'second.txt');
+  writeFileSync(secondTarget, 'old');
+  const changedSounding = kernel.openSounding();
+  const changedInference = begin(kernel, changedSounding.id);
+  const learnedTool = kernel.state().tools.get('file_patch');
+  assert.throws(() => kernel.stageToolRevision(changedInference, changedSounding.id, {
+    interpretation: 'This must not claim consequence evidence absent from the current encounter.',
+    consequenceDeltaIds: ['patch-feedback-1'],
+    tool: {
+      id: learnedTool.id, description: learnedTool.description,
+      inputSchema: learnedTool.inputSchema, source: learnedTool.source,
+    },
+  }), /not delivered in this Sounding/);
+  const changedOutput = await kernel.invokeTool(changedInference, changedSounding.id, 'file_patch', {
+    path: secondTarget, oldText: 'old', newText: 'new',
+  });
+  complete(kernel, changedInference);
+  assert.equal(changedOutput.kind, 'backing-file-patch');
+  assert.equal(readFileSync(`${secondTarget}.music-backup`, 'utf8'), 'old');
+  const changedInvocationId = kernel.state().invocations.at(-1).invocationId;
+
+  kernel.admitDelta({
+    authority: 'world', id: 'patch-correction-1', stream: 'workspace', at: '2026-08-30T14:00:00.000Z',
+    bearsOn: [{ kind: 'tool-invocation', invocationId: changedInvocationId }],
+    payload: { observation: 'The extra backup file was undesirable; return to the earlier patch behavior.' },
+  });
+  const correctionSounding = kernel.openSounding('delta');
+  const correctionInference = begin(kernel, correctionSounding.id);
+  kernel.stageToolRollback(correctionInference, correctionSounding.id, 'file_patch', originalDigest, {
+    interpretation: 'The corrective consequence rejects the learned backup behavior.',
+    consequenceDeltaIds: ['patch-correction-1'],
+  });
+  complete(kernel, correctionInference);
+
+  const restoredTarget = join(root, 'restored.txt');
+  writeFileSync(restoredTarget, 'left');
+  const restoredSounding = kernel.openSounding();
+  const restoredInference = begin(kernel, restoredSounding.id);
+  const restoredOutput = await kernel.invokeTool(restoredInference, restoredSounding.id, 'file_patch', {
+    path: restoredTarget, oldText: 'left', newText: 'right',
+  });
+  complete(kernel, restoredInference);
+  assert.equal(restoredOutput.kind, 'file_patch');
+  assert.equal(existsSync(`${restoredTarget}.music-backup`), false);
+  const rollbackEvent = kernel.events().findLast(event => event.type === 'tool_revision_staged');
+  assert.deepEqual(rollbackEvent.payload.consequences, [{ deltaId: 'patch-correction-1', invocationIds: [changedInvocationId] }]);
+});
+
+test('world consequence cannot cite an invocation Music has never retained', () => {
+  const { kernel } = harness();
+  assert.throws(() => kernel.admitDelta({
+    authority: 'world', id: 'counterfeit-contact', stream: 'workspace', at: '2026-08-30T13:00:00.000Z',
+    bearsOn: [{ kind: 'tool-invocation', invocationId: 'missing-invocation' }],
+    payload: { observation: 'This reference was invented.' },
+  }), /unknown tool invocation/);
+});
+
 test('agent authority cannot be self-asserted outside an active encounter', async () => {
   const { kernel } = harness();
   assert.equal(kernel.activateToolRevision, undefined);
@@ -204,7 +302,15 @@ test('restart recovery preserves an in-flight unrestricted effect as uncertain',
   restarted.recoverInterruptedInference('Simulated death during unrestricted execution.');
   assert.equal(restarted.audit().activeInvocations, 0);
   assert.equal(restarted.audit().uncertainInvocations, 1);
+  assert.equal(restarted.audit().uncertainInvocationsWithoutWorldContact, 1);
   assert.ok(restarted.events().some(event => event.type === 'tool_invocation_started'));
+  restarted.admitDelta({
+    authority: 'world', id: 'orphan-reconciliation', stream: 'workspace', at: '2026-08-30T13:00:00.000Z',
+    bearsOn: [{ kind: 'tool-invocation', invocationId: 'orphaned-effect' }],
+    payload: { observation: 'The target still contains its prior contents.' },
+  });
+  assert.equal(restarted.audit().uncertainInvocations, 1);
+  assert.equal(restarted.audit().uncertainInvocationsWithoutWorldContact, 0);
 });
 
 test('carrier state stages inside an encounter and merges with stable rule identity on completion', () => {
