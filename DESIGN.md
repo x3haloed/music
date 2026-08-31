@@ -22,15 +22,17 @@ writers, transactional rollback of arbitrary external effects, autonomous
 scheduling, network messaging transports, dependency installation recovery, or
 survival when the bootstrap itself is corrupted.
 
-Event format 9 intentionally rejects earlier ledgers because retained delivery
-projection identity and bounded runtime-failure recovery are now part of
-subject continuity.
+Event format 10 intentionally rejects earlier ledgers because exclusive writer
+identity, retained tail-recovery receipts, delivery projection identity, and
+bounded runtime-failure recovery are now part of subject continuity.
 
 ## Stable boundary
 
 The bootstrap currently owns only the irreducible continuity and mutation path:
 
 - one subject, event chain, and exact Sounding lifecycle;
+- exclusive local writer leasing, full-write loops, fsync, and conservative
+  final-tail crash recovery;
 - inference-provider connection and interrupted-turn recovery;
 - loading and invoking a retained JavaScript tool body;
 - exact projection/digest binding plus durable invocation start, completion, and
@@ -263,6 +265,25 @@ inspect, repair, install for, or roll back its machinery. Arbitrarily long error
 objects are truncated before retention so a hostile or accidental error cannot
 prevent the failure boundary itself from being recorded.
 
+## Writer and ledger-tail survival
+
+Each append obtains an exclusive `wx` writer lease beside the ledger. The
+resident holds it for its whole process lifetime; short commands hold it across
+their mutation. The lease records a random token, PID, hostname, time, and
+purpose. A live local owner excludes every contender. A provably dead local
+owner is renamed as stale evidence before a new owner proceeds; a lease from an
+unknown host is never guessed stale. Incomplete lock files also receive a short
+age floor before recovery.
+
+Ledger writes loop until every byte is written and fsync before releasing the
+lease. Startup repair is deliberately narrow. If the ledger lacks a final
+newline and the last bytes are not complete JSON, Music copies those exact
+bytes to a sibling `.torn-*.bin`, truncates only that fragment, fsyncs, and
+appends a hash-bound `ledger_tail_recovered` receipt. If the final event is
+complete and chain-valid, Music adds the missing newline and retains a receipt.
+If complete JSON fails ancestry or digest validation, repair refuses it
+unchanged as corruption. Complete historical lines are never auto-removed.
+
 ## Evidence and next risk frontier
 
 Automated evidence currently proves that:
@@ -294,6 +315,9 @@ Automated evidence currently proves that:
 - the ordinary dependency module performs a real local npm install, a later
   invented tool executes the installed package, and a missing-package successor
   exposes its exact runtime failure so the same mind can roll it back;
+- a live writer excludes a second author, a dead writer leaves stale evidence,
+  torn final bytes are backed up with an append-only receipt, and complete
+  corrupted events are refused rather than discarded;
 - a real filesystem Delta arriving during an AI SDK model step is appended at a
   retained steering boundary, interpreted by the same inference, and can drive
   the ordinary consequence-attention tool without opening another Sounding;
@@ -309,7 +333,7 @@ Automated evidence currently proves that:
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is the stable process boundary: single-writer exclusion,
-ledger-tail crash recovery, and bootstrap survival/repair before a long-term
-resident should hatch. Network messaging can grow as ordinary/adaptor machinery
-after the local lived-contact path proves what the resident actually needs.
+The next risk frontier is bootstrap survival/repair and then a bounded lived
+residency before a long-term resident should hatch. Network messaging can grow
+as ordinary/adaptor machinery after the local lived-contact path proves what the
+resident actually needs.

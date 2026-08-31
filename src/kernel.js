@@ -1,5 +1,8 @@
-import { closeSync, existsSync, fsyncSync, openSync, readFileSync, writeSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import {
+  closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, statSync, truncateSync, unlinkSync, writeSync,
+} from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { hostname } from 'node:os';
 import { canonical, digest } from './canonical.js';
 import { applyCarrierTransition, createCarrierTransition, initialCarrier, projectCarrier, readCarrier, serializeCarrier } from './carrier.js';
 import { executeToolModule, toolModuleDigest, validateToolModule } from './tool-module.js';
@@ -10,7 +13,8 @@ import { initialConsequenceTool } from '../tools/attend-consequence.js';
 import { initialEncounterShapeTool } from '../tools/shape-encounter.js';
 import { initialDependencyTool } from '../tools/manage-dependency.js';
 
-const FORMAT = 'music-event-9';
+const FORMAT = 'music-event-10';
+const WRITER_FORMAT = 'music-writer-1';
 const ENCOUNTER_SHAPE_TOOL_ID = 'shape_encounter';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
@@ -38,10 +42,11 @@ export class MusicKernel {
       throw new Error('tool environment must be an object');
     }
     this.toolEnvironment = Object.freeze(environment);
+    this.writerLease = null;
   }
 
   initialize(name) {
-    if (this.events().length !== 0) throw new Error('Music subject already exists');
+    if (this.state().subject) throw new Error('Music subject already exists');
     const trimmed = typeof name === 'string' ? name.trim() : '';
     if (!trimmed || trimmed.length > 128) throw new Error('subject name must be 1-128 characters');
     this.append('subject_created', {
@@ -424,6 +429,99 @@ export class MusicKernel {
     return projectionIds;
   }
 
+  acquireWriter(label = 'Music writer') {
+    if (this.writerLease) throw new Error(`this kernel already holds the writer lease: ${this.writerLease.label}`);
+    const lockPath = `${this.ledgerPath}.writer-lock`;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const token = randomUUID();
+      const lease = {
+        format: WRITER_FORMAT,
+        token,
+        pid: process.pid,
+        host: hostname(),
+        at: this.clock().toISOString(),
+        label: boundedWriterLabel(label),
+      };
+      let descriptor;
+      try {
+        descriptor = openSync(lockPath, 'wx', 0o600);
+        writeAll(descriptor, `${canonical(lease)}\n`);
+        fsyncSync(descriptor);
+        closeSync(descriptor);
+        descriptor = undefined;
+        this.writerLease = lease;
+        let released = false;
+        return () => {
+          if (released) return;
+          released = true;
+          releaseWriterLock(lockPath, lease);
+          if (this.writerLease?.token === token) this.writerLease = null;
+        };
+      } catch (error) {
+        if (descriptor !== undefined) closeSync(descriptor);
+        if (error?.code !== 'EEXIST') throw error;
+        const owner = readWriterLock(lockPath);
+        if (owner && writerIsAlive(owner)) {
+          throw new Error(`Music writer lease is held by pid ${owner.pid} on ${owner.host}: ${owner.label}`);
+        }
+        if (!owner && Date.now() - statSync(lockPath).mtimeMs < 5_000) {
+          throw new Error('Music writer lease is incomplete and too recent for safe stale recovery');
+        }
+        const stalePath = `${lockPath}.stale-${Date.now()}-${randomUUID()}`;
+        try { renameSync(lockPath, stalePath); } catch (renameError) {
+          if (renameError?.code === 'ENOENT') continue;
+          throw renameError;
+        }
+      }
+    }
+    throw new Error('could not acquire Music writer lease after stale recovery');
+  }
+
+  recoverLedgerTail() {
+    const release = this.writerLease ? null : this.acquireWriter('ledger tail recovery');
+    try {
+      if (!existsSync(this.ledgerPath)) return null;
+      const bytes = readFileSync(this.ledgerPath);
+      if (bytes.length === 0 || bytes.at(-1) === 0x0a) return null;
+      const lastNewline = bytes.lastIndexOf(0x0a);
+      const prefix = bytes.subarray(0, lastNewline + 1);
+      const tail = bytes.subarray(lastNewline + 1);
+      parseLedgerText(prefix.toString('utf8'));
+      let kind;
+      let backupPath = null;
+      try {
+        JSON.parse(tail.toString('utf8'));
+        parseLedgerText(bytes.toString('utf8'));
+        const descriptor = openSync(this.ledgerPath, 'a', 0o600);
+        try { writeAll(descriptor, '\n'); fsyncSync(descriptor); } finally { closeSync(descriptor); }
+        kind = 'newline-restored';
+      } catch (error) {
+        try {
+          JSON.parse(tail.toString('utf8'));
+        } catch {
+          backupPath = `${this.ledgerPath}.torn-${Date.now()}-${randomUUID()}.bin`;
+          const backup = openSync(backupPath, 'wx', 0o600);
+          try { writeAll(backup, tail); fsyncSync(backup); } finally { closeSync(backup); }
+          truncateSync(this.ledgerPath, prefix.length);
+          const descriptor = openSync(this.ledgerPath, 'r+', 0o600);
+          try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
+          kind = 'torn-tail-removed';
+        }
+        if (kind !== 'torn-tail-removed') throw error;
+      }
+      const receipt = {
+        kind,
+        bytes: tail.length,
+        sha256: createHash('sha256').update(tail).digest('hex'),
+        ...(backupPath === null ? {} : { backupPath }),
+      };
+      this.append('ledger_tail_recovered', receipt);
+      return receipt;
+    } finally {
+      release?.();
+    }
+  }
+
   state() {
     return reduceEvents(this.events());
   }
@@ -449,6 +547,7 @@ export class MusicKernel {
       deliveryProjections: state.deliveryProjectionCount,
       failedDeliveryProjections: state.failedDeliveryProjectionCount,
       uncertainDeliveryProjections: state.activeDeliveryProjections.size,
+      ledgerTailRecoveries: state.ledgerTailRecoveryCount,
       unresolvedConsequences: [...state.consequences.values()].filter(consequence => consequence.status !== 'settled').length,
       deferredConsequences: [...state.consequences.values()].filter(consequence => consequence.status === 'deferred').length,
       uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
@@ -467,34 +566,33 @@ export class MusicKernel {
 
   events() {
     if (!existsSync(this.ledgerPath)) return [];
-    const text = readFileSync(this.ledgerPath, 'utf8');
-    const lines = text.split('\n').filter(Boolean);
-    const events = lines.map((line, index) => {
-      try { return JSON.parse(line); } catch { throw new Error(`invalid JSON at ledger line ${index + 1}`); }
-    });
-    verifyChain(events);
-    return events;
+    return parseLedgerText(readFileSync(this.ledgerPath, 'utf8'));
   }
 
   append(type, payload) {
-    const events = this.events();
-    const unsigned = {
-      format: FORMAT,
-      sequence: events.length,
-      parent: events.at(-1)?.hash ?? null,
-      at: this.clock().toISOString(),
-      type,
-      payload,
-    };
-    const event = { ...unsigned, hash: digest(unsigned) };
-    const descriptor = openSync(this.ledgerPath, 'a', 0o600);
+    const release = this.writerLease ? null : this.acquireWriter(`append ${type}`);
     try {
-      writeSync(descriptor, `${canonical(event)}\n`, null, 'utf8');
-      fsyncSync(descriptor);
+      const events = this.events();
+      const unsigned = {
+        format: FORMAT,
+        sequence: events.length,
+        parent: events.at(-1)?.hash ?? null,
+        at: this.clock().toISOString(),
+        type,
+        payload,
+      };
+      const event = { ...unsigned, hash: digest(unsigned) };
+      const descriptor = openSync(this.ledgerPath, 'a', 0o600);
+      try {
+        writeAll(descriptor, `${canonical(event)}\n`);
+        fsyncSync(descriptor);
+      } finally {
+        closeSync(descriptor);
+      }
+      return event;
     } finally {
-      closeSync(descriptor);
+      release?.();
     }
-    return event;
   }
 }
 
@@ -541,6 +639,7 @@ function reduceEvents(events) {
     usedDeliveryProjectionIds: new Set(),
     deliveryProjectionCount: 0,
     failedDeliveryProjectionCount: 0,
+    ledgerTailRecoveryCount: 0,
   };
   for (const event of events) {
     state.head = event.hash;
@@ -554,6 +653,10 @@ function reduceEvents(events) {
           state.toolHistory.set(toolModuleDigest(valid), valid);
         }
         state.carrier = readCarrier(event.payload.carrier);
+        break;
+      case 'ledger_tail_recovered':
+        validateLedgerRecoveryReceipt(event.payload);
+        state.ledgerTailRecoveryCount += 1;
         break;
       case 'delta_admitted': {
         requireSubject(state);
@@ -878,6 +981,75 @@ function verifyChain(events) {
     const { hash, ...unsigned } = event;
     if (hash !== digest(unsigned)) throw new Error(`event digest mismatch at ledger line ${index + 1}`);
     parent = hash;
+  }
+}
+
+function parseLedgerText(text) {
+  if (text.length === 0) return [];
+  const body = text.endsWith('\n') ? text.slice(0, -1) : text;
+  if (body.length === 0) return [];
+  const lines = body.split('\n');
+  const events = lines.map((line, index) => {
+    try { return JSON.parse(line); } catch { throw new Error(`invalid JSON at ledger line ${index + 1}`); }
+  });
+  verifyChain(events);
+  return events;
+}
+
+function writeAll(descriptor, value) {
+  const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value, 'utf8');
+  let offset = 0;
+  while (offset < bytes.length) {
+    const written = writeSync(descriptor, bytes, offset, bytes.length - offset);
+    if (written < 1) throw new Error('ledger write made no progress');
+    offset += written;
+  }
+}
+
+function boundedWriterLabel(value) {
+  const label = typeof value === 'string' ? value.trim() : '';
+  if (!label || label.length > 256) throw new Error('writer label must be 1-256 characters');
+  return label;
+}
+
+function readWriterLock(path) {
+  try {
+    const value = JSON.parse(readFileSync(path, 'utf8'));
+    if (!value || value.format !== WRITER_FORMAT || typeof value.token !== 'string'
+      || !Number.isInteger(value.pid) || typeof value.host !== 'string'
+      || typeof value.label !== 'string' || typeof value.at !== 'string') return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function writerIsAlive(owner) {
+  if (owner.host !== hostname()) return true;
+  try {
+    process.kill(owner.pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== 'ESRCH';
+  }
+}
+
+function releaseWriterLock(path, lease) {
+  const owner = readWriterLock(path);
+  if (!owner) throw new Error('Music writer lease disappeared before release');
+  if (owner.token !== lease.token) throw new Error('Music writer lease ownership changed before release');
+  unlinkSync(path);
+}
+
+function validateLedgerRecoveryReceipt(receipt) {
+  if (!receipt || !['newline-restored', 'torn-tail-removed'].includes(receipt.kind)
+    || !Number.isInteger(receipt.bytes) || receipt.bytes < 0
+    || typeof receipt.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.sha256)
+    || (receipt.backupPath !== undefined && (typeof receipt.backupPath !== 'string' || !receipt.backupPath))) {
+    throw new Error('invalid ledger tail recovery receipt');
+  }
+  if ((receipt.kind === 'torn-tail-removed') !== (receipt.backupPath !== undefined)) {
+    throw new Error('ledger tail recovery backup binding mismatch');
   }
 }
 

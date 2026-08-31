@@ -12,6 +12,9 @@ binds invocations to exact Soundings and module digests, and stages, activates,
 or rolls back executable revisions. It also supplies exact fact envelopes and a
 bounded emergency projection when learned delivery geometry fails. Recoverability comes from append-only
 ancestry and deferred activation—not from limiting what ordinary tools can do.
+Every append holds an exclusive local writer lease. A resident holds that lease
+for its lifetime, so a second resident or direct ledger writer is refused rather
+than becoming another author of the same subject.
 
 A resident runtime watches a durable filesystem ingress. External adapters
 atomically submit world-authored Delta files without writing the subject ledger;
@@ -54,6 +57,11 @@ version is authoritative.
 normal lifecycle scripts and unrestricted network/process authority—inside the
 resident dependency habitat (by default `LEDGER.dependencies`). Learned tools
 can resolve installed packages from `context.environment.dependencyRoot`.
+
+Startup can recover a syntactically torn final ledger write. The exact fragment
+is preserved beside the ledger and an append-only recovery receipt is added.
+A complete event with a bad digest is treated as corruption and is never
+silently truncated.
 
 `revise_tool` and `rollback_tool` are bootstrap meta-tools. A revision carries a
 complete replacement description, JSON Schema, optional selection geometry, and

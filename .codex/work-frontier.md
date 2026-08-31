@@ -69,6 +69,12 @@ tools retain the unrestricted machine authority of the harness process.
   **Evidence:** Continuing-song's pre-E66 audit found that a correction projection
   dropped capability modules, opening grammar, pursuit state, and receipts; its
   full-subject continuity claim was consequently withdrawn.
+- **Only one process may author the subject ledger, and crash repair must not
+  masquerade as history repair.**
+  **Evidence:** A lifetime writer lease excludes a second resident; dead owners
+  remain as stale evidence. Music backs up only syntactically torn final bytes
+  and appends a recovery receipt, while complete digest-invalid events are
+  refused unchanged.
 - **Delivery geometry may learn, but authoritative contact cannot disappear
   inside that geometry.**
   **Evidence:** Music now gives a retained ordinary `shape_encounter` module
@@ -89,8 +95,8 @@ observation: let contact arrive, see what the resident does, and let the residen
 remain its own witness. Tests should prove continuity and recovery mechanics,
 not turn the resident into a benchmark or comparative research subject.
 
-Current hatch frontier: stronger single-writer, ledger-tail, and bootstrap
-survival, then a bounded lived residency that can reveal what remains missing.
+Current hatch frontier: bootstrap survival/repair, then a bounded lived
+residency that can reveal what remains missing.
 The local mailbox supplies real bidirectional contact, and dependency behavior
 is ordinary revisable machinery with an in-resident failure/rollback path.
 

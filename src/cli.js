@@ -72,12 +72,18 @@ try {
       result = kernel.audit();
       break;
     case 'run': {
-      kernel.recoverInterruptedInference('The previous Music process ended before its active inference could complete.');
-      kernel.recoverInterruptedDeliveryProjections('The previous Music process ended before delivery projection completion was retained.');
-      const configured = createConfiguredModel(readJsonFile(args[0]));
-      await configured.preflight();
-      const soundingId = kernel.state().openSoundingId ?? kernel.openSounding(args[1] ?? 'manual').id;
-      result = await new MusicMind(kernel, configured, configured.inference).receive(soundingId);
+      const releaseWriter = kernel.acquireWriter('single inference run');
+      try {
+        kernel.recoverLedgerTail();
+        kernel.recoverInterruptedInference('The previous Music process ended before its active inference could complete.');
+        kernel.recoverInterruptedDeliveryProjections('The previous Music process ended before delivery projection completion was retained.');
+        const configured = createConfiguredModel(readJsonFile(args[0]));
+        await configured.preflight();
+        const soundingId = kernel.state().openSoundingId ?? kernel.openSounding(args[1] ?? 'manual').id;
+        result = await new MusicMind(kernel, configured, configured.inference).receive(soundingId);
+      } finally {
+        releaseWriter();
+      }
       break;
     }
     case 'reside': {

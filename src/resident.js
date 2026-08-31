@@ -21,16 +21,18 @@ export class MusicResident {
     this.onError = onError;
     this.activeEncounter = null;
     this.abortSignal = undefined;
-    this.lastEncounterAt = latestEncounterAt(kernel.events()) ?? this.clock();
+    this.lastEncounterAt = null;
   }
 
   async recover() {
+    const ledgerTail = this.kernel.recoverLedgerTail();
     const inferenceId = this.kernel.recoverInterruptedInference('The resident process ended before its active encounter completed.');
     const projectionIds = this.kernel.recoverInterruptedDeliveryProjections('The resident process ended before delivery projection completion was retained.');
-    return { inferenceId, projectionIds };
+    return { ledgerTail, inferenceId, projectionIds };
   }
 
   async pump() {
+    this.lastEncounterAt ??= latestEncounterAt(this.kernel.events()) ?? this.clock();
     const admitted = this.drainIngress();
     if (this.activeEncounter || this.kernel.state().activeInferenceId) return { admitted, started: false };
     const state = this.kernel.state();
@@ -94,18 +96,23 @@ export class MusicResident {
   }
 
   async run({ signal } = {}) {
-    this.abortSignal = signal;
-    await this.recover();
-    while (!signal?.aborted) {
-      await this.pump();
-      try {
-        await delay(this.pollMs, undefined, signal ? { signal } : undefined);
-      } catch (error) {
-        if (signal?.aborted) break;
-        throw error;
+    const releaseWriter = this.kernel.acquireWriter('resident');
+    try {
+      this.abortSignal = signal;
+      await this.recover();
+      while (!signal?.aborted) {
+        await this.pump();
+        try {
+          await delay(this.pollMs, undefined, signal ? { signal } : undefined);
+        } catch (error) {
+          if (signal?.aborted) break;
+          throw error;
+        }
       }
+      if (this.activeEncounter) await this.activeEncounter;
+    } finally {
+      releaseWriter();
     }
-    if (this.activeEncounter) await this.activeEncounter;
   }
 }
 

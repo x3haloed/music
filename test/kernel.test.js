@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { MusicKernel } from '../src/kernel.js';
@@ -501,6 +502,71 @@ test('tampering with retained history is detected', () => {
   lines[0] = JSON.stringify(event);
   writeFileSync(kernel.ledgerPath, `${lines.join('\n')}\n`);
   assert.throws(() => kernel.audit(), /event digest mismatch/);
+});
+
+test('a live resident writer lease excludes every other ledger author', () => {
+  const { kernel } = harness();
+  const release = kernel.acquireWriter('first resident');
+  const contender = new MusicKernel(kernel.ledgerPath);
+  assert.throws(() => contender.admitDelta({
+    authority: 'world', id: 'excluded-contact', stream: 'inbox', at: '2026-08-30T18:00:00.000Z', payload: {},
+  }), /writer lease is held/);
+  release();
+  assert.doesNotThrow(() => contender.admitDelta({
+    authority: 'world', id: 'accepted-after-release', stream: 'inbox', at: '2026-08-30T18:01:00.000Z', payload: {},
+  }));
+});
+
+test('a dead writer lease is preserved as stale evidence and recovered', () => {
+  const { kernel, root } = harness();
+  writeFileSync(`${kernel.ledgerPath}.writer-lock`, `${JSON.stringify({
+    format: 'music-writer-1', token: 'dead-token', pid: 2_147_483_647,
+    host: hostname(), at: '2026-08-30T18:00:00.000Z', label: 'dead resident',
+  })}\n`);
+  kernel.admitDelta({
+    authority: 'world', id: 'after-dead-writer', stream: 'inbox', at: '2026-08-30T18:01:00.000Z', payload: {},
+  });
+  assert.ok(readdirSync(root).some(name => name.startsWith('events.jsonl.writer-lock.stale-')));
+  assert.equal(existsSync(`${kernel.ledgerPath}.writer-lock`), false);
+});
+
+test('a torn final ledger write is backed up, removed, and retained as an explicit receipt', () => {
+  const { kernel } = harness();
+  const torn = Buffer.from('{"incomplete":');
+  appendFileSync(kernel.ledgerPath, torn);
+  assert.throws(() => kernel.audit(), /invalid JSON/);
+
+  const receipt = kernel.recoverLedgerTail();
+
+  assert.equal(receipt.kind, 'torn-tail-removed');
+  assert.deepEqual(readFileSync(receipt.backupPath), torn);
+  assert.equal(kernel.audit().valid, true);
+  assert.equal(kernel.events().at(-1).type, 'ledger_tail_recovered');
+  assert.equal(kernel.events().at(-1).payload.sha256, receipt.sha256);
+});
+
+test('a complete final event missing only its newline is retained, not discarded', () => {
+  const { kernel } = harness();
+  const before = readFileSync(kernel.ledgerPath, 'utf8');
+  writeFileSync(kernel.ledgerPath, before.slice(0, -1));
+  assert.equal(kernel.audit().valid, true);
+
+  const receipt = kernel.recoverLedgerTail();
+
+  assert.equal(receipt.kind, 'newline-restored');
+  assert.equal(kernel.audit().valid, true);
+  assert.equal(kernel.events().at(-1).type, 'ledger_tail_recovered');
+});
+
+test('a complete but corrupted final event is not misclassified as a torn write', () => {
+  const { kernel } = harness();
+  const event = JSON.parse(readFileSync(kernel.ledgerPath, 'utf8'));
+  event.hash = '0'.repeat(64);
+  const corrupted = JSON.stringify(event);
+  writeFileSync(kernel.ledgerPath, corrupted);
+
+  assert.throws(() => kernel.recoverLedgerTail(), /event digest mismatch/);
+  assert.equal(readFileSync(kernel.ledgerPath, 'utf8'), corrupted);
 });
 
 function begin(kernel, soundingId) {
