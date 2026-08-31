@@ -358,6 +358,65 @@ throw new Error('unknown action');`,
   assert.equal((await kernel.invokeTool(laterInference, later.id, 'message', laterInput, laterReceipt)).body, '[revised question] Draft first?');
 });
 
+test('authored tool machinery remains provisional until exercised and explicitly admitted', async () => {
+  const { kernel } = harness();
+  const authoredSounding = kernel.openSounding('manual');
+  const authoredInference = begin(kernel, authoredSounding.id);
+  const initialPositionRoot = authoredSounding.position.root;
+  const proposal = kernel.authorToolProposal(authoredInference, authoredSounding.id, {
+    interpretation: 'Try a small new capability before allowing it to shape later action.',
+    tool: {
+      id: 'provisional_probe',
+      description: 'Return a retained probe value.',
+      inputSchema: {
+        type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false,
+      },
+      source: 'return { observed: input.value, geometry: "provisional" };',
+    },
+  });
+  assert.notEqual(kernel.state().position.root, initialPositionRoot);
+  complete(kernel, authoredInference);
+
+  const trialSounding = kernel.openSounding('manual');
+  assert.equal(trialSounding.tools.some(tool => tool.id === 'provisional_probe'), false);
+  const trialInference = begin(kernel, trialSounding.id);
+  const inspected = kernel.inspectDevelopment(trialInference, trialSounding.id, proposal.proposalId);
+  assert.equal(inspected.status, 'authored');
+  assert.match(inspected.tool.source, /geometry/);
+  const trial = await kernel.trialDevelopmentalProposal(
+    trialInference, trialSounding.id, proposal.proposalId, { value: 'contact' },
+  );
+  assert.deepEqual(trial.output, { observed: 'contact', geometry: 'provisional' });
+  complete(kernel, trialInference);
+
+  const admissionSounding = kernel.openSounding('manual');
+  assert.equal(admissionSounding.tools.some(tool => tool.id === 'provisional_probe'), false);
+  const admissionInference = begin(kernel, admissionSounding.id);
+  const transaction = kernel.stageDevelopmentalTransaction(admissionInference, admissionSounding.id, {
+    interpretation: 'The retained exercise supports admission.',
+    decisions: [{
+      proposalId: proposal.proposalId,
+      disposition: 'admit',
+      interpretation: 'Its actual result matched the proposed behavior.',
+    }],
+  });
+  complete(kernel, admissionInference);
+
+  const activeSounding = kernel.openSounding('manual');
+  assert.equal(activeSounding.position.parentPositionRoot, admissionSounding.position.root);
+  assert.equal(activeSounding.tools.some(tool => tool.id === 'provisional_probe'), true);
+  const activeInference = begin(kernel, activeSounding.id);
+  assert.deepEqual(
+    await kernel.invokeTool(activeInference, activeSounding.id, 'provisional_probe', { value: 'later' }),
+    { observed: 'later', geometry: 'provisional' },
+  );
+  assert.equal(
+    kernel.inspectDevelopment(activeInference, activeSounding.id, proposal.proposalId).standing.at(-1).transactionId,
+    transaction.transactionId,
+  );
+  complete(kernel, activeInference);
+});
+
 test('the subject can invent and execute an unrestricted process-running tool', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding();

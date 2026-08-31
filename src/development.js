@@ -50,15 +50,16 @@ export function createDevelopmentalSuccessor(position, {
   carrier,
   carrierTransition = null,
   consequenceTransitions = [],
+  standingTransitions = consequenceTransitions,
   opening = undefined,
 } = {}) {
   const current = readDevelopmentalPosition(position);
   const activeOpening = opening === undefined
     ? current.activeOpening
     : (opening === null ? null : validateOpening(opening));
-  const standingRoot = consequenceTransitions.length === 0
+  const standingRoot = standingTransitions.length === 0
     ? current.standingRoot
-    : digest({ parent: current.standingRoot, consequenceTransitions });
+    : digest({ parent: current.standingRoot, transitions: standingTransitions });
   const pursuitRoot = carrierTransition === null
     ? current.pursuitRoot
     : digest({ parent: current.pursuitRoot, carrierTransition });

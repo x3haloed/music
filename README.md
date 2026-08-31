@@ -8,13 +8,19 @@ the Music Node.js process. File access, child processes, network access, native
 modules, and arbitrary code are not sandboxed by the harness.
 
 The stable bootstrap retains the subject and encounter loop, loads tool modules,
-binds invocations to exact Soundings and module digests, and stages, activates,
-or rolls back executable revisions. It also supplies exact fact envelopes and a
+binds invocations to exact Soundings and module digests, and retains provisional
+executable revisions for trial and explicit developmental admission. It also supplies exact fact envelopes and a
 bounded emergency projection when learned delivery geometry fails. Recoverability comes from append-only
 ancestry and deferred activation—not from limiting what ordinary tools can do.
 Every append holds an exclusive local writer lease. A resident holds that lease
 for its lifetime, so a second resident or direct ledger writer is refused rather
 than becoming another author of the same subject.
+
+Fresh format-12 subjects carry a parent-bound developmental position in every
+Sounding. `revise_tool` authors provisional source rather than activating it on
+clean completion. The subject can inspect and exercise that source, then use an
+explicit atomic developmental transaction to admit or withhold it. Authorship,
+trial, inference completion, and developmental promotion have distinct receipts.
 
 Repeated inference failure cannot hot-loop. The resident derives an exponential
 retry floor from retained failure outcomes (five seconds up to five minutes by

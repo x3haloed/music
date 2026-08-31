@@ -210,11 +210,14 @@ world-authored Delta
   -> later world Delta cites the exact invocation without interpreting it
   -> current Sounding delivers that consequence reference and observation
   -> the subject may defer it; unresolved consequence returns in later Soundings
-  -> revise_tool stages a complete replacement interface and source body
+  -> revise_tool authors a provisional complete replacement interface and source body
   -> the subject may explicitly settle the consequence
   -> schedule_wake may stage the subject's own next temporal opening
-  -> successful inference completion atomically promotes the staged successor
-     and activates the staged future wake
+  -> inspect_development exposes proposal standing and exact source
+  -> trial_development executes provisional source without changing active geometry
+  -> advance_development explicitly admits or withholds the exercised proposal
+  -> successful inference completion atomically commits that authored
+     developmental transaction and any staged future wake
   -> later Sounding projects the successor digest and interface
   -> later invocation runs the changed source
   -> rollback_tool can copy retained prior source into a new parent-bound version
@@ -260,7 +263,7 @@ new contact starts a fresh sweep. Aggregate projected tool and carrier geometry
 has a smaller activation ceiling, so learned machinery cannot consume all space
 needed for at least one valid item of world contact.
 
-## Tool identity and activation
+## Tool identity, trial, and admission
 
 An ordinary tool version contains:
 
@@ -271,12 +274,22 @@ id + version + parent digest
 + unrestricted JavaScript source body
 ```
 
-The digest covers the complete record. A Sounding projects the interface,
+The digest covers the complete record. A Sounding projects the active interface,
 selection geometry, version, and digest, but not source. Invocation always loads
-the full ledger-retained module corresponding to that projection. A revision is
+the full ledger-retained module corresponding to that projection. A proposal is
 a new child: the bootstrap supplies version and parent, checks that its source
-compiles, and keeps it staged until successful inference completion. Staged code
-cannot affect another invocation in the same Sounding.
+compiles, and retains it as authored developmental standing. Clean completion
+does not activate it. The same subject can inspect its exact source and exercise
+it through a retained provisional trial; trial completion advances standing but
+does not change the active toolset. A later explicit developmental transaction
+can admit it only after a successful exercise, or instead deny, defer,
+contradict, retire, or roll it back. The transaction and parent-bound position
+successor commit atomically with encounter completion.
+
+Authorship survives an interrupted inference because the proposal and its
+position successor were already retained; interruption cannot turn it into
+active machinery. A provisional tool likewise cannot affect ordinary invocation
+in its authoring Sounding or any later Sounding before admission.
 
 Rollback is append-only. It does not reactivate an old node or erase descendants;
 it creates a new child of the current version whose executable body and interface

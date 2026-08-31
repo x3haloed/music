@@ -229,7 +229,7 @@ test('the one mind can choose and retain its own next wake through ordinary tool
   assert.equal(kernel.state().invocations.at(-1).tool.id, 'schedule_wake');
 });
 
-test('the one mind can embody a new tool and encounter it on the next Sounding', async () => {
+test('the one mind can author a new tool without clean completion prematurely embodying it', async () => {
   const revision = {
     interpretation: 'Repeated contrast should become an explicit affordance.',
     evidence: ['sounding:comparison-request'],
@@ -247,19 +247,17 @@ test('the one mind can embody a new tool and encounter it on the next Sounding',
   const model = new MockLanguageModelV4({
     doGenerate: [
       toolCallResult('revise_tool', revision),
-      textResult('The comparison affordance will be available later.'),
-      textResult('I can now compare directly.'),
+      textResult('The comparison affordance is provisional and awaits exercise.'),
     ],
   });
   const { kernel, mind } = harness(model);
 
   await mind.receive(kernel.openSounding().id);
-  assert.ok(kernel.state().tools.has('compare'));
+  assert.equal(kernel.state().tools.has('compare'), false);
+  const authored = [...kernel.state().developmentalProposals.values()].find(proposal => proposal.revision.tool.id === 'compare');
+  assert.equal(authored.status, 'authored');
   const later = kernel.openSounding();
-  assert.ok(later.tools.some(tool => tool.id === 'compare'));
-  await mind.receive(later.id);
-
-  assert.ok(model.doGenerateCalls[2].tools.some(candidate => candidate.name === 'compare'));
+  assert.equal(later.tools.some(tool => tool.id === 'compare'), false);
 });
 
 test('the one mind can author a bounded carrier transition for its next encounter', async () => {
@@ -331,9 +329,10 @@ test('the one mind can bind a source revision to exact delivered world consequen
 
   await mind.receive(kernel.openSounding('delta').id);
 
-  const staged = kernel.events().findLast(event => event.type === 'tool_revision_staged');
-  assert.deepEqual(staged.payload.consequences, [{ deltaId: 'message-feedback-1', invocationIds: [invocationId] }]);
-  assert.match(kernel.state().tools.get('message').source, /consequence-shaped/);
+  const authored = kernel.events().findLast(event => event.type === 'developmental_proposal_authored');
+  assert.deepEqual(authored.payload.revision.consequences, [{ deltaId: 'message-feedback-1', invocationIds: [invocationId] }]);
+  assert.doesNotMatch(kernel.state().tools.get('message').source, /consequence-shaped/);
+  assert.match(kernel.state().developmentalProposals.get(authored.payload.proposalId).revision.tool.source, /consequence-shaped/);
   assert.match(JSON.stringify(model.doGenerateCalls[0].prompt), /message-feedback-1/);
 });
 
@@ -541,8 +540,10 @@ test('a staged revision cannot change another tool call in the same Sounding', a
   await mind.receive(kernel.openSounding().id);
 
   assert.equal(kernel.state().invocations.at(-1).output.body, 'to=Chad\nThe old projection remains executable.');
-  assert.equal(kernel.state().tools.get('message').version, 2);
-  assert.match(kernel.state().tools.get('message').source, /\[question\]/);
+  assert.equal(kernel.state().tools.get('message').version, 1);
+  const proposal = [...kernel.state().developmentalProposals.values()].find(candidate => candidate.revision.tool.id === 'message');
+  assert.equal(proposal.status, 'authored');
+  assert.match(proposal.revision.tool.source, /\[question\]/);
 });
 
 test('a revision staged by an interrupted inference remains historical but does not activate', async () => {
@@ -567,7 +568,8 @@ test('a revision staged by an interrupted inference remains historical but does 
 
   assert.equal(kernel.state().tools.has('compare'), false);
   assert.equal(kernel.state().soundings.values().next().value.status, 'interrupted');
-  assert.ok(kernel.events().some(event => event.type === 'tool_revision_staged'));
+  assert.ok(kernel.events().some(event => event.type === 'developmental_proposal_authored'));
+  assert.equal([...kernel.state().developmentalProposals.values()].at(-1).status, 'authored');
 });
 
 function textResult(text) {
