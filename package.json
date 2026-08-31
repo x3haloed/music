@@ -1,0 +1,17 @@
+{
+  "name": "music-agent-harness",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "A plastic agent harness for one continuing subject.",
+  "bin": {
+    "music": "./src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/*.js && node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
