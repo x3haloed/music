@@ -39,6 +39,167 @@ test('opening a Sounding reserves Deltas; beginning its exact encounter acknowle
   assert.equal(kernel.state().soundings.get(sounding.id).status, 'completed');
 });
 
+test('an oversized contact burst is sealed as ordered retained batches and eventually delivered', async () => {
+  const { kernel } = harness();
+  const ids = [];
+  for (let index = 0; index < 36; index += 1) {
+    const id = `burst-${index}`;
+    ids.push(id);
+    kernel.admitDelta({
+      authority: 'world', id, stream: 'inbox', at: `2026-08-30T12:${String(index).padStart(2, '0')}:00.000Z`,
+      payload: { content: 'x'.repeat(60_000) },
+    });
+  }
+
+  const delivered = [];
+  const frontiers = [];
+  while (kernel.state().pendingDeltas.length > 0) {
+    const sounding = kernel.openSounding('delta');
+    frontiers.push(sounding.frontier.pending);
+    delivered.push(...sounding.deltas.map(delta => delta.id));
+    const projection = await kernel.projectEncounter(sounding.id, 'sounding');
+    assert.equal(Buffer.byteLength(JSON.stringify(projection.message)) <= 2 * 1_024 * 1_024, true);
+    const inferenceId = beginProjected(kernel, sounding.id, projection);
+    complete(kernel, inferenceId);
+  }
+
+  assert.deepEqual(delivered, ids);
+  assert.equal(frontiers.length > 1, true);
+  assert.equal(frontiers[0].remaining, ids.length - frontiers[0].included);
+  assert.equal(frontiers[0].nextId, ids[frontiers[0].included]);
+  assert.equal(frontiers.at(-1).remaining, 0);
+  assert.equal(kernel.audit().pendingDeltas, 0);
+});
+
+test('interruption and restart preserve the exact unopened contact frontier', async () => {
+  const { kernel } = harness();
+  for (let index = 0; index < 36; index += 1) {
+    kernel.admitDelta({
+      authority: 'world', id: `restart-burst-${index}`, stream: 'inbox', at: `2026-08-30T12:${String(index).padStart(2, '0')}:00.000Z`,
+      payload: { content: 'x'.repeat(60_000) },
+    });
+  }
+  const first = kernel.openSounding('delta');
+  const projection = await kernel.projectEncounter(first.id, 'sounding');
+  const inferenceId = beginProjected(kernel, first.id, projection);
+  kernel.failInference(inferenceId, new Error('capacity restart probe'));
+
+  const reconstructed = new MusicKernel(kernel.ledgerPath, { toolEnvironment: kernel.toolEnvironment });
+  assert.deepEqual(reconstructed.state().pendingDeltas.map(delta => delta.id), Array.from({ length: 36 }, (_, index) => `restart-burst-${index}`));
+  const retried = reconstructed.openSounding('delta');
+  assert.deepEqual(retried.deltas.map(delta => delta.id), first.deltas.map(delta => delta.id));
+  assert.equal(retried.frontier.pending.queueDigest, first.frontier.pending.queueDigest);
+  assert.equal((await reconstructed.projectEncounter(retried.id, 'sounding')).mode, 'tool');
+});
+
+test('live steering admits only a bounded prefix and preserves burst order across projections', async () => {
+  const { kernel } = harness();
+  const sounding = kernel.openSounding('manual');
+  const initial = await kernel.projectEncounter(sounding.id, 'sounding');
+  const inferenceId = beginProjected(kernel, sounding.id, initial);
+  const ids = [];
+  for (let index = 0; index < 36; index += 1) {
+    const id = `steering-burst-${index}`;
+    ids.push(id);
+    kernel.admitDelta({
+      authority: 'world', id, stream: 'inbox', at: `2026-08-30T13:${String(index).padStart(2, '0')}:00.000Z`,
+      payload: { content: 'x'.repeat(60_000) },
+    });
+  }
+
+  const delivered = [];
+  let batches = 0;
+  while (kernel.pendingSteeringDeltas(inferenceId).length > 0) {
+    const batch = kernel.pendingSteeringDeltas(inferenceId);
+    const idsInBatch = batch.map(delta => delta.id);
+    const projection = await kernel.projectEncounter(sounding.id, 'steering', idsInBatch);
+    kernel.steerInference(inferenceId, idsInBatch, [], projection.message, projection.projectionId);
+    delivered.push(...idsInBatch);
+    batches += 1;
+  }
+  complete(kernel, inferenceId);
+
+  assert.equal(batches > 1, true);
+  assert.deepEqual(delivered, ids);
+  assert.equal(kernel.audit().pendingDeltas, 0);
+  assert.equal(kernel.audit().steeredDeltas, ids.length);
+});
+
+test('unresolved consequences complete one bounded sweep without starvation or immediate repetition', async () => {
+  const { kernel } = harness();
+  const actionSounding = kernel.openSounding('manual');
+  const actionInference = begin(kernel, actionSounding.id);
+  const input = { action: 'send', recipient: 'Chad', content: 'Establish consequence lineage.' };
+  const receipt = selectMessage(kernel, actionInference, actionSounding.id, input);
+  const invocation = await kernel.invokeTool(actionInference, actionSounding.id, 'message', input, receipt);
+  complete(kernel, actionInference);
+
+  for (let index = 0; index < 130; index += 1) {
+    kernel.admitDelta({
+      authority: 'world', id: `consequence-${index}`, stream: 'inbox', at: `2026-08-30T14:${String(index % 60).padStart(2, '0')}:00.000Z`,
+      bearsOn: [{ kind: 'tool-invocation', invocationId: invocation.invocationId }],
+      payload: { content: `consequence ${index}` },
+    });
+  }
+
+  while (kernel.state().pendingDeltas.length > 0) {
+    const sounding = kernel.openSounding('delta');
+    const inferenceId = begin(kernel, sounding.id);
+    complete(kernel, inferenceId);
+  }
+  assert.equal(kernel.state().consequenceSweepActive, false);
+
+  const projected = [];
+  let trigger = 'heartbeat';
+  do {
+    const sounding = kernel.openSounding(trigger);
+    projected.push(...sounding.unresolvedConsequences.map(consequence => consequence.delta.id));
+    const projection = await kernel.projectEncounter(sounding.id, 'sounding');
+    const inferenceId = beginProjected(kernel, sounding.id, projection);
+    complete(kernel, inferenceId);
+    trigger = 'continuation';
+  } while (kernel.state().consequenceSweepActive);
+
+  assert.equal(new Set(projected).size, 130);
+  assert.equal(projected.length, 130);
+  assert.equal(kernel.audit().unprojectedConsequences, 0);
+  assert.equal(kernel.audit().consequenceSweepActive, false);
+});
+
+test('staged learned geometry is refused before it can consume the active contact envelope', () => {
+  const { kernel } = harness();
+  const sounding = kernel.openSounding('manual');
+  const inferenceId = begin(kernel, sounding.id);
+  let accepted = 0;
+  let rejected = null;
+  for (let index = 0; index < 20; index += 1) {
+    try {
+      kernel.stageToolRevision(inferenceId, sounding.id, {
+        interpretation: 'Capacity probe.',
+        tool: {
+          id: `wide_${index}`,
+          description: 'A deliberately wide projected schema.',
+          inputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string', enum: ['x'.repeat(60_000)] } },
+            required: ['value'], additionalProperties: false,
+          },
+          source: 'return { ok: true };',
+        },
+      });
+      accepted += 1;
+    } catch (error) {
+      rejected = error;
+      break;
+    }
+  }
+  assert.equal(accepted > 0, true);
+  assert.match(rejected?.message ?? '', /active tool and carrier geometry exceeds/);
+  complete(kernel, inferenceId);
+  const next = kernel.openSounding('manual');
+  assert.equal(next.frontier.pending.remaining, 0);
+});
+
 test('a staged executable revision cannot alter the current projection and activates later', async () => {
   const { kernel } = harness();
   const first = kernel.openSounding();
@@ -593,6 +754,15 @@ test('an existing subject reconstructs in a fresh process with no ordinary seed 
 
 function begin(kernel, soundingId) {
   return kernel.beginInference(soundingId, { provider: 'test-provider', model: 'test-model' }, { role: 'user', content: `Sounding ${soundingId}` });
+}
+
+function beginProjected(kernel, soundingId, projection) {
+  return kernel.beginInference(
+    soundingId,
+    { provider: 'test-provider', model: 'test-model' },
+    projection.message,
+    projection.projectionId,
+  );
 }
 
 function complete(kernel, inferenceId) {

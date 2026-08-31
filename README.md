@@ -35,6 +35,15 @@ arrival. A Delta arriving during inference is durably injected into that same
 encounter at the next completed model-step boundary. If the encounter has
 exhausted its step budget, the pending contact wakes a follow-up Sounding.
 
+Contact is sealed into a Sounding only after its complete exact-fact projection
+is known to fit. A digest-bound frontier records the ordered queue, included
+prefix, remainder, and next Delta; later Soundings drain the remainder without
+loss or reordering. The same admission rule bounds live steering. Unresolved
+consequences use retained bounded sweeps, so every item becomes visible without
+turning a large unresolved set into either a deadlock or an immediate endless
+replay. Learned tool and carrier revisions are also refused before activation if
+their aggregate projected geometry would consume the reserved contact envelope.
+
 The same mailbox root now carries durable outbound delivery. The ordinary
 `message` module—not fixed kernel policy—atomically writes the human-visible
 message and includes the exact retained invocation ID. `music talk` and

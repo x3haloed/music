@@ -54,7 +54,9 @@ export class MusicResident {
     }
     const trigger = state.pendingDeltas.length > 0
       ? 'delta'
-      : (this.clock() - this.lastEncounterAt >= this.heartbeatMs ? 'heartbeat' : null);
+      : (state.consequenceSweepActive && state.consequenceSweepIds.length > 0
+        ? 'continuation'
+        : (this.clock() - this.lastEncounterAt >= this.heartbeatMs ? 'heartbeat' : null));
     if (!trigger) return { admitted, started: false };
     this.startEncounter(trigger);
     return { admitted, started: true };

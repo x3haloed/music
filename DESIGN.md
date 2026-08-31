@@ -42,6 +42,9 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - construction of byte-exact authoritative fact envelopes, durable delivery
   projection receipts, a stable execution deadline, and an emergency projection
   that cannot omit those facts;
+- aggregate active-surface admission, ordered contact frontiers, and bounded
+  consequence sweeps that prevent individually valid facts from sealing an
+  undeliverable Sounding;
 - `inspect_tool`, `revise_tool`, and `rollback_tool`;
 - carrier mutation and parent-bound activation mechanics;
 - staged consequence deferral and settlement mechanics;
@@ -123,6 +126,22 @@ leaves an uncertain projection which startup recovery explicitly abandons.
 The deadline bounds how long the continuity path waits. It does not cancel,
 sandbox, or undo arbitrary work begun by unrestricted learned code; such later
 effects remain part of the ordinary consequence-reconciliation problem.
+
+Before `sounding_opened` is appended, the kernel proves that the complete
+emergency projection fits. It seals only the largest ordered prefixes of pending
+Deltas and the current unresolved-consequence sweep that fit both the byte and
+fact-count envelope. The exact Sounding includes a `music-sounding-frontier-1`
+fact with queue and remainder digests, counts, and the next omitted id. Pending
+contact remains pending and immediately opens later Soundings. Live steering
+uses the same rule and its own exact frontier.
+
+An unresolved-consequence sweep advances only after successful inference.
+Interruption therefore retries the same surface. A completed partial sweep opens
+an immediate `continuation` Sounding; after every item has appeared once, the
+sweep closes instead of replaying unresolved state forever. A later heartbeat or
+new contact starts a fresh sweep. Aggregate projected tool and carrier geometry
+has a smaller activation ceiling, so learned machinery cannot consume all space
+needed for at least one valid item of world contact.
 
 ## Tool identity and activation
 
@@ -231,6 +250,9 @@ adds world contact but cannot change the encounter's tool or carrier bindings.
 If the inference has exhausted its bounded step budget, contact remains pending
 and wakes a follow-up Sounding instead. Periodic heartbeats also reopen contact,
 which makes explicitly deferred consequences revisitable without new input.
+Burst contact and unresolved consequence sets are drained through exact retained
+frontiers; a consequence remainder wakes a `continuation` Sounding without
+waiting for the heartbeat.
 
 If an inference fails or the process recovers it as interrupted, every initial
 and live-steered Delta delivered to that encounter returns to the pending world

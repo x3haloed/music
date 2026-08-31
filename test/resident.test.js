@@ -263,6 +263,34 @@ test('graceful shutdown waits for an active encounter instead of requeueing comp
   assert.equal(existsSync(`${ledger}.writer-lock`), false);
 });
 
+test('a retained consequence remainder immediately opens a continuation Sounding', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'music-resident-continuation-test-'));
+  let openedWith = null;
+  const kernel = {
+    events: () => [],
+    state: () => ({
+      activeInferenceId: null,
+      openSoundingId: null,
+      pendingDeltas: [],
+      consequenceSweepActive: true,
+      consequenceSweepIds: ['remaining-consequence'],
+    }),
+    openSounding(trigger) {
+      openedWith = trigger;
+      return { id: 'continuation-sounding' };
+    },
+  };
+  const resident = new MusicResident(kernel, { receive: async () => ({ ok: true }) }, {
+    ingress: join(root, 'ingress'),
+    clock: () => 1_000,
+  });
+
+  const result = await resident.pump();
+  assert.equal(result.started, true);
+  assert.equal(openedWith, 'continuation');
+  await resident.activeEncounter;
+});
+
 function mind(kernel, model) {
   return new MusicMind(kernel, {
     model,

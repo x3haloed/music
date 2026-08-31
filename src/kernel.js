@@ -15,6 +15,9 @@ const MAX_SELECTION_CANDIDATES = 16;
 const MAX_SELECTION_BYTES = 64 * 1_024;
 const MAX_DELTA_BYTES = 64 * 1_024;
 const MAX_INFERENCE_BYTES = 2 * 1_024 * 1_024;
+const MAX_ACTIVE_SURFACE_BYTES = 512 * 1_024;
+const MAX_PROJECTION_FACTS = 128;
+const MAX_DELIVERY_FAILURE_MESSAGE_BYTES = 2_048;
 const RESERVED_TOOL_IDS = new Set(['inspect_tool', 'revise_tool', 'rollback_tool', 'revise_carrier']);
 
 export class MusicKernel {
@@ -44,6 +47,11 @@ export class MusicKernel {
     const trimmed = typeof name === 'string' ? name.trim() : '';
     if (!trimmed || trimmed.length > 128) throw new Error('subject name must be 1-128 characters');
     const initial = validateInitialTools(tools);
+    assertActiveGeometryFits(new Map(initial.map(tool => [tool.id, tool])), initialCarrier(), {
+      id: 'initial-sounding-capacity-check',
+      name: trimmed,
+      bornAt: this.clock().toISOString(),
+    });
     this.append('subject_created', {
       subject: { id: this.id(), name: trimmed, bornAt: this.clock().toISOString() },
       tools: initial,
@@ -67,18 +75,18 @@ export class MusicKernel {
     requireSubject(state);
     if (state.activeInferenceId) throw new Error(`cannot open a Sounding while inference is active: ${state.activeInferenceId}`);
     if (state.openSoundingId) throw new Error(`an opened Sounding is still awaiting an encounter: ${state.openSoundingId}`);
-    if (!['delta', 'heartbeat', 'manual'].includes(trigger)) throw new Error('invalid Sounding trigger');
-    const sounding = {
+    if (!['delta', 'continuation', 'heartbeat', 'manual'].includes(trigger)) throw new Error('invalid Sounding trigger');
+    const base = {
       id: this.id(),
       subject: structuredClone(state.subject),
       parent: state.head,
       at: this.clock().toISOString(),
       trigger,
-      deltas: structuredClone(state.pendingDeltas),
-      unresolvedConsequences: projectUnresolvedConsequences(state),
       tools: [...state.tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
       carrier: projectCarrier(state.carrier),
     };
+    const surface = planSoundingSurface(state, base);
+    const sounding = { ...base, ...surface.sounding };
     this.append('sounding_opened', {
       sounding,
       projection: digest(sounding),
@@ -141,7 +149,7 @@ export class MusicKernel {
   pendingSteeringDeltas(inferenceId) {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
-    return structuredClone(state.pendingDeltas);
+    return structuredClone(planSteeringSurface(state, state.activeEncounter).deltas);
   }
 
   steerInference(inferenceId, deltaIds, checkpointMessages, inputMessage, deliveryProjectionId = null) {
@@ -183,6 +191,7 @@ export class MusicKernel {
     const stagedNewTools = state.stagedRevisions.filter(revision => revision.previousTool === null).length;
     if (!current && state.tools.size + stagedNewTools >= MAX_TOOLS) throw new Error(`tool limit ${MAX_TOOLS} reached`);
     if (state.stagedToolIds.has(tool.id)) throw new Error(`tool ${tool.id} already has a revision staged in this encounter`);
+    assertProspectiveGeometryFits(state, { tool });
     this.append('tool_revision_staged', {
       inferenceId,
       soundingId,
@@ -228,6 +237,7 @@ export class MusicKernel {
       version: current.version + 1,
       parent: toolModuleDigest(current),
     });
+    assertProspectiveGeometryFits(state, { tool });
     this.append('tool_revision_staged', {
       inferenceId,
       soundingId,
@@ -249,6 +259,7 @@ export class MusicKernel {
     const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
     if (!interpretation || interpretation.length > 4_096) throw new Error('carrier transition needs a bounded interpretation');
     const transition = createCarrierTransition(state.carrier, proposal);
+    assertProspectiveGeometryFits(state, { carrierTransition: transition });
     this.append('carrier_transition_staged', {
       inferenceId,
       soundingId,
@@ -542,6 +553,8 @@ export class MusicKernel {
       ledgerTailRecoveries: state.ledgerTailRecoveryCount,
       unresolvedConsequences: [...state.consequences.values()].filter(consequence => consequence.status !== 'settled').length,
       deferredConsequences: [...state.consequences.values()].filter(consequence => consequence.status === 'deferred').length,
+      consequenceSweepActive: state.consequenceSweepActive,
+      unprojectedConsequences: state.consequenceSweepIds.length,
       uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
         .filter(([invocationId, invocation]) => invocation.status === 'uncertain' && !state.contactedInvocationIds.has(invocationId)).length,
       selections: state.selectionCount,
@@ -606,6 +619,8 @@ function reduceEvents(events) {
     contactedInvocationIds: new Set(),
     consequenceDeltaIds: new Set(),
     consequences: new Map(),
+    consequenceSweepActive: false,
+    consequenceSweepIds: [],
     messages: [],
     recoveryMessages: [],
     activeInputMessage: null,
@@ -645,6 +660,7 @@ function reduceEvents(events) {
           state.toolHistory.set(toolModuleDigest(valid), valid);
         }
         state.carrier = readCarrier(event.payload.carrier);
+        assertActiveGeometryFits(state.tools, state.carrier, state.subject);
         break;
       case 'ledger_tail_recovered':
         validateLedgerRecoveryReceipt(event.payload);
@@ -670,12 +686,33 @@ function reduceEvents(events) {
         const sounding = event.payload.sounding;
         if (event.payload.projection !== digest(sounding)) throw new Error('Sounding projection digest mismatch');
         if (digest(sounding.carrier) !== digest(projectCarrier(state.carrier))) throw new Error('Sounding carrier projection mismatch');
-        if (digest(sounding.unresolvedConsequences) !== digest(projectUnresolvedConsequences(state))) {
-          throw new Error('Sounding unresolved consequence projection mismatch');
-        }
         if (state.openSoundingId || state.activeInferenceId) throw new Error('ledger opens overlapping Soundings');
         if (state.soundings.has(sounding.id)) throw new Error(`ledger repeats Sounding id: ${sounding.id}`);
         const toolBindings = bindProjectedTools(state.tools, sounding.tools);
+        if (sounding.frontier === undefined) {
+          if (digest(sounding.unresolvedConsequences) !== digest(projectUnresolvedConsequences(state))) {
+            throw new Error('Sounding unresolved consequence projection mismatch');
+          }
+        } else {
+          const planned = planSoundingSurface(state, {
+            id: sounding.id,
+            subject: sounding.subject,
+            parent: sounding.parent,
+            at: sounding.at,
+            trigger: sounding.trigger,
+            tools: sounding.tools,
+            carrier: sounding.carrier,
+          });
+          if (digest(sounding.deltas) !== digest(planned.sounding.deltas)
+            || digest(sounding.unresolvedConsequences) !== digest(planned.sounding.unresolvedConsequences)
+            || digest(sounding.frontier) !== digest(planned.sounding.frontier)) {
+            throw new Error('Sounding active-surface admission mismatch');
+          }
+          if (!state.consequenceSweepActive) {
+            state.consequenceSweepActive = true;
+            state.consequenceSweepIds = [...planned.sweepIds];
+          }
+        }
         state.soundings.set(sounding.id, {
           sounding: structuredClone(sounding),
           projection: event.payload.projection,
@@ -734,6 +771,7 @@ function reduceEvents(events) {
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         const revision = validateStagedRevision(event.payload, state);
         if (state.stagedToolIds.has(revision.tool.id)) throw new Error(`ledger stages tool ${revision.tool.id} twice in one encounter`);
+        assertProspectiveGeometryFits(state, { tool: revision.tool });
         state.stagedRevisions.push(revision);
         state.stagedToolIds.add(revision.tool.id);
         break;
@@ -744,6 +782,7 @@ function reduceEvents(events) {
         if (state.stagedCarrierTransition) throw new Error('ledger stages more than one carrier transition in an encounter');
         const transition = projectCarrierTransition(event.payload, state.activeEncounter);
         applyCarrierTransition(state.carrier, transition);
+        assertProspectiveGeometryFits(state, { carrierTransition: transition });
         state.stagedCarrierTransition = transition;
         break;
       }
@@ -902,6 +941,20 @@ function reduceEvents(events) {
           if (!consequence) throw new Error(`completed inference cites unknown consequence: ${transition.deltaId}`);
           consequence.status = transition.action === 'defer' ? 'deferred' : 'settled';
           consequence.disposition = structuredClone(transition);
+        }
+        if (state.activeEncounter.sounding.frontier !== undefined) {
+          const projectedConsequenceIds = new Set([
+            ...state.activeEncounter.sounding.deltas.filter(delta => delta.bearsOn?.length).map(delta => delta.id),
+            ...state.activeEncounter.sounding.unresolvedConsequences.map(consequence => consequence.delta.id),
+            ...state.activeEncounter.steeringDeltas.filter(delta => delta.bearsOn?.length).map(delta => delta.id),
+          ]);
+          state.consequenceSweepIds = state.consequenceSweepIds.filter(deltaId => {
+            const consequence = state.consequences.get(deltaId);
+            return consequence?.status !== 'settled' && !projectedConsequenceIds.has(deltaId);
+          });
+          if (state.consequenceSweepIds.length === 0 && state.pendingDeltas.length === 0) {
+            state.consequenceSweepActive = false;
+          }
         }
         state.messages.push(...structuredClone(event.payload.responseMessages));
         state.activeEncounter.status = 'completed';
@@ -1122,6 +1175,181 @@ function deliveredConsequences(encounter) {
   ]);
 }
 
+function planSoundingSurface(state, base) {
+  const pending = state.pendingDeltas;
+  const sweep = currentConsequenceSweep(state);
+  const binding = state.tools.get(ENCOUNTER_SHAPE_TOOL_ID);
+  if (!binding) throw new Error(`active geometry lacks ${ENCOUNTER_SHAPE_TOOL_ID}`);
+  let deltas = [];
+  let unresolvedConsequences = [];
+  let pendingBlocked = false;
+  let consequenceBlocked = false;
+
+  const candidate = (nextDeltas = deltas, nextConsequences = unresolvedConsequences) => ({
+    deltas: structuredClone(nextDeltas),
+    unresolvedConsequences: structuredClone(nextConsequences),
+    frontier: buildSoundingFrontier(pending, nextDeltas, sweep, nextConsequences),
+  });
+  const fits = surface => projectionInputFits(
+    soundingProjectionInput({ ...base, ...surface }),
+    { manifest: binding },
+    MAX_INFERENCE_BYTES,
+  );
+  if (!fits(candidate())) throw new Error('active geometry cannot form a bounded Sounding');
+
+  while (true) {
+    let progressed = false;
+    if (!pendingBlocked && deltas.length < pending.length) {
+      const next = candidate([...deltas, pending[deltas.length]], unresolvedConsequences);
+      if (projectionFactCount(next) <= MAX_PROJECTION_FACTS && fits(next)) {
+        deltas = next.deltas;
+        progressed = true;
+      } else {
+        pendingBlocked = true;
+      }
+    }
+    if (!consequenceBlocked && unresolvedConsequences.length < sweep.length) {
+      const next = candidate(deltas, [...unresolvedConsequences, sweep[unresolvedConsequences.length]]);
+      if (projectionFactCount(next) <= MAX_PROJECTION_FACTS && fits(next)) {
+        unresolvedConsequences = next.unresolvedConsequences;
+        progressed = true;
+      } else {
+        consequenceBlocked = true;
+      }
+    }
+    if (!progressed) break;
+  }
+  return {
+    sounding: candidate(),
+    sweepIds: sweep.map(consequence => consequence.delta.id),
+  };
+}
+
+function planSteeringSurface(state, encounter) {
+  const pending = state.pendingDeltas;
+  const binding = encounter.toolBindings.get(ENCOUNTER_SHAPE_TOOL_ID);
+  if (!binding) throw new Error(`Sounding ${encounter.sounding.id} lacks ${ENCOUNTER_SHAPE_TOOL_ID}`);
+  let deltas = [];
+  for (const delta of pending) {
+    const next = [...deltas, delta];
+    const frontier = buildSteeringFrontier(pending, next);
+    const input = steeringProjectionInput(encounter, next, frontier);
+    if (input.facts.length > MAX_PROJECTION_FACTS || !projectionInputFits(input, binding, MAX_INFERENCE_BYTES)) break;
+    deltas = next;
+  }
+  if (pending.length > 0 && deltas.length === 0) {
+    throw new Error('one valid pending Delta cannot form a bounded steering projection');
+  }
+  return { deltas: structuredClone(deltas), frontier: buildSteeringFrontier(pending, deltas) };
+}
+
+function currentConsequenceSweep(state) {
+  const available = projectUnresolvedConsequences(state);
+  if (!state.consequenceSweepActive) return available;
+  const byId = new Map(available.map(consequence => [consequence.delta.id, consequence]));
+  return state.consequenceSweepIds.map(deltaId => byId.get(deltaId)).filter(Boolean);
+}
+
+function buildSoundingFrontier(pending, deltas, sweep, unresolvedConsequences) {
+  const pendingRemainder = pending.slice(deltas.length);
+  const consequenceRemainder = sweep.slice(unresolvedConsequences.length);
+  return {
+    format: 'music-sounding-frontier-1',
+    pending: frontierLane(pending, deltas.length, pendingRemainder, item => item.id),
+    consequences: frontierLane(sweep, unresolvedConsequences.length, consequenceRemainder, item => item.delta.id),
+  };
+}
+
+function buildSteeringFrontier(pending, deltas) {
+  return {
+    format: 'music-steering-frontier-1',
+    pending: frontierLane(pending, deltas.length, pending.slice(deltas.length), item => item.id),
+  };
+}
+
+function frontierLane(available, included, remainder, idOf) {
+  return {
+    available: available.length,
+    included,
+    remaining: remainder.length,
+    queueDigest: digest(available),
+    remainderDigest: digest(remainder),
+    nextId: remainder.length === 0 ? null : idOf(remainder[0]),
+  };
+}
+
+function projectionFactCount(surface) {
+  return 5 + surface.deltas.length + surface.unresolvedConsequences.length;
+}
+
+function soundingProjectionInput(sounding) {
+  return {
+    phase: 'sounding',
+    soundingId: sounding.id,
+    facts: [
+      projectionFact('sounding:meta', { id: sounding.id, parent: sounding.parent, at: sounding.at, trigger: sounding.trigger }),
+      projectionFact('sounding:subject', sounding.subject),
+      projectionFact('sounding:tools', sounding.tools),
+      projectionFact('sounding:carrier', sounding.carrier),
+      projectionFact('sounding:frontier', sounding.frontier),
+      ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
+      ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
+    ],
+  };
+}
+
+function steeringProjectionInput(encounter, deltas, frontier) {
+  return {
+    phase: 'steering',
+    soundingId: encounter.sounding.id,
+    facts: [
+      projectionFact('steering:meta', { soundingId: encounter.sounding.id, projection: encounter.projection }),
+      projectionFact('steering:frontier', frontier),
+      ...deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
+    ],
+  };
+}
+
+function projectionInputFits(input, binding, maximum) {
+  if (input.facts.length > MAX_PROJECTION_FACTS) return false;
+  return Buffer.byteLength(canonical(deliveryRecoveryMessage(
+    input,
+    binding,
+    'x'.repeat(MAX_DELIVERY_FAILURE_MESSAGE_BYTES),
+  ))) <= maximum;
+}
+
+function assertProspectiveGeometryFits(state, { tool = null, carrierTransition = null } = {}) {
+  const tools = new Map(state.tools);
+  for (const revision of state.stagedRevisions) tools.set(revision.tool.id, revision.tool);
+  if (tool) tools.set(tool.id, tool);
+  let carrier = state.carrier;
+  if (state.stagedCarrierTransition) carrier = applyCarrierTransition(carrier, state.stagedCarrierTransition);
+  if (carrierTransition) carrier = applyCarrierTransition(carrier, carrierTransition);
+  assertActiveGeometryFits(tools, carrier, state.subject);
+}
+
+function assertActiveGeometryFits(tools, carrier, subject) {
+  const binding = tools.get(ENCOUNTER_SHAPE_TOOL_ID);
+  if (!binding) throw new Error(`active geometry requires ${ENCOUNTER_SHAPE_TOOL_ID}`);
+  const sounding = {
+    id: 'active-surface-capacity-check',
+    subject: structuredClone(subject),
+    parent: '0'.repeat(64),
+    at: '9999-12-31T23:59:59.999Z',
+    trigger: 'manual',
+    tools: [...tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
+    carrier: projectCarrier(carrier),
+    deltas: [],
+    unresolvedConsequences: [],
+    frontier: buildSoundingFrontier([], [], [], []),
+  };
+  const input = soundingProjectionInput(sounding);
+  if (!projectionInputFits(input, { manifest: binding }, MAX_ACTIVE_SURFACE_BYTES)) {
+    throw new Error(`active tool and carrier geometry exceeds ${MAX_ACTIVE_SURFACE_BYTES} bytes`);
+  }
+}
+
 function projectionInput(state, encounter, phase, deltaIds) {
   if (!['sounding', 'steering'].includes(phase)) throw new Error('delivery projection phase must be sounding or steering');
   const sounding = encounter.sounding;
@@ -1130,34 +1358,30 @@ function projectionInput(state, encounter, phase, deltaIds) {
     if (deltaIds !== undefined && (!Array.isArray(deltaIds) || deltaIds.length !== 0)) {
       throw new Error('initial delivery projection does not accept steering Delta ids');
     }
-    return {
-      phase,
-      soundingId: sounding.id,
-      facts: [
-        projectionFact('sounding:meta', { id: sounding.id, parent: sounding.parent, at: sounding.at, trigger: sounding.trigger }),
-        projectionFact('sounding:subject', sounding.subject),
-        projectionFact('sounding:tools', sounding.tools),
-        projectionFact('sounding:carrier', sounding.carrier),
-        ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
-        ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
-      ],
-    };
+    if (sounding.frontier === undefined) {
+      return {
+        phase,
+        soundingId: sounding.id,
+        facts: [
+          projectionFact('sounding:meta', { id: sounding.id, parent: sounding.parent, at: sounding.at, trigger: sounding.trigger }),
+          projectionFact('sounding:subject', sounding.subject),
+          projectionFact('sounding:tools', sounding.tools),
+          projectionFact('sounding:carrier', sounding.carrier),
+          ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
+          ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
+        ],
+      };
+    }
+    return soundingProjectionInput(sounding);
   }
   if (state.activeEncounter !== encounter || state.activeInferenceId === null) {
     throw new Error('steering delivery projection requires the active encounter');
   }
-  if (!matchesPendingPrefix(state.pendingDeltas, deltaIds)) {
-    throw new Error('steering delivery projection does not match pending world contact');
+  const planned = planSteeringSurface(state, encounter);
+  if (digest(planned.deltas.map(delta => delta.id)) !== digest(deltaIds)) {
+    throw new Error('steering delivery projection does not match bounded pending world contact');
   }
-  const deltas = state.pendingDeltas.slice(0, deltaIds.length);
-  return {
-    phase,
-    soundingId: sounding.id,
-    facts: [
-      projectionFact('steering:meta', { soundingId: sounding.id, projection: encounter.projection }),
-      ...deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
-    ],
-  };
+  return steeringProjectionInput(encounter, planned.deltas, planned.frontier);
 }
 
 function projectionFact(id, value) {
@@ -1218,10 +1442,14 @@ function validateProjectionMessage(value, input) {
 }
 
 function emergencyProjection(input, binding, reason) {
-  return validateProjectionMessage({
+  return validateProjectionMessage(deliveryRecoveryMessage(input, binding, reason), input);
+}
+
+function deliveryRecoveryMessage(input, binding, reason) {
+  return {
     role: 'user',
     content: `[delivery_recovery]\nThe retained ${binding.manifest.id}@${binding.manifest.version} delivery module failed validation or execution: ${reason}\nExact required facts follow so the continuing subject can inspect or roll back its delivery machinery.\n[/delivery_recovery]\n${input.facts.map(fact => fact.envelope).join('\n')}`,
-  }, input);
+  };
 }
 
 function deliveryProjectionErrorRecord(error) {

@@ -106,6 +106,14 @@ tools retain the unrestricted machine authority of the harness process.
   **Evidence:** Continuing Song E68 found completed transition residue acting as
   a current imperative; E69 restored valid action with a bounded projection that
   kept full history outside the active interface.
+- **Individually valid active facts must not aggregate into an undeliverable
+  current self.**
+  **Evidence:** An independent audit admitted 36 valid 60 KiB Deltas and exposed
+  a sealed 2 MiB projection deadlock. Music now admits exact ordered prefixes
+  before sealing, binds queue and remainder digests plus the next id into every
+  Sounding, applies the same rule to live steering, and drains unresolved
+  consequences through restart-safe finite sweeps. Prospective tool/carrier
+  geometry must retain a bounded contact envelope before activation.
 
 ## Evaluation regime
 
@@ -146,3 +154,7 @@ pre-hatch scaffolding.
 - The repeated lived rehearsal closed that error: contact, selection, delivery,
   final inference completion, and one-signal shutdown all completed in order
   without requeue, failure, or uncertainty.
+- Per-Delta bounds did not imply a viable aggregate active surface: 36 valid
+  60 KiB arrivals could be sealed into a Sounding whose learned and emergency
+  projections both exceeded 2 MiB. Admission now happens before the Sounding
+  append, with a retained ordered remainder rather than after projection fails.
