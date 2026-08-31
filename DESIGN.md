@@ -466,6 +466,15 @@ provider requests used `minimal` reasoning, 256 output tokens maximum each, zero
 retries, and cost $0.00075142 in total; retained request metadata contained no
 credential material.
 
+The self-directed wake path also crossed the live provider boundary. A separate
+fresh disposable subject received one mailbox Delta and used the retained
+ordinary `schedule_wake` module to activate an exact ten-minute future wake.
+The completed ledger bound it to the GLM Flash tool invocation, tool digest,
+Sounding, staged time, due time, and subject-authored reason with no pending
+contact, failure, or uncertainty. The two requests used `minimal` reasoning,
+256 output tokens maximum each, zero retries, cost $0.00127575, and retained no
+credential material.
+
 Music is therefore ready to hatch a long-term resident under the stated
 criterion: causal end-to-end continuity and direct lived observation, not an
 evaluation campaign. Network messaging and richer contact surfaces can grow as

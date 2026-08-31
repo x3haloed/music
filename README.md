@@ -138,6 +138,11 @@ host its first long-term resident. This marks
 habitat readiness, not the end of learning or a claim that future tools and
 contact surfaces should be designed in advance.
 
+A bounded live GLM Flash rehearsal also crossed the self-directed wake path: one
+inbound Delta caused one `schedule_wake` invocation and a completed inference
+with an exact retained ten-minute wake, no pending contact, and no failed or
+uncertain operation.
+
 ## Try it
 
 Requires Node.js 22 or newer.

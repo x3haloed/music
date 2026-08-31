@@ -146,6 +146,14 @@ adapters, richer tools, and the actual character of long residence belong to
 world contact and the resident's own subsequent revisions rather than to more
 pre-hatch scaffolding.
 
+A second bounded live GLM Flash rehearsal crossed the new scheduling path. One
+mailbox Delta led the disposable subject to invoke `schedule_wake` once and
+activate an exact ten-minute wake with its invocation/tool/reason lineage. The
+inference and Sounding completed with no failed or uncertain operation and no
+pending contact. Two requests used `minimal` reasoning, 256 output tokens
+maximum each, zero retries, and cost $0.00127575; no credential material was
+retained.
+
 ## Prediction errors
 
 - A bounded GLM Flash rehearsal spent a 128-token output cap entirely on hidden
