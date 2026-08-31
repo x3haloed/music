@@ -6,17 +6,25 @@ export class MusicResident {
     ingress,
     pollMs = 250,
     heartbeatMs = 15 * 60_000,
+    failureBackoffMs = 5_000,
+    maxFailureBackoffMs = 5 * 60_000,
     clock = () => Date.now(),
     onError = () => {},
   } = {}) {
     if (!ingress) throw new Error('MusicResident needs a durable ingress directory');
     if (!Number.isInteger(pollMs) || pollMs < 10) throw new Error('resident pollMs must be an integer of at least 10');
     if (!Number.isInteger(heartbeatMs) || heartbeatMs < 1_000) throw new Error('resident heartbeatMs must be an integer of at least 1000');
+    if (!Number.isInteger(failureBackoffMs) || failureBackoffMs < 100) throw new Error('failureBackoffMs must be an integer of at least 100');
+    if (!Number.isInteger(maxFailureBackoffMs) || maxFailureBackoffMs < failureBackoffMs) {
+      throw new Error('maxFailureBackoffMs must be an integer at least as large as failureBackoffMs');
+    }
     this.kernel = kernel;
     this.mind = mind;
     this.ingress = prepareIngress(ingress).root;
     this.pollMs = pollMs;
     this.heartbeatMs = heartbeatMs;
+    this.failureBackoffMs = failureBackoffMs;
+    this.maxFailureBackoffMs = maxFailureBackoffMs;
     this.clock = clock;
     this.onError = onError;
     this.activeEncounter = null;
@@ -35,6 +43,10 @@ export class MusicResident {
     this.lastEncounterAt ??= latestEncounterAt(this.kernel.events()) ?? this.clock();
     const admitted = this.drainIngress();
     if (this.activeEncounter || this.kernel.state().activeInferenceId) return { admitted, started: false };
+    const backoff = retainedFailureBackoff(
+      this.kernel.events(), this.clock(), this.failureBackoffMs, this.maxFailureBackoffMs,
+    );
+    if (backoff) return { admitted, started: false, backoff };
     const state = this.kernel.state();
     if (state.openSoundingId) {
       this.startSounding(state.openSoundingId);
@@ -119,4 +131,21 @@ export class MusicResident {
 function latestEncounterAt(events) {
   const event = [...events].reverse().find(candidate => candidate.type === 'sounding_opened');
   return event ? Date.parse(event.at) : null;
+}
+
+function retainedFailureBackoff(events, now, base, maximum) {
+  let consecutiveFailures = 0;
+  let latestFailureAt = null;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event.type === 'inference_completed') break;
+    if (event.type !== 'inference_failed') continue;
+    latestFailureAt ??= Date.parse(event.at);
+    consecutiveFailures += 1;
+  }
+  if (consecutiveFailures === 0 || !Number.isFinite(latestFailureAt)) return null;
+  const delayMs = Math.min(maximum, base * (2 ** Math.min(consecutiveFailures - 1, 30)));
+  const retryAt = latestFailureAt + delayMs;
+  if (now >= retryAt) return null;
+  return { consecutiveFailures, delayMs, retryAt, remainingMs: retryAt - now };
 }

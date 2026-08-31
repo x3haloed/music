@@ -72,6 +72,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     const configured = createConfiguredModel({
       provider: 'openrouter', model: 'z-ai/glm-5.3-flash', apiKeyEnv: 'MUSIC_TEST_OPENROUTER_KEY',
       maxSteps: 1, maxOutputTokens: 32, maxRetries: 0,
+      modelSettings: { extraBody: { reasoning: { effort: 'minimal' } } },
     }, { fetch });
     const root = mkdtempSync(join(tmpdir(), 'music-provider-test-'));
     const kernel = new MusicKernel(join(root, 'events.jsonl'));
@@ -80,6 +81,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
 
     const request = configured.requests()[0].body;
     assert.equal(request.model, 'z-ai/glm-5.3-flash');
+    assert.deepEqual(request.reasoning, { effort: 'minimal' });
     const tools = new Map(request.tools.map(candidate => [candidate.function.name, candidate.function.parameters]));
     assert.ok(tools.has('message'));
     assert.ok(tools.has('file_patch'));

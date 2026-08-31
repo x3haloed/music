@@ -175,6 +175,56 @@ test('real ingress during an AI SDK step steers the same encounter and can be in
   assert.equal(kernel.audit().pendingDeltas, 0);
 });
 
+test('deterministic inference failure enters retained exponential backoff instead of hot-looping', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'music-resident-backoff-test-'));
+  const ledger = join(root, 'events.jsonl');
+  const ingress = join(root, 'ingress');
+  let now = Date.parse('2026-08-30T17:00:00.000Z');
+  const kernel = new MusicKernel(ledger, { clock: () => new Date(now) });
+  kernel.initialize('Aster', initialTools());
+  let attempts = 0;
+  const failingMind = {
+    async receive(soundingId) {
+      attempts += 1;
+      const inferenceId = begin(kernel, soundingId);
+      const error = new Error('deterministic provider configuration rejection');
+      kernel.failInference(inferenceId, error);
+      throw error;
+    },
+  };
+  const errors = [];
+  const resident = new MusicResident(kernel, failingMind, {
+    ingress, clock: () => now, failureBackoffMs: 1_000, maxFailureBackoffMs: 8_000,
+    onError: error => errors.push(error),
+  });
+  submitWorldDelta(ingress, worldDelta('contact-that-must-wait'), { id: () => 'backoff-file' });
+  assert.deepEqual(await resident.pump(), { admitted: 1, started: true });
+  await resident.whenIdle();
+  assert.equal(attempts, 1);
+  assert.equal(kernel.audit().failedInferences, 1);
+  assert.deepEqual(kernel.state().pendingDeltas.map(delta => delta.id), ['contact-that-must-wait']);
+
+  for (let count = 0; count < 100; count += 1) await resident.pump();
+  assert.equal(attempts, 1, 'polling during backoff never reopens inference');
+  const delayed = await resident.pump();
+  assert.equal(delayed.backoff.consecutiveFailures, 1);
+  assert.equal(delayed.backoff.remainingMs, 1_000);
+
+  const restarted = new MusicResident(new MusicKernel(ledger), failingMind, {
+    ingress, clock: () => now, failureBackoffMs: 1_000, maxFailureBackoffMs: 8_000,
+  });
+  assert.equal((await restarted.pump()).backoff.remainingMs, 1_000, 'restart does not erase the retry floor');
+
+  now += 1_000;
+  assert.deepEqual(await resident.pump(), { admitted: 0, started: true });
+  await resident.whenIdle();
+  assert.equal(attempts, 2);
+  assert.equal(errors.length, 2);
+  const secondDelay = await resident.pump();
+  assert.equal(secondDelay.backoff.consecutiveFailures, 2);
+  assert.equal(secondDelay.backoff.remainingMs, 2_000);
+});
+
 function mind(kernel, model) {
   return new MusicMind(kernel, {
     model,

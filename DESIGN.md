@@ -33,6 +33,8 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - one subject, event chain, and exact Sounding lifecycle;
 - exclusive local writer leasing, full-write loops, fsync, and conservative
   final-tail crash recovery;
+- a retained exponential retry floor that contains deterministic inference
+  failure without dropping or repeatedly spending the same world contact;
 - inference-provider connection and interrupted-turn recovery;
 - loading and invoking a retained JavaScript tool body;
 - exact projection/digest binding plus durable invocation start, completion, and
@@ -202,6 +204,15 @@ OpenRouter preflight requires declared tool support. Request receipts retain the
 model, body, and non-secret header names without authorization values. Tests run
 Music's full current tool schemas through the dedicated serializer.
 
+The checked GLM Flash configuration explicitly sends OpenRouter reasoning effort
+`minimal`. A bounded live rehearsal showed why this is part of compatibility rather
+than cosmetic tuning: with a 128-token cap and provider-default reasoning, GLM
+spent all 128 tokens on hidden reasoning and returned no text or tool call. The
+endpoint rejects `none` because reasoning is mandatory, so `minimal` is the
+smallest compatible setting. Music retained the inert `length` encounter
+correctly; explicit reasoning policy keeps more of a bounded output budget
+available for visible action.
+
 ## Resident world ingress
 
 The resident runtime owns one durable filesystem ingress and remains the sole
@@ -288,6 +299,21 @@ complete and chain-valid, Music adds the missing newline and retains a receipt.
 If complete JSON fails ancestry or digest validation, repair refuses it
 unchanged as corruption. Complete historical lines are never auto-removed.
 
+## Failure containment beneath scheduling
+
+The resident admits and archives new ingress even while inference is unhealthy,
+but it will not immediately reopen requeued contact after failure. Consecutive
+`inference_failed` outcomes since the last completion imply an exponential retry
+floor: five seconds, ten seconds, twenty seconds, and so on, capped at five
+minutes by default. Because the floor is derived from retained event times and
+outcomes, process restart cannot reset it. A successful inference clears the
+sequence naturally.
+
+This small floor belongs to continuity failure containment. It prevents a broken
+provider, configuration, or learned runtime from consuming the same contact in a
+tight loop. It does not prescribe ordinary encounter timing, priority, or
+attention policy; those remain candidates for revisable scheduler geometry.
+
 ## External bootstrap doctor
 
 The resident cannot be its own final repair authority if the code required to
@@ -340,6 +366,9 @@ Automated evidence currently proves that:
 - a live writer excludes a second author, a dead writer leaves stale evidence,
   torn final bytes are backed up with an append-only receipt, and complete
   corrupted events are refused rather than discarded;
+- deterministic inference rejection requeues contact once, survives restart,
+  and remains at one attempt across 100 resident polls until its retained retry
+  floor expires; the next failure doubles that floor;
 - a fresh Node process reconstructs an existing subject from the isolated
   continuity modules with no ordinary seed-tool files present;
 - the external doctor detects a corrupted stable-core file, preserves the bad
@@ -359,7 +388,7 @@ Automated evidence currently proves that:
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is a bounded lived residency before a long-term resident
-should hatch. Network messaging can grow
+The next risk frontier is a second bounded lived residency rehearsal with the
+correct GLM reasoning floor before a long-term resident should hatch. Network messaging can grow
 as ordinary/adaptor machinery after the local lived-contact path proves what the
 resident actually needs.

@@ -16,6 +16,12 @@ Every append holds an exclusive local writer lease. A resident holds that lease
 for its lifetime, so a second resident or direct ledger writer is refused rather
 than becoming another author of the same subject.
 
+Repeated inference failure cannot hot-loop. The resident derives an exponential
+retry floor from retained failure outcomes (five seconds up to five minutes by
+default), so restart does not erase it. Ingress remains live and durable during
+the delay. This is an emergency continuity floor beneath revisable scheduling,
+not a claim that fixed kernel policy should decide when the subject wants contact.
+
 A resident runtime watches a durable filesystem ingress. External adapters
 atomically submit world-authored Delta files without writing the subject ledger;
 the one resident runtime admits them, wakes an encounter, and archives each

@@ -3,6 +3,13 @@
   "model": "z-ai/glm-5.3-flash",
   "apiKeyEnv": "OPENROUTER_API_KEY",
   "appName": "Music",
+  "modelSettings": {
+    "extraBody": {
+      "reasoning": {
+        "effort": "minimal"
+      }
+    }
+  },
   "maxSteps": 1,
   "maxOutputTokens": 32,
   "maxRetries": 0

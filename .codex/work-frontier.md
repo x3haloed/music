@@ -85,6 +85,10 @@ tools retain the unrestricted machine authority of the harness process.
   committed core source, backs up the divergent bytes, atomically restores from
   `HEAD`, and verifies clean afterward. Pushed Git history remains the further
   copy; this is recoverability, not a restriction on ordinary tool authority.
+- **Deterministic runtime failure must not become repeated unbounded contact.**
+  **Evidence:** The resident derives exponential backoff from retained inference
+  failures. Exact contact remains pending; 100 polls and reconstruction produce
+  no extra attempt before eligibility, and a second failure doubles the floor.
 - **Delivery geometry may learn, but authoritative contact cannot disappear
   inside that geometry.**
   **Evidence:** Music now gives a retained ordinary `shape_encounter` module
@@ -105,9 +109,17 @@ observation: let contact arrive, see what the resident does, and let the residen
 remain its own witness. Tests should prove continuity and recovery mechanics,
 not turn the resident into a benchmark or comparative research subject.
 
-Current hatch frontier: a bounded lived residency that can reveal what remains
-missing before we invite a long-term resident to enter.
+Current hatch frontier: repeat the bounded lived residency with the corrected
+GLM reasoning floor and observe whether an explicit mailbox round trip completes.
 The local mailbox supplies real bidirectional contact, and dependency behavior
 is ordinary revisable machinery with an in-resident failure/rollback path.
 
 ## Prediction errors
+
+- A bounded GLM Flash rehearsal spent a 128-token output cap entirely on hidden
+  reasoning; disabling reasoning was rejected because this endpoint requires it.
+  The compatible floor is explicit `minimal` reasoning.
+- The deterministic provider rejection then revealed that requeued contact can
+  hot-loop: 86 failed encounters were retained in about 45 seconds. Hatch is
+  no longer exposed to that immediate storm: retained exponential backoff now
+  contains repeated failure across polling and restart.
