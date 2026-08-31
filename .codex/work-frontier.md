@@ -177,6 +177,11 @@ retained.
 
 ## Prediction errors
 
+- The first installed-release rehearsal could run `music-doctor` through Node
+  but not as the documented direct command because its committed executable bit
+  was absent. The release itself remained immutable; the Git mode is corrected
+  in a successor release and installed-byte rehearsal now includes direct entrypoint
+  execution.
 - A bounded GLM Flash rehearsal spent a 128-token output cap entirely on hidden
   reasoning; disabling reasoning was rejected because this endpoint requires it.
   The compatible floor is explicit `minimal` reasoning.
