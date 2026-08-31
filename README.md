@@ -21,6 +21,11 @@ Sounding. `revise_tool` authors provisional source rather than activating it on
 clean completion. The subject can inspect and exercise that source, then use an
 explicit atomic developmental transaction to admit or withhold it. Authorship,
 trial, inference completion, and developmental promotion have distinct receipts.
+When an ordinary tool authors a proposal, Music preserves that tool's output and
+adds a kernel-authoritative lifecycle receipt stating whether the proposal is
+active, merely visible in the next frontier, awaiting trial, or eligible for
+admission. Older retained tool wording therefore cannot be mistaken for current
+activation semantics.
 Every Sounding also carries a compact exact unresolved-development frontier:
 proposal identity, kind, target, status, interpretation, latest trial, and
 admission eligibility remain active contact rather than an opaque changed root.
@@ -43,6 +48,10 @@ continuity floor, and is presented in a later Sounding. When that floor expires,
 a neutral heartbeat reopens the mind without presenting, consuming, closing, or
 cancelling the future opening. Earlier world contact does not erase a future
 opening. Interruption makes a presented opening eligible again.
+Compatible developmental calls within one encounter amend the same retained
+transaction. The subject can therefore admit or withhold learned machinery and
+also construct one successor opening without either act displacing the other;
+the combined state commits atomically only on successful encounter completion.
 
 Birth does not require a preselected personal name. The ledger gives the one
 subject a stable opaque identity and the mind may later retain a self-designation

@@ -235,6 +235,8 @@ world-authored Delta
   -> inspect_development exposes proposal standing and exact source
   -> trial_development executes provisional source without changing active geometry
   -> advance_development explicitly admits or withholds the exercised proposal
+  -> compatible developmental calls amend one digest-linked staged transaction,
+     so admission and one successor opening can commit together
   -> successful inference completion atomically commits only the explicit
      developmental transaction the subject authored
   -> later Sounding projects the successor digest and interface
@@ -304,6 +306,21 @@ does not change the active toolset. A later explicit developmental transaction
 can admit it only after a successful exercise, or instead deny, defer,
 contradict, retire, or roll it back. The transaction and parent-bound position
 successor commit atomically with encounter completion.
+
+Ordinary tools retain control of their own result shape, including tools carried
+from an earlier Music release. When an invocation authors developmental
+standing, the kernel wraps that ordinary result with an exact
+`music-developmental-effect-1` receipt. It distinguishes visibility in the next
+frontier from active geometry and states the retained proposal status, trial
+boundary, and admission boundary. This reports the stable lifecycle without
+silently replacing or rewriting the resident's ordinary tool.
+
+An encounter has one atomic developmental transaction, but it need not be
+authored in one call. Compatible calls append digest-bound amendments to the
+same transaction identity. Distinct proposal decisions accumulate and one
+successor opening may join them; duplicate decisions and competing openings are
+refused. Failure discards the whole staged composition. Successful completion
+applies its decisions, opening, and parent-bound position successor together.
 
 Tool and carrier trials cross different causal boundaries. A provisional tool
 executes immediately with real process authority while remaining outside active
@@ -424,6 +441,9 @@ saturation, intended contact, or another ontology in the content; revise the
 ordinary scheduler that constructs it; use message, web, shell, or invented
 tools to originate contact; or construct a successor directly in the same
 developmental transaction that admits or withholds provisional machinery.
+Separate calls to `advance_development` and `schedule_wake` compose into that
+single transaction rather than competing for the encounter's developmental
+slot.
 
 ## Provider boundary
 

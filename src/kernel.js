@@ -461,28 +461,45 @@ export class MusicKernel {
   stageDevelopmentalTransaction(inferenceId, soundingId, proposal) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
-    if (state.stagedDevelopmentalTransaction) throw new Error('only one developmental transaction may be staged per encounter');
     const decisions = validateDevelopmentalDecisions(proposal?.decisions ?? [], state, { allowEmpty: proposal?.opening !== undefined });
-    if (decisions.some(decision => decision.disposition === 'admit'
+    const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
+    if (!interpretation || interpretation.length > 4_096) throw new Error('developmental transaction needs a bounded interpretation');
+    const opening = proposal?.opening === undefined ? null : validateProposedOpening(proposal.opening, state, this.id, this.clock);
+    if (decisions.length === 0 && opening === null) throw new Error('developmental transaction needs decisions or a successor opening');
+    const prior = state.stagedDevelopmentalTransaction;
+    if (prior?.opening && opening) throw new Error('developmental transaction already has a successor opening');
+    const combinedDecisions = validateDevelopmentalDecisions(
+      [...(prior?.decisions ?? []), ...decisions], state, { allowEmpty: (prior?.opening ?? opening) !== null },
+    );
+    if (combinedDecisions.some(decision => decision.disposition === 'admit'
       && state.developmentalProposals.get(decision.proposalId)?.kind === 'carrier')
       && [...state.developmentalTrials.values()].some(trial => trial.binding?.kind === 'carrier'
         && ['armed', 'presented'].includes(trial.status))) {
       throw new Error('cannot admit carrier geometry while a later-encounter carrier trial is active');
     }
-    const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
-    if (!interpretation || interpretation.length > 4_096) throw new Error('developmental transaction needs a bounded interpretation');
-    const opening = proposal?.opening === undefined ? null : validateProposedOpening(proposal.opening, state, this.id, this.clock);
-    if (decisions.length === 0 && opening === null) throw new Error('developmental transaction needs decisions or a successor opening');
+    const combinedInterpretation = prior
+      ? `${prior.interpretation}\n\n${interpretation}`
+      : interpretation;
+    if (combinedInterpretation.length > 4_096) {
+      throw new Error('combined developmental transaction interpretation exceeds 4096 characters');
+    }
     const transaction = {
-      transactionId: this.id(), inferenceId, soundingId, projection: encounter.projection,
+      transactionId: prior?.transactionId ?? this.id(), inferenceId, soundingId, projection: encounter.projection,
       positionRoot: state.position?.root ?? null,
-      interpretation,
-      evidence: boundedEvidence(proposal.evidence),
-      decisions,
-      opening,
+      interpretation: combinedInterpretation,
+      evidence: mergeDevelopmentalEvidence(prior?.evidence ?? [], boundedEvidence(proposal.evidence)),
+      decisions: combinedDecisions,
+      opening: prior?.opening ?? opening,
     };
     assertDevelopmentalTransactionFits(state, transaction);
-    this.append('developmental_transaction_staged', transaction);
+    if (prior) {
+      this.append('developmental_transaction_amended', {
+        previousTransactionDigest: digest(prior),
+        transaction,
+      });
+    } else {
+      this.append('developmental_transaction_staged', transaction);
+    }
     return structuredClone(transaction);
   }
 
@@ -594,8 +611,9 @@ export class MusicKernel {
       selectionReceipt: selection?.selectionId ?? null,
       input: structuredClone(input),
     });
+    const proposalIdsBeforeInvocation = new Set(state.developmentalProposals.keys());
     try {
-      const output = await executeToolModule(tool, input, {
+      const ordinaryOutput = await executeToolModule(tool, input, {
         invocationId,
         inferenceId,
         soundingId,
@@ -610,6 +628,11 @@ export class MusicKernel {
         },
         stageWakeTransition: proposal => this.stageOpeningTransition(inferenceId, soundingId, invocationId, proposal),
       });
+      const output = attachDevelopmentalEffects(
+        ordinaryOutput,
+        [...this.state().developmentalProposals.values()]
+          .filter(proposal => !proposalIdsBeforeInvocation.has(proposal.proposalId)),
+      );
       this.append('tool_invocation_completed', { invocationId, output });
       return output;
     } catch (error) {
@@ -1369,6 +1392,33 @@ function reduceEvents(events) {
         state.stagedDevelopmentalTransaction = structuredClone(event.payload);
         break;
       }
+      case 'developmental_transaction_amended': {
+        const prior = state.stagedDevelopmentalTransaction;
+        if (!prior) throw new Error('ledger amends a developmental transaction before staging one');
+        if (event.payload.previousTransactionDigest !== digest(prior)) {
+          throw new Error('developmental transaction amendment does not cite current staged state');
+        }
+        const transaction = event.payload.transaction;
+        requireActiveEncounter(state, transaction.inferenceId, transaction.soundingId, transaction.projection);
+        if (transaction.transactionId !== prior.transactionId
+          || transaction.positionRoot !== prior.positionRoot
+          || transaction.positionRoot !== (state.position?.root ?? null)) {
+          throw new Error('developmental transaction amendment changes its retained identity or position binding');
+        }
+        if (prior.opening !== null && digest(transaction.opening) !== digest(prior.opening)) {
+          throw new Error('developmental transaction amendment replaces its successor opening');
+        }
+        validateDevelopmentalDecisions(transaction.decisions, state, { allowEmpty: transaction.opening !== null });
+        if (transaction.opening !== null) validateRetainedOpeningTransition(transaction.opening, state);
+        boundedEvidence(transaction.evidence);
+        if (typeof transaction.interpretation !== 'string' || !transaction.interpretation.trim()
+          || transaction.interpretation.length > 4_096) {
+          throw new Error('amended developmental transaction needs a bounded interpretation');
+        }
+        assertDevelopmentalTransactionFits(state, transaction);
+        state.stagedDevelopmentalTransaction = structuredClone(transaction);
+        break;
+      }
       case 'tool_selection_recorded': {
         requireSubject(state);
         const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
@@ -1946,6 +1996,27 @@ function projectDevelopmentalFrontierProposal(proposal) {
     };
 }
 
+function attachDevelopmentalEffects(output, proposals) {
+  if (proposals.length === 0) return output;
+  return {
+    format: 'music-tool-result-with-development-1',
+    ordinaryOutput: structuredClone(output),
+    developmentalEffects: proposals.map(proposal => ({
+      format: 'music-developmental-effect-1',
+      proposalId: proposal.proposalId,
+      kind: proposal.kind,
+      status: proposal.status,
+      active: false,
+      frontierVisibility: 'next-sounding',
+      governsActiveGeometry: false,
+      trial: proposal.kind === 'carrier'
+        ? 'trial_development must arm this proposal; it must then govern a fresh encounter to become exercised'
+        : 'trial_development must execute this provisional tool to make its behavior part of retained standing',
+      admission: 'advance_development must explicitly admit an exercised proposal before it becomes active',
+    })),
+  };
+}
+
 function armedCarrierTrial(state) {
   const armed = [...state.developmentalTrials.values()]
     .filter(trial => trial.binding?.kind === 'carrier' && trial.status === 'armed');
@@ -2285,6 +2356,10 @@ function boundedEvidence(evidence) {
     throw new Error('revision evidence must be at most 32 bounded references');
   }
   return [...evidence];
+}
+
+function mergeDevelopmentalEvidence(left, right) {
+  return boundedEvidence([...new Set([...left, ...right])]);
 }
 
 function retainConsequenceEvidence(deltaIds, encounter) {

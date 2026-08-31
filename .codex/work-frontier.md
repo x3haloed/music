@@ -187,6 +187,18 @@ design unless later observation demonstrates that it is absolutely necessary.
   unchanged; its retained terminal outcome advances trial standing. Failed
   encounters contradict rather than activate it, and restart can derive a
   missing terminal trial receipt from retained facts.
+- **Developmental learning and trajectory maintenance must not compete for the
+  same encounter opportunity.**
+  **Evidence:** Compatible calls now amend one digest-linked developmental
+  transaction. Exercised proposal decisions and one successor opening commit
+  atomically on completion and reconstruct together; duplicates and competing
+  openings are refused.
+- **Ordinary tool output must not obscure authoritative developmental standing.**
+  **Evidence:** Any invocation that authors proposals now returns its unchanged
+  ordinary output inside a kernel lifecycle envelope. Exact effect receipts say
+  `active: false`, distinguish next-frontier visibility from governing active
+  geometry, and name the required tool or later-encounter trial and explicit
+  admission boundaries. This also covers older tools retained by a resident.
 - **A new resident must have immediate general leverage over its habitat without
   first inventing basic perception and action while blind.**
   **Evidence:** Watch-informed ordinary `read_file`, `write_file`,

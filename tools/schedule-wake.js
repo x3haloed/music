@@ -5,7 +5,7 @@ export function initialScheduleWakeTool() {
     id: 'schedule_wake',
     version: 1,
     parent: null,
-    description: 'Close the current developmental opening and author a structured successor opening for this same subject. Its bounded content and earliest presentation time become part of the parent-bound position after successful transaction commit; incoming world contact can present it once it is due.',
+    description: 'Close the current developmental opening and author a structured successor opening for this same subject. Its bounded content and earliest presentation time become part of the parent-bound position after successful transaction commit; compatible proposal decisions staged in this encounter join that same atomic transaction, and incoming world contact can present the opening once it is due.',
     inputSchema: {
       type: 'object',
       properties: {

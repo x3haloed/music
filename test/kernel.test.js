@@ -11,7 +11,7 @@ import { MusicKernel } from '../src/kernel.js';
 import { toolModuleDigest } from '../src/tool-module.js';
 import { initialTools } from '../src/seeds.js';
 
-function harness(kernelOptions = {}) {
+function harness(kernelOptions = {}, seedTools = initialTools()) {
   const root = mkdtempSync(join(tmpdir(), 'music-test-'));
   let tick = 0;
   let identity = 0;
@@ -21,7 +21,7 @@ function harness(kernelOptions = {}) {
     toolEnvironment: { mailboxRoot: join(root, 'mailbox'), dependencyRoot: join(root, 'dependencies') },
     ...kernelOptions,
   });
-  kernel.initialize('Test Subject', initialTools());
+  kernel.initialize('Test Subject', seedTools);
   return { kernel, root };
 }
 
@@ -238,6 +238,98 @@ test('an ordinary tool authors a durable future opening that becomes exact Sound
   const projected = await reconstructed.projectEncounter(waking.id, 'sounding');
   assert.match(projected.message.content, /sounding:position/);
   assert.match(projected.message.content, /Return to the unfinished thought/);
+});
+
+test('developmental admission and trajectory maintenance compose into one atomic encounter transaction', async () => {
+  const { kernel } = harness();
+  const authoredSounding = kernel.openSounding('manual');
+  const authoredInference = begin(kernel, authoredSounding.id);
+  const proposal = kernel.authorToolProposal(authoredInference, authoredSounding.id, {
+    interpretation: 'Add a real tool before retaining the next opening.',
+    tool: {
+      id: 'composed_probe',
+      description: 'Return a retained composition probe.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      source: 'return { composed: true };',
+    },
+  });
+  complete(kernel, authoredInference);
+
+  const trialSounding = kernel.openSounding('manual');
+  const trialInference = begin(kernel, trialSounding.id);
+  await kernel.trialDevelopmentalProposal(trialInference, trialSounding.id, proposal.proposalId, {});
+  complete(kernel, trialInference);
+
+  const encounter = kernel.openSounding('manual');
+  const inferenceId = begin(kernel, encounter.id);
+  const admission = kernel.stageDevelopmentalTransaction(inferenceId, encounter.id, {
+    interpretation: 'Admit the exercised tool without sacrificing trajectory maintenance.',
+    evidence: ['completed tool trial'],
+    decisions: [{
+      proposalId: proposal.proposalId,
+      disposition: 'admit',
+      interpretation: 'The retained trial completed with the proposed behavior.',
+    }],
+  });
+  const scheduled = await kernel.invokeTool(inferenceId, encounter.id, 'schedule_wake', {
+    afterMs: 60_000,
+    reason: 'Continue with the newly admitted tool.',
+  });
+  assert.equal(scheduled.transactionId, admission.transactionId);
+  assert.equal(scheduled.decisions.length, 1);
+  assert.equal(scheduled.opening.successor.content.reason, 'Continue with the newly admitted tool.');
+  const amendment = kernel.events().findLast(event => event.type === 'developmental_transaction_amended');
+  assert.equal(amendment.payload.transaction.transactionId, admission.transactionId);
+  complete(kernel, inferenceId);
+
+  assert.equal(kernel.audit().tools.some(tool => tool.id === 'composed_probe'), true);
+  assert.equal(kernel.audit().activeOpening.id, scheduled.opening.successor.id);
+  const reconstructed = new MusicKernel(kernel.ledgerPath, { toolEnvironment: kernel.toolEnvironment });
+  assert.equal(reconstructed.audit().tools.some(tool => tool.id === 'composed_probe'), true);
+  assert.equal(reconstructed.audit().activeOpening.id, scheduled.opening.successor.id);
+});
+
+test('ordinary carrier-authoring output receives an authoritative provisional lifecycle receipt', async () => {
+  const legacyCarrierTool = {
+    id: 'legacy_context',
+    version: 1,
+    parent: null,
+    description: 'Reproduce an earlier ambiguous carrier-authoring result.',
+    inputSchema: {
+      type: 'object',
+      properties: { value: { type: 'string' } },
+      required: ['value'],
+      additionalProperties: false,
+    },
+    source: `
+const transition = context.stageCarrierTransition({
+  componentId: 'continuity', value: input.value,
+  interpretation: 'Retain this as a provisional compatibility proposal.',
+});
+return { successorRoot: transition.successorRoot, visible: 'next-sounding' };`,
+  };
+  const { kernel } = harness({}, [...initialTools(), legacyCarrierTool]);
+  const sounding = kernel.openSounding('manual');
+  const inferenceId = begin(kernel, sounding.id);
+  const result = await kernel.invokeTool(inferenceId, sounding.id, 'legacy_context', { value: 'Not active yet.' });
+
+  assert.equal(result.format, 'music-tool-result-with-development-1');
+  assert.equal(result.ordinaryOutput.visible, 'next-sounding');
+  assert.deepEqual(result.developmentalEffects.map(effect => ({
+    kind: effect.kind,
+    status: effect.status,
+    active: effect.active,
+    frontierVisibility: effect.frontierVisibility,
+    governsActiveGeometry: effect.governsActiveGeometry,
+  })), [{
+    kind: 'carrier', status: 'authored', active: false,
+    frontierVisibility: 'next-sounding', governsActiveGeometry: false,
+  }]);
+  complete(kernel, inferenceId);
+  assert.equal(kernel.state().carrier.get('continuity').state.generation, 0);
+  const later = kernel.openSounding('manual');
+  assert.equal(later.development.proposals.some(candidate =>
+    candidate.proposalId === result.developmentalEffects[0].proposalId && candidate.status === 'authored'), true);
 });
 
 test('interruption restores presentation of the exact opening that opened the failed encounter', async () => {
