@@ -394,6 +394,20 @@ test('authored tool machinery remains provisional until exercised and explicitly
 
   const trialSounding = kernel.openSounding('manual');
   assert.equal(trialSounding.tools.some(tool => tool.id === 'provisional_probe'), false);
+  assert.deepEqual(trialSounding.development.proposals, [{
+    proposalId: proposal.proposalId,
+    kind: 'tool',
+    authoredAt: kernel.state().developmentalProposals.get(proposal.proposalId).authoredAt,
+    status: 'authored',
+    interpretation: 'Try a small new capability before allowing it to shape later action.',
+    latestTrial: null,
+    admissionEligible: false,
+    target: {
+      id: 'provisional_probe',
+      version: 1,
+      digest: toolModuleDigest(proposal.revision.tool),
+    },
+  }]);
   const trialInference = begin(kernel, trialSounding.id);
   const inspected = kernel.inspectDevelopment(trialInference, trialSounding.id, proposal.proposalId);
   assert.equal(inspected.status, 'authored');
@@ -406,6 +420,10 @@ test('authored tool machinery remains provisional until exercised and explicitly
 
   const admissionSounding = kernel.openSounding('manual');
   assert.equal(admissionSounding.tools.some(tool => tool.id === 'provisional_probe'), false);
+  assert.equal(admissionSounding.development.proposals[0].proposalId, proposal.proposalId);
+  assert.equal(admissionSounding.development.proposals[0].status, 'exercised');
+  assert.equal(admissionSounding.development.proposals[0].latestTrial.status, 'completed');
+  assert.equal(admissionSounding.development.proposals[0].admissionEligible, true);
   const admissionInference = begin(kernel, admissionSounding.id);
   const transaction = kernel.stageDevelopmentalTransaction(admissionInference, admissionSounding.id, {
     interpretation: 'The retained exercise supports admission.',
@@ -420,6 +438,7 @@ test('authored tool machinery remains provisional until exercised and explicitly
   const activeSounding = kernel.openSounding('manual');
   assert.equal(activeSounding.position.parentPositionRoot, admissionSounding.position.root);
   assert.equal(activeSounding.tools.some(tool => tool.id === 'provisional_probe'), true);
+  assert.equal(activeSounding.development.available, 0);
   const activeInference = begin(kernel, activeSounding.id);
   assert.deepEqual(
     await kernel.invokeTool(activeInference, activeSounding.id, 'provisional_probe', { value: 'later' }),

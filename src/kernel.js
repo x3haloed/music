@@ -24,6 +24,7 @@ const MAX_DELTA_BYTES = 64 * 1_024;
 const MAX_PROJECTION_BYTES = 2 * 1_024 * 1_024;
 const MAX_ACTIVE_SURFACE_BYTES = 512 * 1_024;
 const MAX_PROJECTION_FACTS = 128;
+const MAX_DEVELOPMENTAL_FRONTIER_PROPOSALS = 32;
 const MAX_DELIVERY_FAILURE_MESSAGE_BYTES = 2_048;
 const RESERVED_TOOL_IDS = new Set([
   'inspect_tool', 'revise_tool', 'rollback_tool', 'revise_carrier',
@@ -161,6 +162,7 @@ export class MusicKernel {
       tools: [...state.tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
       carrier: projectCarrier(state.carrier),
       ...(state.position ? { position: projectDevelopmentalPosition(state.position) } : {}),
+      development: projectDevelopmentalFrontier(state),
     };
     if (trigger === 'opening' && !dueUnpresentedOpening(state, Date.parse(base.at))) {
       const notBefore = state.position?.activeOpening?.notBefore;
@@ -1008,6 +1010,10 @@ function reduceEvents(events) {
           if (!state.position || digest(sounding.position) !== digest(projectDevelopmentalPosition(state.position))) {
             throw new Error('Sounding developmental position projection mismatch');
           }
+          if (sounding.development !== undefined
+            && digest(sounding.development) !== digest(projectDevelopmentalFrontier(state))) {
+            throw new Error('Sounding developmental frontier projection mismatch');
+          }
         }
         if (state.openSoundingId || state.activeInferenceId) throw new Error('ledger opens overlapping Soundings');
         if (state.soundings.has(sounding.id)) throw new Error(`ledger repeats Sounding id: ${sounding.id}`);
@@ -1031,6 +1037,7 @@ function reduceEvents(events) {
             tools: sounding.tools,
             carrier: sounding.carrier,
             ...(sounding.position ? { position: sounding.position } : {}),
+            ...(sounding.development ? { development: sounding.development } : {}),
             wake: sounding.wake ?? null,
           });
           if (digest(sounding.deltas) !== digest(planned.sounding.deltas)
@@ -1755,6 +1762,55 @@ function projectDevelopmentalProposal(proposal, includeSource) {
   };
 }
 
+function projectDevelopmentalFrontier(state) {
+  const available = [...state.developmentalProposals.values()]
+    .filter(proposal => !['admitted', 'rolled-back', 'denied', 'retired'].includes(proposal.status))
+    .map(projectDevelopmentalFrontierProposal);
+  const pages = Math.max(1, Math.ceil(available.length / MAX_DEVELOPMENTAL_FRONTIER_PROPOSALS));
+  const page = available.length === 0 ? 0 : state.completedInferences % pages;
+  const start = page * MAX_DEVELOPMENTAL_FRONTIER_PROPOSALS;
+  const proposals = available.slice(start, start + MAX_DEVELOPMENTAL_FRONTIER_PROPOSALS);
+  return {
+    format: 'music-developmental-frontier-1',
+    available: available.length,
+    included: proposals.length,
+    remaining: available.length - proposals.length,
+    queueDigest: digest(available),
+    page: { index: page, count: pages },
+    proposals,
+  };
+}
+
+function projectDevelopmentalFrontierProposal(proposal) {
+  const latestTrial = proposal.trials.at(-1) ?? null;
+  const base = {
+    proposalId: proposal.proposalId,
+    kind: proposal.kind,
+    authoredAt: proposal.authoredAt,
+    status: proposal.status,
+    interpretation: proposal.kind === 'tool'
+      ? proposal.revision.interpretation : proposal.transition.interpretation,
+    latestTrial: latestTrial === null ? null : structuredClone(latestTrial),
+    admissionEligible: proposal.trials.some(trial => trial.status === 'completed'),
+  };
+  return proposal.kind === 'tool'
+    ? {
+      ...base,
+      target: {
+        id: proposal.revision.tool.id,
+        version: proposal.revision.tool.version,
+        digest: toolModuleDigest(proposal.revision.tool),
+      },
+    }
+    : {
+      ...base,
+      target: {
+        componentId: proposal.transition.component.id,
+        successorRoot: proposal.transition.successorRoot,
+      },
+    };
+}
+
 function verifyChain(events) {
   let parent = null;
   const format = events[0]?.format ?? FORMAT;
@@ -2224,6 +2280,7 @@ function soundingProjectionInput(sounding) {
       projectionFact('sounding:tools', sounding.tools),
       projectionFact('sounding:carrier', sounding.carrier),
       ...(sounding.position ? [projectionFact('sounding:position', sounding.position)] : []),
+      ...(sounding.development ? [projectionFact('sounding:development', sounding.development)] : []),
       projectionFact('sounding:frontier', sounding.frontier),
       ...(sounding.wake ? [projectionFact('sounding:wake', sounding.wake)] : []),
       ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
@@ -2277,6 +2334,10 @@ function assertActiveGeometryFits(tools, carrier, subject, position = null) {
     tools: [...tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
     carrier: projectCarrier(carrier),
     ...(position ? { position: projectDevelopmentalPosition(position) } : {}),
+    development: {
+      format: 'music-developmental-frontier-1', available: 0, included: 0, remaining: 0,
+      queueDigest: digest([]), page: { index: 0, count: 1 }, proposals: [],
+    },
     wake: null,
     deltas: [],
     unresolvedConsequences: [],
@@ -2307,6 +2368,7 @@ function projectionInput(state, encounter, phase, deltaIds) {
           projectionFact('sounding:tools', sounding.tools),
           projectionFact('sounding:carrier', sounding.carrier),
           ...(sounding.position ? [projectionFact('sounding:position', sounding.position)] : []),
+          ...(sounding.development ? [projectionFact('sounding:development', sounding.development)] : []),
           ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
           ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
         ],
