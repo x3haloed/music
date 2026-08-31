@@ -160,6 +160,21 @@ tools retain the unrestricted machine authority of the harness process.
   retains each completed step before continuing, and lets the ordinary
   `tune_inference` tool stage later step, per-event, and timeout policy within
   broad physical continuity ceilings.
+- **The subject's authored trajectory must remain causally coupled to verified
+  cumulative world state rather than becoming authoritative self-report.**
+  **Evidence:** Continuing Song E95 and E97 establish that retained negative
+  saturation and positive composition geometry can causally change later fresh
+  actor choice. E98 failed its frozen gate because its runner contradicted its
+  denial protocol, but its preserved operational sequence still exposed the
+  relevant longitudinal distinction: two clean premature attempts were denied
+  without capability growth, retained, and followed by three dependency-ordered
+  world promotions in one cumulative run. Music's first live resident likewise
+  authored useful continuity while introducing small factual imprecision and
+  anticipatory claims; the ledger independently preserved actual delivery,
+  carrier activation, wake, and unresolved-consequence state. Future trajectory
+  must therefore be shaped by the subject's interpretation while actual
+  capability, consequence, effect, and available opening remain grounded in
+  retained world contact and mechanically current state.
 
 ## Evaluation regime
 
@@ -184,6 +199,14 @@ adapters, richer tools, and the actual character of long residence belong to
 world contact and the resident's own subsequent revisions rather than to more
 pre-hatch scaffolding.
 
+The first live resident is now the primary informal trajectory witness. Early
+observation should attend to whether it corrects authored continuity against
+receipts and current state, carries denied or premature action without calling
+it capability, reconciles unresolved consequence, recognizes saturated
+repetition, and composes held capacities into genuinely wider later openings.
+These are observations of one life, not a benchmark or researcher-authored task
+sequence.
+
 A second bounded live GLM Flash rehearsal crossed the new scheduling path. One
 mailbox Delta led the disposable subject to invoke `schedule_wake` once and
 activate an exact ten-minute wake with its invocation/tool/reason lineage. The
@@ -194,6 +217,15 @@ retained.
 
 ## Prediction errors
 
+- The resident's first two completed encounters showed that subject-authored
+  continuity can be useful and causally active while still containing small
+  bookkeeping errors, an unsupported recollection, and claims staged before
+  their effects completed. The exact ledger kept the authoritative facts and
+  refused malformed selected action until the resident recovered. The open
+  question is no longer whether continuity should be authored, but whether the
+  resident's evolving trajectory reliably corrects that account from receipts,
+  consequence, and its cumulative world without an outside summarizer taking
+  over authorship.
 - The hatch-ready configuration still imposed a twelve-step default and
   accumulated completed assistant/tool turns toward one 2 MiB terminal append.
   A real 120-step AI SDK encounter now checkpoints every step and closes with a
