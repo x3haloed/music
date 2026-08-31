@@ -1,20 +1,30 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { MusicKernel } from './kernel.js';
 import { MusicMind } from './mind.js';
 import { createConfiguredModel } from './provider.js';
 import { submitWorldDelta } from './ingress.js';
 import { MusicResident } from './resident.js';
 import { archiveOutboundMessage, pendingOutboundMessages, submitMailboxMessage } from './mailbox.js';
+import { createRuntimeProvenance } from './runtime-provenance.js';
 
-const [command, ledger, ...args] = process.argv.slice(2);
+const [command, ledgerArgument, ...rawArgs] = process.argv.slice(2);
 
 try {
-  if (!command || !ledger) usage();
+  if (!command || !ledgerArgument) usage();
+  const launchCwd = process.cwd();
+  const ledger = resolve(launchCwd, ledgerArgument);
+  const residentHome = liveCommandHome(command, launchCwd);
+  const args = liveCommandPaths(command, rawArgs, launchCwd);
+  if (residentHome) process.chdir(residentHome);
   const mailboxRoot = command === 'reside' ? args[1] : (command === 'run' ? args[2] : undefined);
   const kernel = new MusicKernel(ledger, {
     toolEnvironment: {
-      dependencyRoot: process.env.MUSIC_DEPENDENCY_ROOT ?? `${ledger}.dependencies`,
+      dependencyRoot: process.env.MUSIC_DEPENDENCY_ROOT
+        ? resolve(residentHome ?? launchCwd, process.env.MUSIC_DEPENDENCY_ROOT)
+        : `${ledger}.dependencies`,
+      ...(residentHome === null ? {} : { homeRoot: residentHome }),
       ...(mailboxRoot === undefined ? {} : { mailboxRoot }),
     },
   });
@@ -77,6 +87,7 @@ try {
         kernel.recoverLedgerTail();
         kernel.recoverInterruptedInference('The previous Music process ended before its active inference could complete.');
         kernel.recoverInterruptedDeliveryProjections('The previous Music process ended before delivery projection completion was retained.');
+        kernel.recordRuntimeStart(createRuntimeProvenance(residentHome, { mode: 'single-run' }));
         const configured = createConfiguredModel(readJsonFile(args[0]));
         await configured.preflight();
         const soundingId = kernel.state().openSoundingId ?? kernel.openSounding(args[1] ?? 'manual').id;
@@ -110,6 +121,7 @@ try {
           ingress: args[1],
           ...(args[2] === undefined ? {} : { pollMs: boundedInteger(args[2], 'pollMs') }),
           ...(args[3] === undefined ? {} : { heartbeatMs: boundedInteger(args[3], 'heartbeatMs') }),
+          runtime: createRuntimeProvenance(residentHome, { mode: 'resident' }),
           onError: error => process.stderr.write(`music resident: ${error instanceof Error ? error.message : String(error)}\n`),
         },
       );
@@ -130,6 +142,23 @@ try {
 function readJsonFile(path) {
   if (!path) throw new Error('missing JSON file path');
   return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function liveCommandHome(command, launchCwd) {
+  if (!['run', 'reside'].includes(command)) return null;
+  const configured = process.env.MUSIC_HOME?.trim();
+  if (!configured) throw new Error(`${command} requires MUSIC_HOME to name the resident-owned working directory`);
+  const home = realpathSync(resolve(launchCwd, configured));
+  if (!statSync(home).isDirectory()) throw new Error(`MUSIC_HOME is not a directory: ${home}`);
+  return home;
+}
+
+function liveCommandPaths(command, args, launchCwd) {
+  const resolved = [...args];
+  if (['run', 'reside'].includes(command) && resolved[0] !== undefined) resolved[0] = resolve(launchCwd, resolved[0]);
+  if (command === 'run' && resolved[2] !== undefined) resolved[2] = resolve(launchCwd, resolved[2]);
+  if (command === 'reside' && resolved[1] !== undefined) resolved[1] = resolve(launchCwd, resolved[1]);
+  return resolved;
 }
 
 function usage() {

@@ -7,7 +7,8 @@ import { canonical, digest } from './canonical.js';
 import { applyCarrierTransition, createCarrierTransition, initialCarrier, projectCarrier, readCarrier, serializeCarrier } from './carrier.js';
 import { executeToolModule, toolModuleDigest, validateToolModule } from './tool-module.js';
 
-const FORMAT = 'music-event-10';
+export const MUSIC_EVENT_FORMAT = 'music-event-10';
+const FORMAT = MUSIC_EVENT_FORMAT;
 const WRITER_FORMAT = 'music-writer-1';
 const ENCOUNTER_SHAPE_TOOL_ID = 'shape_encounter';
 const MAX_TOOLS = 32;
@@ -68,6 +69,14 @@ export class MusicKernel {
     if (state.deltaIds.has(delta.id)) throw new Error(`duplicate delta id: ${delta.id}`);
     this.append('delta_admitted', { delta: structuredClone(delta) });
     return this.state();
+  }
+
+  recordRuntimeStart(runtime) {
+    const state = this.state();
+    requireSubject(state);
+    const retained = validateRuntimeProvenance(runtime);
+    this.append('runtime_started', { runtime: retained });
+    return retained;
   }
 
   openSounding(trigger = 'manual') {
@@ -588,6 +597,8 @@ export class MusicKernel {
       failedDeliveryProjections: state.failedDeliveryProjectionCount,
       uncertainDeliveryProjections: state.activeDeliveryProjections.size,
       ledgerTailRecoveries: state.ledgerTailRecoveryCount,
+      runtimeStarts: state.runtimeHistory.length,
+      runtime: state.runtime ? structuredClone(state.runtime) : null,
       unresolvedConsequences: [...state.consequences.values()].filter(consequence => consequence.status !== 'settled').length,
       deferredConsequences: [...state.consequences.values()].filter(consequence => consequence.status === 'deferred').length,
       consequenceSweepActive: state.consequenceSweepActive,
@@ -692,6 +703,8 @@ function reduceEvents(events) {
     deliveryProjectionCount: 0,
     failedDeliveryProjectionCount: 0,
     ledgerTailRecoveryCount: 0,
+    runtimeHistory: [],
+    runtime: null,
   };
   for (const event of events) {
     state.head = event.hash;
@@ -711,6 +724,13 @@ function reduceEvents(events) {
         validateLedgerRecoveryReceipt(event.payload);
         state.ledgerTailRecoveryCount += 1;
         break;
+      case 'runtime_started': {
+        requireSubject(state);
+        const runtime = validateRuntimeProvenance(event.payload.runtime);
+        state.runtimeHistory.push(runtime);
+        state.runtime = runtime;
+        break;
+      }
       case 'delta_admitted': {
         requireSubject(state);
         const delta = event.payload.delta;
@@ -1170,6 +1190,25 @@ function validateLedgerRecoveryReceipt(receipt) {
   if ((receipt.kind === 'torn-tail-removed') !== (receipt.backupPath !== undefined)) {
     throw new Error('ledger tail recovery backup binding mismatch');
   }
+}
+
+function validateRuntimeProvenance(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || value.format !== 'music-runtime-1'
+    || value.eventFormat !== FORMAT
+    || !['resident', 'single-run'].includes(value.mode)
+    || typeof value.release?.commit !== 'string' || !/^[a-f0-9]{40}$/.test(value.release.commit)
+    || typeof value.release?.version !== 'string' || !value.release.version.trim() || value.release.version.length > 128
+    || typeof value.release?.workingTreeClean !== 'boolean'
+    || typeof value.release?.workingTreeStateSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.release.workingTreeStateSha256)
+    || typeof value.release?.root !== 'string' || !value.release.root
+    || typeof value.home !== 'string' || !value.home
+    || typeof value.process?.node !== 'string' || !value.process.node
+    || typeof value.process?.platform !== 'string' || !value.process.platform
+    || typeof value.process?.arch !== 'string' || !value.process.arch) {
+    throw new Error('invalid resident runtime provenance');
+  }
+  return structuredClone(value);
 }
 
 function validateDelta(delta) {

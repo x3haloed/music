@@ -8,6 +8,7 @@ export class MusicResident {
     heartbeatMs = 15 * 60_000,
     failureBackoffMs = 5_000,
     maxFailureBackoffMs = 5 * 60_000,
+    runtime = null,
     clock = () => Date.now(),
     onError = () => {},
   } = {}) {
@@ -25,6 +26,7 @@ export class MusicResident {
     this.heartbeatMs = heartbeatMs;
     this.failureBackoffMs = failureBackoffMs;
     this.maxFailureBackoffMs = maxFailureBackoffMs;
+    this.runtime = runtime === null ? null : structuredClone(runtime);
     this.clock = clock;
     this.onError = onError;
     this.activeEncounter = null;
@@ -116,6 +118,7 @@ export class MusicResident {
     try {
       this.abortSignal = encounterSignal;
       await this.recover();
+      if (this.runtime) this.kernel.recordRuntimeStart(this.runtime);
       while (!signal?.aborted) {
         await this.pump();
         try {
