@@ -33,11 +33,12 @@ design unless later observation demonstrates that it is absolutely necessary.
   or advisory residue.
 - **Encounter completion, subject authorship, subject closure, and
   developmental promotion are distinct events.**
-  **Evidence:** Music currently promotes every staged tool, carrier,
-  consequence, and wake change as a consequence of clean inference completion.
-  Continuing Song's later experiments distinguish an actor-authored proposal,
-  its exercise against world contact, and its admission to later selection
-  geometry; conflating them makes clean stopping an accidental learning rule.
+  **Evidence:** Music now retains tool/carrier/rollback authorship immediately as
+  provisional standing, records real trial outcome separately, and changes
+  active geometry only through an explicit disposition transaction. Current
+  ledgers reject the former clean-completion tool/carrier/wake event paths.
+  Opening closure has its own cited status and interpretation bound into
+  developmental ancestry.
 - **Exhaustion or saturation must reopen contact origination rather than collapse
   into passive repetition, slower polling, or narrative closure.**
   **Evidence:** The first resident rejected a wake-interval rule after four
@@ -153,11 +154,13 @@ design unless later observation demonstrates that it is absolutely necessary.
 - **The one subject must be able to choose and revise its own next temporal
   opening without installing a second scheduler mind.**
   **Evidence:** `schedule_wake` is an ordinary retained module over a stable
-  staged-wake receipt. A completed invocation survives reconstruction and opens
-  a due Sounding with exact invocation/tool/reason lineage; world contact
-  preempts without erasure, interruption restores the opening wake, failed
-  inference cannot promote a new wake, and a revised scheduler body constructs
-  different later timing. The heartbeat remains only the no-choice fallback.
+  opening-transition primitive. It explicitly closes the active opening and
+  constructs a structured successor in the parent-bound position. The successor
+  survives reconstruction, opens a due Sounding, survives earlier world contact,
+  returns after interruption, and changes later timing when the scheduler body
+  is revised. A causal fixture carries saturated passive observation into real
+  message origination and then a consequence-bearing successor. Heartbeat
+  remains only secluded fallback contact.
 - **A heartbeat is secluded existence, not an externally assigned task.**
   **Evidence:** The seed encounter shaper receives the exact Sounding trigger
   and projects heartbeat facts without appending a request, reporting
@@ -243,7 +246,7 @@ repetition, and composes held capacities into genuinely wider later openings.
 These are observations of one life, not a benchmark or researcher-authored task
 sequence.
 
-A second bounded live GLM Flash rehearsal crossed the new scheduling path. One
+A second bounded live GLM Flash rehearsal crossed the predecessor scheduling path. One
 mailbox Delta led the disposable subject to invoke `schedule_wake` once and
 activate an exact ten-minute wake with its invocation/tool/reason lineage. The
 inference and Sounding completed with no failed or uncertain operation and no

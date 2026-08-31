@@ -30,10 +30,13 @@ shows an integrity problem that retained facts, ancestry, atomic transitions,
 recovery, and subject correction cannot address, that evidence can reopen the
 decision; isolation is not a speculative architectural destination.
 
-Event format 11 adds incremental inference checkpoints and subject-authored
-inference policy. The runtime still reconstructs the frozen format-10 and
-format-11 witnesses, but legacy ledgers are read-only: mixing new event meanings
-into an old chain is refused rather than mislabeled as compatibility.
+Event format 12 adds parent-bound developmental position, provisional machinery
+standing, explicit developmental transactions, and structured openings. The
+runtime still reconstructs the frozen format-10 and format-11 witnesses, but
+legacy ledgers are read-only: mixing new event meanings into an old chain is
+refused rather than mislabeled as compatibility. A stopped habitat can cross
+that boundary only through the explicit exact-lineage migration described
+below.
 
 ## Developmental authority
 
@@ -104,8 +107,11 @@ cannot silently alter its restart behavior.
 A habitat snapshot is taken only while its writer lease can be acquired, lives
 outside the habitat, omits the transient lock, and carries a SHA-256 inventory.
 Upgrade is stop, snapshot, install, read-only compatibility audit, then explicit
-start from the new exact release. Copied real ledgers are never initialized or
-used for inference rehearsals.
+start from the new exact release. When the stopped ledger is format 10 or 11,
+`music-habitat migrate` first moves its exact bytes under `state/lineage/`, binds
+their format, head, SHA-256, and event count into a new current developmental
+opening, and preserves the same subject, active tools, and carrier. Copied real
+ledgers are never initialized or used for inference rehearsals.
 
 The frozen `music-event-10` and `music-event-11` compatibility ledgers under
 `test/fixtures/` are minimum reader contracts for all later releases. A future
@@ -137,10 +143,11 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - aggregate active-surface admission, ordered contact frontiers, and bounded
   consequence sweeps that prevent individually valid facts from sealing an
   undeliverable Sounding;
-- `inspect_tool`, `revise_tool`, and `rollback_tool`;
-- carrier mutation and parent-bound activation mechanics;
+- `inspect_tool`, proposal authorship/inspection/trial, and explicit atomic
+  developmental disposition for tool, carrier, rollback, and opening changes;
+- parent-bound developmental position and exact closure ancestry;
 - staged consequence deferral and settlement mechanics;
-- staged future-wake activation, preemption, and interruption restoration;
+- due-opening presentation and interruption restoration;
 - the receipt primitive used by selection modules.
 
 The JavaScript loader is not a capability filter. A tool body receives `input`
@@ -170,13 +177,15 @@ under [`tools/`](./tools):
   free of an appended task or behavioral instruction.
 - `manage_dependency` uses unrestricted npm execution to install, remove, or
   inspect packages in a separate resident dependency habitat.
-- `schedule_wake` stages the next time this same subject wants to return without
-  waiting for world contact. Its source and interface are ordinary geometry.
-- `retain_context` stages the bounded current-situation account that this same
-  subject wants projected later; it neither summarizes transcripts nor requires
-  an update.
-- `tune_inference` stages later encounter step, retained-event, and timeout
-  policy. Its interface and policy choices remain ordinary revisable geometry.
+- `schedule_wake` closes the current opening and authors a timed structured
+  successor. Its source, interface, closure policy, and content construction are
+  ordinary geometry.
+- `retain_context` authors a provisional bounded current-situation account that
+  this same subject may exercise and explicitly admit; it neither summarizes
+  transcripts nor requires an update.
+- `tune_inference` authors provisional later encounter step, retained-event, and
+  timeout policy. Its interface and policy choices remain ordinary revisable
+  geometry.
 
 These files seed a new subject only. Once initialized, the ledger-retained tool
 version is authoritative. The bootstrap does not re-read seed source to replace
@@ -212,12 +221,13 @@ world-authored Delta
   -> the subject may defer it; unresolved consequence returns in later Soundings
   -> revise_tool authors a provisional complete replacement interface and source body
   -> the subject may explicitly settle the consequence
-  -> schedule_wake may stage the subject's own next temporal opening
+  -> schedule_wake may explicitly close the current opening and author a
+     structured temporal/contact successor
   -> inspect_development exposes proposal standing and exact source
   -> trial_development executes provisional source without changing active geometry
   -> advance_development explicitly admits or withholds the exercised proposal
-  -> successful inference completion atomically commits that authored
-     developmental transaction and any staged future wake
+  -> successful inference completion atomically commits only the explicit
+     developmental transaction the subject authored
   -> later Sounding projects the successor digest and interface
   -> later invocation runs the changed source
   -> rollback_tool can copy retained prior source into a new parent-bound version
@@ -356,32 +366,37 @@ interpretation the subject chooses. The kernel does not summarize, replay, or
 decide what deserves remembrance.
 
 The seed `inference_policy` component begins at 120 steps, 2 MiB per retained
-inference event, and a 30-minute timeout. `tune_inference` can stage a complete
-successor within physical ceilings of 10,000 steps, 64 MiB, and 24 hours.
-Policy is sealed into the Sounding, so a staged change cannot alter its current
-encounter and becomes causal only after successful completion.
+inference event, and a 30-minute timeout. `tune_inference` can author a complete
+provisional successor within physical ceilings of 10,000 steps, 64 MiB, and 24
+hours. Policy is sealed into the Sounding, so a proposal cannot alter its current
+encounter and becomes causal only after retained exercise and explicit admission.
 
-## Self-directed waking
+## Plastic recurrence
 
-Future waking is neither another actor nor a fixed pursuit ontology. Any
-ordinary tool may call the stable staged-wake receipt primitive; the seed
-`schedule_wake` module exposes it as a simple relative delay and subject-authored
-reason. The invocation id, exact tool digest, originating Sounding, staged time,
-delay, due time, and reason are retained. Successful inference activates the
-wake; failed inference cannot promote it.
+Future recurrence is neither another actor nor a fixed pursuit ontology. The
+developmental position carries one bounded structured opening with identity,
+parent, authorship time, optional earliest presentation time, and subject-owned
+JSON content. The seed `schedule_wake` module is ordinary geometry over the
+stable opening-transition primitive: it supplies a relative delay, closure
+status and interpretation, and arbitrary bounded content. The kernel supplies
+identity, ancestry, invocation/tool binding, and atomic retention.
 
-When due, the wake is consumed into the next Sounding as a byte-exact
-`sounding:wake` fact. World contact may open a Sounding first, in which case the
-same fact says `preempted` rather than disappearing. If that encounter fails,
-the opening wake is restored and becomes eligible again after the retained
-failure-backoff floor. A newly staged wake replaces it only through successful
-completion. While a future wake exists, it suppresses the fixed heartbeat; when
-none exists, the heartbeat remains the stable continuity fallback.
+When due and unpresented, the opening itself triggers the next Sounding and is
+already present inside the exact `sounding:position` fact. Earlier world contact
+does not erase a future opening; due world contact may present it in the same
+Sounding. Failed or interrupted inference removes the presentation mark so the
+same opening can return after the retained failure-backoff floor. An unpresented
+future opening suppresses heartbeat; once it has been presented, heartbeat is
+again only secluded fallback contact.
 
-This supplies self-routing without declaring what a pursuit is. The subject may
-put trajectory state in its carrier, revise the scheduler tool that transforms
-its choices into timing, invent another tool using the same primitive, or choose
-no explicit wake and accept fallback contact.
+Closing an opening requires an explicit receipt citing the active opening and a
+bounded status and interpretation. The closure plus successor are bound into
+the position's standing and archive roots. Clean encounter completion cannot
+invent this transition. The subject may encode trajectory, live question,
+saturation, intended contact, or another ontology in the content; revise the
+ordinary scheduler that constructs it; use message, web, shell, or invented
+tools to originate contact; or construct a successor directly in the same
+developmental transaction that admits or withholds provisional machinery.
 
 ## Provider boundary
 
@@ -396,7 +411,7 @@ the dedicated serializer.
 Every completed AI SDK step appends its newly produced assistant/tool messages,
 projected step result, usage, and compact request receipt before another step is
 allowed to become the only live copy. `inference_completed` then retains only
-terminal meaning, aggregate usage, and staged activations. A failure retains
+terminal meaning, aggregate usage, and any explicit transaction. A failure retains
 only material not already checkpointed plus its diagnostic. This changes
 retention growth from one fragile monolithic terminal event to bounded
 incremental events without making completed conversation active in later
@@ -432,8 +447,8 @@ which makes explicitly deferred consequences revisitable without new input.
 Burst contact and unresolved consequence sets are drained through exact retained
 frontiers; a consequence remainder wakes a `continuation` Sounding without
 waiting for the heartbeat.
-An activated subject-authored wake opens a `scheduled` Sounding when due. A
-future wake suppresses periodic heartbeat but never blocks earlier world contact.
+A due unpresented subject-authored opening opens an `opening` Sounding. A future
+opening suppresses periodic heartbeat but never blocks earlier world contact.
 
 If an inference fails or the process recovers it as interrupted, every initial
 and live-steered Delta delivered to that encounter returns to the pending world
@@ -561,14 +576,15 @@ Automated evidence currently proves that:
   real child Node process, and returns its output;
 - the initial `file_patch` changes a real disposable file and retains before/after
   digests;
-- a replacement executable body remains inert in the current Sounding, activates
-  later, and survives reconstruction from the ledger;
+- a replacement executable body remains inert through authorship and clean
+  completion, executes as a retained provisional trial, activates only after an
+  explicit admission transaction, and survives reconstruction from the ledger;
 - rollback after restart restores the cited earlier file-patch implementation as
   a new successor and that successor patches a real file;
 - selection sequencing itself can be revised as an ordinary module;
 - retained versus erased carrier state changes selection over byte-identical
   actor-authored candidates;
-- failed inference retains staged history but does not activate it;
+- failed inference retains authored proposal history but does not activate it;
 - a tool receipt is consumed by a durable start event before executable code
   runs; restart recovery preserves a start without completion as uncertain;
 - a real file patch receives a world Delta tied to its exact invocation, that
@@ -605,10 +621,18 @@ Automated evidence currently proves that:
   the same unopened prefix after interruption and reconstruction, and follow the
   same bounded rule during live steering; 130 unresolved consequences complete
   one finite sweep without starvation or immediate repetition;
-- the AI SDK mind can invoke ordinary `schedule_wake`; its exact future wake
-  survives reconstruction, opens a due Sounding, is visible when preempted by
-  world contact, returns after interruption, remains inactive after failed
-  inference, and changes later timing when its ordinary source is revised;
+- the AI SDK mind can invoke ordinary `schedule_wake`; its exact structured
+  opening survives reconstruction, opens a due Sounding, survives earlier world
+  contact, returns after interruption, remains unchanged after failed inference,
+  and changes later timing when its ordinary source is revised;
+- a structured passive opening can carry its own saturation condition and
+  contact-origination geometry into a later encounter, where the same mind sends
+  a real mailbox message and closes it into a consequence-bearing successor;
+- opening closure interpretation is bound into developmental ancestry rather
+  than living only in historical prose;
+- a stopped format-11 habitat migrates by preserving its old ledger bytes
+  exactly, binding their digest/head/count into the new opening, and retaining
+  the same subject, tools, and carrier;
 - revising `shape_encounter` changes the exact later inference prompt while
   preserving every authoritative envelope;
 - malformed and indefinitely waiting learned shapers fall back to exact facts,
@@ -629,7 +653,7 @@ provider requests used `minimal` reasoning, 256 output tokens maximum each, zero
 retries, and cost $0.00075142 in total; retained request metadata contained no
 credential material.
 
-The self-directed wake path also crossed the live provider boundary. A separate
+The predecessor self-directed wake path also crossed the live provider boundary. A separate
 fresh disposable subject received one mailbox Delta and used the retained
 ordinary `schedule_wake` module to activate an exact ten-minute future wake.
 The completed ledger bound it to the GLM Flash tool invocation, tool digest,
@@ -638,8 +662,9 @@ contact, failure, or uncertainty. The two requests used `minimal` reasoning,
 256 output tokens maximum each, zero retries, cost $0.00127575, and retained no
 credential material.
 
-Music is therefore ready to hatch a long-term resident under the stated
-criterion: causal end-to-end continuity and direct lived observation, not an
-evaluation campaign. Network messaging and richer contact surfaces can grow as
-ordinary/adaptor machinery after hatch, in response to what the resident and
-its world actually need.
+That evidence remains valid for the provider, mailbox, inference, and ordinary
+tool boundaries. The later developmental-position and plastic-recurrence release
+is judged here by complete deterministic causal paths plus a disposable live
+provider probe before it is offered to the stopped long-term resident. Network
+messaging and richer contact surfaces remain ordinary/adaptor growth rather than
+new stable-core policy.

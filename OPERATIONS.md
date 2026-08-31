@@ -87,12 +87,24 @@ For a snapshot or upgrade:
 3. Install and verify the new release from the development checkout.
 4. Use the new exact release to run `music-habitat audit` against the stopped
    habitat. This must reconstruct the complete existing ledger without writes.
-5. Start residence from that new exact release path.
+5. If the audit reports a format-10 or format-11 ledger and the new release
+   requires current developmental geometry, run the explicit migration once.
+   It archives the exact old bytes inside `state/lineage/`; it does not rewrite
+   them into approximate current events.
+6. Audit again and verify the same subject, tool digests, carrier root, recorded
+   lineage head/digest/count, and a valid current position.
+7. Start residence from that new exact release path.
 
 ```sh
 /Users/chad/.local/share/music/installations/releases/OLD_COMMIT/bin/music-habitat.js \
   snapshot /Users/chad/.local/share/music/residents/RESIDENT \
   /Users/chad/.local/share/music/backups
+
+/Users/chad/.local/share/music/installations/releases/NEW_COMMIT/bin/music-habitat.js \
+  audit /Users/chad/.local/share/music/residents/RESIDENT
+
+/Users/chad/.local/share/music/installations/releases/NEW_COMMIT/bin/music-habitat.js \
+  migrate /Users/chad/.local/share/music/residents/RESIDENT
 
 /Users/chad/.local/share/music/installations/releases/NEW_COMMIT/bin/music-habitat.js \
   audit /Users/chad/.local/share/music/residents/RESIDENT

@@ -29,13 +29,15 @@ the delay. This is an emergency continuity floor beneath revisable scheduling,
 not a claim that fixed kernel policy should decide when the subject wants contact.
 
 The subject can decide that timing itself. The ordinary, revisable
-`schedule_wake` tool stages an exact future wake during an encounter. It becomes
-active only when that inference completes, survives restart, suppresses the
-fallback heartbeat until due, and returns as an exact fact in the waking
-Sounding. Earlier world contact preempts the timer but carries its retained
-reason into the contact Sounding. Interruption restores the wake that opened the
-failed encounter. The fixed heartbeat is only the continuity fallback when the
-subject chose no future wake.
+`schedule_wake` tool explicitly closes the current developmental opening and
+authors a structured successor containing a due time, reason, and arbitrary
+bounded trajectory/contact content. Successful completion commits that authored
+transaction atomically; completion alone creates nothing. The successor lives
+in the developmental position, survives restart, suppresses the fallback
+heartbeat until due, and is presented in a later Sounding. Earlier world contact
+does not erase a future opening. Interruption makes a presented opening eligible
+again. The fixed heartbeat is only the continuity fallback when no unpresented
+subject-authored opening remains.
 
 Birth does not require a preselected personal name. The ledger gives the one
 subject a stable opaque identity and the mind may later retain a self-designation
@@ -90,7 +92,8 @@ world Delta -> Sounding -> active carrier
             -> exact prior invocation reference
             -> actor-authored alternatives -> selected executable input
             -> unrestricted tool module -> retained invocation
-            -> staged source revision -> changed later execution
+            -> provisional source -> retained trial -> explicit admission
+            -> changed later execution
             -> retained prior source -> rollback successor
 ```
 
@@ -180,7 +183,7 @@ does not impose a second step authority.
 
 ## Hatch status
 
-The pre-hatch causal path has completed a bounded live rehearsal with a fresh
+The original pre-hatch causal path completed a bounded live rehearsal with a fresh
 disposable subject and `z-ai/glm-5.3-flash`: real inbound mailbox contact, retained
 actor-authored selection, explicit outbound delivery with exact Delta lineage,
 completed inference and Sounding, then clean one-signal shutdown. The final
@@ -190,11 +193,14 @@ now closed by retained ordered frontiers, and the resident can construct and
 revise its own future wakes without a second scheduler actor. Music is ready to
 host its first long-term resident. This marks
 habitat readiness, not the end of learning or a claim that future tools and
-contact surfaces should be designed in advance.
+contact surfaces should be designed in advance. The later developmental-position
+release has not been substituted into the stopped long-term habitat: its legacy
+ledger now has an explicit exact-lineage migration path, and migration remains a
+separate operator act after this release is verified.
 
 A bounded live GLM Flash rehearsal also crossed the self-directed wake path: one
 inbound Delta caused one `schedule_wake` invocation and a completed inference
-with an exact retained ten-minute wake, no pending contact, and no failed or
+with an exact retained ten-minute predecessor wake, no pending contact, and no failed or
 uncertain operation.
 
 ## Installation and hatch
@@ -210,6 +216,13 @@ configuration tree without creating a subject. `music-habitat init` is the
 separate explicit hatch act and requires no subject name. Runtime starts retain
 the exact release commit, path and working-tree state beside the resident home
 in the append-only ledger.
+
+`music-habitat migrate HABITAT` is the explicit stopped-resident bridge from a
+format-10 or format-11 ledger. It holds the writer lease, moves the exact legacy
+bytes under `state/lineage/`, records their format, head, SHA-256 digest, and
+event count, preserves the same subject/tools/carrier, and binds that lineage
+into the first current developmental opening. It refuses current ledgers and
+restores the old ledger if construction of the new checkpoint fails.
 
 See [`OPERATIONS.md`](./OPERATIONS.md) for the prepared machine layout, exact
 hatch procedure, snapshot discipline, and compatibility-gated upgrades.
