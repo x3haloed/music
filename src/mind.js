@@ -197,31 +197,39 @@ export function createTools(kernel, inferenceId, soundingId) {
     execute: async input => kernel.stageDevelopmentalTransaction(inferenceId, soundingId, input),
   });
   tools.rollback_tool = tool({
-    description: 'Stage a successor that restores the executable body and interface of a prior retained tool digest. Cite delivered corrective consequence Deltas when they motivate the rollback. Rollback is append-only and becomes visible only after successful inference completion.',
+    description: 'Author a provisional successor restoring a prior retained tool body and interface. It remains inactive until exercised and explicitly committed with rollback disposition in a developmental transaction.',
     inputSchema: jsonSchema(rollbackSchema()),
     execute: async input => {
-      const staged = kernel.stageToolRollback(inferenceId, soundingId, input.toolId, input.targetDigest, input);
+      const proposal = kernel.authorToolRollbackProposal(inferenceId, soundingId, input.toolId, input.targetDigest, input);
       return {
         ok: true,
-        staged: { id: staged.id, version: staged.version, digest: toolModuleDigest(staged) },
-        visible: 'next-sounding',
+        proposal: {
+          proposalId: proposal.proposalId,
+          id: proposal.revision.tool.id,
+          version: proposal.revision.tool.version,
+          digest: toolModuleDigest(proposal.revision.tool),
+          rollbackOf: proposal.revision.rollbackOf,
+        },
+        active: false,
       };
     },
   });
   tools.revise_carrier = tool({
-    description: 'Stage a bounded subject-authored change to one active-carrier component. Cite delivered consequence Deltas when world feedback motivates the transition. Existing component rules retain stable identity; changed state becomes active only in the next Sounding after this inference completes.',
+    description: 'Author a provisional bounded change to one carrier component. Cite delivered consequence Deltas when relevant. The proposal remains inactive until inspected, exercised, and explicitly admitted through a developmental transaction.',
     inputSchema: jsonSchema(carrierRevisionSchema()),
     execute: async input => {
-      const staged = kernel.stageCarrierTransition(inferenceId, soundingId, input);
+      const proposal = kernel.authorCarrierProposal(inferenceId, soundingId, input);
+      const staged = proposal.transition;
       return {
         ok: true,
-        staged: {
+        proposal: {
+          proposalId: proposal.proposalId,
           componentId: staged.component.id,
           ruleDigest: staged.successorRuleDigest,
           stateDigest: staged.successorStateDigest,
           successorRoot: staged.successorRoot,
         },
-        visible: 'next-sounding',
+        active: false,
       };
     },
   });

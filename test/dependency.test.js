@@ -106,6 +106,26 @@ test('a broken learned dependency surfaces its exact failure and the same mind c
   const prompt = JSON.stringify(model.doGenerateCalls[0].prompt);
   assert.match(prompt, /music_runtime_failure/);
   assert.match(prompt, /music-package-that-does-not-exist/);
+  assert.equal(kernel.state().tools.get('fragile_dependency').version, 2);
+  const rollback = [...kernel.state().developmentalProposals.values()]
+    .find(proposal => proposal.revision?.rollbackOf === workingDigest);
+  const trial = kernel.openSounding();
+  const trialInference = begin(kernel, trial.id);
+  assert.deepEqual(
+    (await kernel.trialDevelopmentalProposal(trialInference, trial.id, rollback.proposalId, {})).output,
+    { value: 'working' },
+  );
+  complete(kernel, trialInference);
+  const admission = kernel.openSounding();
+  const admissionInference = begin(kernel, admission.id);
+  kernel.stageDevelopmentalTransaction(admissionInference, admission.id, {
+    interpretation: 'The retained working ancestor executed successfully.',
+    decisions: [{
+      proposalId: rollback.proposalId, disposition: 'rollback',
+      interpretation: 'Admit the exercised recovery successor.',
+    }],
+  });
+  complete(kernel, admissionInference);
   assert.equal(kernel.state().tools.get('fragile_dependency').version, 3);
   assert.equal(kernel.state().tools.get('fragile_dependency').source, working.source);
 });

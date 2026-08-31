@@ -70,6 +70,16 @@ test('the ordinary continuity tool makes a subject-authored current situation pr
   const { kernel, mind } = harness(retainingModel, { designation: null });
   await mind.receive(kernel.openSounding().id);
 
+  const provisional = kernel.openSounding();
+  assert.equal(provisional.carrier.components.find(component => component.id === 'continuity').state.generation, 0);
+  const proposal = [...kernel.state().developmentalProposals.values()].find(candidate => candidate.kind === 'carrier');
+  const provisionalInference = kernel.beginInference(
+    provisional.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Exercise continuity proposal.' },
+  );
+  await kernel.trialDevelopmentalProposal(provisionalInference, provisional.id, proposal.proposalId, { question: 'Will this remain present?' });
+  completeFixture(kernel, provisionalInference);
+  await admitProposal(kernel, proposal.proposalId);
+
   const later = kernel.openSounding();
   const continuity = later.carrier.components.find(component => component.id === 'continuity');
   assert.equal(continuity.state.generation, 1);
@@ -127,6 +137,9 @@ test('the subject can tune later step, event-size, and timeout policy through or
   });
   const { kernel, mind } = harness(model, { designation: null });
   await mind.receive(kernel.openSounding().id);
+
+  const proposal = [...kernel.state().developmentalProposals.values()].find(candidate => candidate.kind === 'carrier');
+  await exerciseAndAdmitProposal(kernel, proposal.proposalId, { probe: 'validate wider policy' });
 
   const later = kernel.openSounding();
   assert.deepEqual(kernel.inferencePolicy(later.id), {
@@ -260,7 +273,7 @@ test('the one mind can author a new tool without clean completion prematurely em
   assert.equal(later.tools.some(tool => tool.id === 'compare'), false);
 });
 
-test('the one mind can author a bounded carrier transition for its next encounter', async () => {
+test('the one mind can author, exercise, and explicitly admit a bounded carrier transition', async () => {
   const model = new MockLanguageModelV4({
     doGenerate: [
       toolCallResult('revise_carrier', {
@@ -277,6 +290,18 @@ test('the one mind can author a bounded carrier transition for its next encounte
 
   await mind.receive(before.id);
 
+  const provisional = kernel.openSounding();
+  const proposal = [...kernel.state().developmentalProposals.values()].find(candidate => candidate.kind === 'carrier');
+  assert.equal(
+    provisional.carrier.components.find(component => component.id === 'orientation').stateDigest,
+    before.carrier.components.find(component => component.id === 'orientation').stateDigest,
+  );
+  const provisionalInference = kernel.beginInference(
+    provisional.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Exercise orientation proposal.' },
+  );
+  await kernel.trialDevelopmentalProposal(provisionalInference, provisional.id, proposal.proposalId, { selection: 'ambiguous contact' });
+  completeFixture(kernel, provisionalInference);
+  await admitProposal(kernel, proposal.proposalId);
   const later = kernel.openSounding();
   const beforeOrientation = before.carrier.components.find(component => component.id === 'orientation');
   const laterOrientation = later.carrier.components.find(component => component.id === 'orientation');
@@ -422,6 +447,12 @@ test('broken learned delivery geometry exposes exact recovery facts and can be r
   assert.match(recoveryPrompt, /omitted required fact/);
   assert.match(recoveryPrompt, /music_fact/);
   assert.equal(kernel.audit().failedDeliveryProjections, 1);
+  assert.equal(kernel.state().tools.get('shape_encounter').version, 2);
+  const rollback = [...kernel.state().developmentalProposals.values()].find(candidate => candidate.revision?.rollbackOf === originalDigest);
+  await exerciseAndAdmitProposal(kernel, rollback.proposalId, {
+    phase: 'sounding', trigger: 'manual', soundingId: 'rollback-trial',
+    facts: [{ id: 'trial', digest: '0'.repeat(64), envelope: '[music_fact id="trial" digest=trial]\n{}\n[/music_fact]' }],
+  }, 'rollback');
   assert.equal(kernel.state().tools.get('shape_encounter').version, 3);
   assert.equal(kernel.state().tools.get('shape_encounter').source, original.source);
 
@@ -645,6 +676,32 @@ function primeOrientation(kernel, value) {
     responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: 'Carrier transition staged.' }] }],
     text: 'Carrier transition staged.', finishReason: 'stop', usage: {}, steps: [], requests: [],
   });
+}
+
+async function exerciseAndAdmitProposal(kernel, proposalId, input, disposition = 'admit') {
+  const sounding = kernel.openSounding('manual');
+  const inferenceId = kernel.beginInference(
+    sounding.id,
+    { provider: 'fixture-provider', model: 'fixture-model' },
+    { role: 'user', content: 'Exercise provisional developmental machinery.' },
+  );
+  await kernel.trialDevelopmentalProposal(inferenceId, sounding.id, proposalId, input);
+  completeFixture(kernel, inferenceId);
+  await admitProposal(kernel, proposalId, disposition);
+}
+
+async function admitProposal(kernel, proposalId, disposition = 'admit') {
+  const sounding = kernel.openSounding('manual');
+  const inferenceId = kernel.beginInference(
+    sounding.id,
+    { provider: 'fixture-provider', model: 'fixture-model' },
+    { role: 'user', content: 'Commit explicit developmental standing.' },
+  );
+  kernel.stageDevelopmentalTransaction(inferenceId, sounding.id, {
+    interpretation: 'Fixture an explicit promotion boundary after retained exercise.',
+    decisions: [{ proposalId, disposition, interpretation: 'The retained trial supports this disposition.' }],
+  });
+  completeFixture(kernel, inferenceId);
 }
 
 function completeFixture(kernel, inferenceId) {

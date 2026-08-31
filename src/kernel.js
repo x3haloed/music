@@ -282,6 +282,55 @@ export class MusicKernel {
     return { proposalId, kind: 'tool', status: 'authored', revision: structuredClone(revision) };
   }
 
+  authorToolRollbackProposal(inferenceId, soundingId, toolId, targetDigest, proposal = {}) {
+    const state = this.state();
+    requireActiveEncounter(state, inferenceId, soundingId);
+    const current = state.tools.get(toolId);
+    if (!current) throw new Error(`unknown tool: ${toolId}`);
+    const target = state.toolHistory.get(targetDigest);
+    if (!target || target.id !== toolId) throw new Error(`unknown prior version for ${toolId}: ${targetDigest}`);
+    return this.authorToolProposal(inferenceId, soundingId, {
+      ...proposal,
+      rollbackOf: targetDigest,
+      tool: {
+        id: target.id,
+        description: target.description,
+        inputSchema: target.inputSchema,
+        source: target.source,
+        ...(target.selection === undefined ? {} : { selection: target.selection }),
+      },
+    });
+  }
+
+  authorCarrierProposal(inferenceId, soundingId, proposal) {
+    const state = this.state();
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
+    if (!interpretation || interpretation.length > 4_096) throw new Error('carrier proposal needs a bounded interpretation');
+    const transition = createCarrierTransition(state.carrier, proposal);
+    const proposalId = this.id();
+    const retained = {
+      inferenceId,
+      soundingId,
+      projection: encounter.projection,
+      interpretation,
+      evidence: boundedEvidence(proposal.evidence),
+      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter),
+      ...transition,
+    };
+    this.append('developmental_proposal_authored', {
+      proposalId,
+      kind: 'carrier',
+      authoredAt: this.clock().toISOString(),
+      transition: retained,
+      position: developmentalStandingSuccessor(state, {
+        kind: 'proposal-authored', proposalId, proposalKind: 'carrier',
+        transitionDigest: digest(projectCarrierTransition(retained, encounter)),
+      }),
+    });
+    return { proposalId, kind: 'carrier', status: 'authored', transition: structuredClone(retained) };
+  }
+
   inspectDevelopment(inferenceId, soundingId, proposalId = null) {
     const state = this.state();
     requireActiveEncounter(state, inferenceId, soundingId);
@@ -302,22 +351,32 @@ export class MusicKernel {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
     const proposal = state.developmentalProposals.get(proposalId);
-    if (!proposal || proposal.kind !== 'tool') throw new Error(`unknown tool proposal: ${proposalId}`);
+    if (!proposal) throw new Error(`unknown developmental proposal: ${proposalId}`);
     if (!['authored', 'exercised', 'deferred', 'contradicted'].includes(proposal.status)) {
       throw new Error(`tool proposal ${proposalId} is ${proposal.status}, not trialable`);
     }
     const trialId = this.id();
+    const binding = proposal.kind === 'tool'
+      ? { kind: 'tool', id: proposal.revision.tool.id, digest: toolModuleDigest(proposal.revision.tool) }
+      : { kind: 'carrier', id: proposal.transition.component.id, digest: proposal.transition.successorRoot };
     this.append('developmental_trial_started', {
       trialId, proposalId, inferenceId, soundingId, projection: encounter.projection,
-      tool: { id: proposal.revision.tool.id, version: proposal.revision.tool.version, digest: toolModuleDigest(proposal.revision.tool) },
+      binding,
       input: jsonValue(input, 'developmental trial input'),
     });
     try {
-      const output = await executeToolModule(proposal.revision.tool, input, {
-        trialId, proposalId, inferenceId, soundingId, projection: encounter.projection,
-        ledgerPath: this.ledgerPath,
-        environment: structuredClone(this.toolEnvironment),
-      });
+      const output = proposal.kind === 'tool'
+        ? await executeToolModule(proposal.revision.tool, input, {
+          trialId, proposalId, inferenceId, soundingId, projection: encounter.projection,
+          ledgerPath: this.ledgerPath,
+          environment: structuredClone(this.toolEnvironment),
+        })
+        : {
+          kind: 'provisional-carrier-projection',
+          componentId: proposal.transition.component.id,
+          carrier: projectCarrier(applyCarrierTransition(state.carrier, proposal.transition)),
+          probe: jsonValue(input, 'developmental carrier probe'),
+        };
       const current = this.state();
       this.append('developmental_trial_completed', {
         trialId,
@@ -525,7 +584,10 @@ export class MusicKernel {
         environment: structuredClone(this.toolEnvironment),
         selectToolAction: (selectedToolId, frontier) => this.selectToolAction(inferenceId, soundingId, selectedToolId, frontier),
         stageConsequenceTransition: proposal => this.stageConsequenceTransition(inferenceId, soundingId, proposal),
-        stageCarrierTransition: proposal => this.stageCarrierTransition(inferenceId, soundingId, proposal),
+        stageCarrierTransition: proposal => {
+          const authored = this.authorCarrierProposal(inferenceId, soundingId, proposal);
+          return { ...authored.transition, proposalId: authored.proposalId, status: authored.status };
+        },
         stageWakeTransition: proposal => this.stageWakeTransition(inferenceId, soundingId, invocationId, proposal),
       });
       this.append('tool_invocation_completed', { invocationId, output });
@@ -1078,26 +1140,32 @@ function reduceEvents(events) {
       }
       case 'developmental_proposal_authored': {
         requireSubject(state);
+        const authoredChange = event.payload.kind === 'tool' ? event.payload.revision : event.payload.transition;
         requireActiveEncounter(
           state,
-          event.payload.revision?.inferenceId,
-          event.payload.revision?.soundingId,
-          event.payload.revision?.projection,
+          authoredChange?.inferenceId,
+          authoredChange?.soundingId,
+          authoredChange?.projection,
         );
         if (state.developmentalProposals.has(event.payload.proposalId)) throw new Error('duplicate developmental proposal id');
-        if (event.payload.kind !== 'tool') throw new Error('unsupported developmental proposal kind');
-        const revision = validateStagedRevision(event.payload.revision, state);
+        if (!['tool', 'carrier'].includes(event.payload.kind)) throw new Error('unsupported developmental proposal kind');
+        const revision = event.payload.kind === 'tool' ? validateStagedRevision(event.payload.revision, state) : null;
+        const transition = event.payload.kind === 'carrier'
+          ? projectCarrierTransition(event.payload.transition, state.activeEncounter)
+          : null;
+        if (transition) applyCarrierTransition(state.carrier, transition);
         const expectedPosition = developmentalStandingSuccessor(state, {
           kind: 'proposal-authored', proposalId: event.payload.proposalId,
-          proposalKind: 'tool', revisionDigest: digest(revision),
+          proposalKind: event.payload.kind,
+          ...(revision ? { revisionDigest: digest(revision) } : { transitionDigest: digest(transition) }),
         });
         if (digest(event.payload.position) !== digest(expectedPosition)) throw new Error('proposal authorship position mismatch');
         state.developmentalProposals.set(event.payload.proposalId, {
           proposalId: event.payload.proposalId,
-          kind: 'tool',
+          kind: event.payload.kind,
           authoredAt: event.payload.authoredAt,
           status: 'authored',
-          revision,
+          ...(revision ? { revision } : { transition }),
           trials: [],
           standing: [],
         });
@@ -1107,9 +1175,12 @@ function reduceEvents(events) {
       case 'developmental_trial_started': {
         const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         const proposal = state.developmentalProposals.get(event.payload.proposalId);
-        if (!proposal || proposal.kind !== 'tool') throw new Error('developmental trial cites unknown tool proposal');
+        if (!proposal) throw new Error('developmental trial cites unknown proposal');
         if (state.developmentalTrials.has(event.payload.trialId)) throw new Error('duplicate developmental trial id');
-        if (toolModuleDigest(proposal.revision.tool) !== event.payload.tool?.digest) throw new Error('developmental trial tool binding mismatch');
+        const expectedBinding = proposal.kind === 'tool'
+          ? { kind: 'tool', id: proposal.revision.tool.id, digest: toolModuleDigest(proposal.revision.tool) }
+          : { kind: 'carrier', id: proposal.transition.component.id, digest: proposal.transition.successorRoot };
+        if (digest(event.payload.binding) !== digest(expectedBinding)) throw new Error('developmental trial binding mismatch');
         state.developmentalTrials.set(event.payload.trialId, {
           ...structuredClone(event.payload), encounter: encounter.sounding.id, status: 'started',
         });
@@ -1440,20 +1511,29 @@ function developmentalSuccessorForCompletion(state, {
       .map(decision => state.developmentalProposals.get(decision.proposalId)?.revision)
       .filter(Boolean)
     : [];
+  const admittedCarrierTransitions = developmentalTransaction
+    ? developmentalTransaction.decisions
+      .filter(decision => decision.disposition === 'admit')
+      .map(decision => state.developmentalProposals.get(decision.proposalId))
+      .filter(proposal => proposal?.kind === 'carrier')
+      .map(proposal => proposal.transition)
+    : [];
+  if (admittedCarrierTransitions.length > 1) throw new Error('one developmental transaction cannot admit multiple carrier successors');
   const changes = revisions.length + consequenceTransitions.length
-    + admittedRevisions.length + (developmentalTransaction?.decisions.length ?? 0)
+    + admittedRevisions.length + admittedCarrierTransitions.length + (developmentalTransaction?.decisions.length ?? 0)
     + (carrierTransition ? 1 : 0) + (wakeTransition ? 1 : 0);
   if (changes === 0) return null;
   const tools = new Map(state.tools);
   for (const revision of [...revisions, ...admittedRevisions]) tools.set(revision.tool.id, revision.tool);
-  const carrier = carrierTransition ? applyCarrierTransition(state.carrier, carrierTransition) : state.carrier;
+  let carrier = carrierTransition ? applyCarrierTransition(state.carrier, carrierTransition) : state.carrier;
+  if (admittedCarrierTransitions[0]) carrier = applyCarrierTransition(carrier, admittedCarrierTransitions[0]);
   const opening = wakeTransition
     ? openingFromWake(wakeTransition, state.position.activeOpening)
     : undefined;
   return createDevelopmentalSuccessor(state.position, {
     tools,
     carrier,
-    carrierTransition,
+    carrierTransition: admittedCarrierTransitions[0] ?? carrierTransition,
     consequenceTransitions,
     standingTransitions: [
       ...consequenceTransitions.map(transition => ({ kind: 'consequence', transition })),
@@ -1489,6 +1569,9 @@ function validateDevelopmentalDecisions(value, state) {
       && !proposal.trials.some(trial => trial.status === 'completed')) {
       throw new Error(`developmental proposal ${proposalId} must be exercised before ${disposition}`);
     }
+    if (disposition === 'rollback' && (proposal.kind !== 'tool' || proposal.revision.rollbackOf === null)) {
+      throw new Error(`developmental proposal ${proposalId} is not a rollback proposal`);
+    }
     if (['admitted', 'denied', 'retired'].includes(proposal.status)) {
       throw new Error(`developmental proposal ${proposalId} is already ${proposal.status}`);
     }
@@ -1503,13 +1586,19 @@ function applyDevelopmentalTransaction(state, transaction) {
     const proposal = state.developmentalProposals.get(decision.proposalId);
     if (!proposal) throw new Error(`developmental transaction cites unknown proposal: ${decision.proposalId}`);
     if (decision.disposition === 'admit' || decision.disposition === 'rollback') {
-      const tool = validateToolModule(proposal.revision.tool);
-      const current = state.tools.get(tool.id);
-      if ((current ? toolModuleDigest(current) : null) !== proposal.revision.previousTool) {
-        throw new Error(`developmental proposal ${decision.proposalId} no longer succeeds active tool geometry`);
+      if (proposal.kind === 'tool') {
+        const tool = validateToolModule(proposal.revision.tool);
+        const current = state.tools.get(tool.id);
+        if ((current ? toolModuleDigest(current) : null) !== proposal.revision.previousTool) {
+          throw new Error(`developmental proposal ${decision.proposalId} no longer succeeds active tool geometry`);
+        }
+        state.tools.set(tool.id, tool);
+        state.toolHistory.set(toolModuleDigest(tool), tool);
+      } else {
+        if (decision.disposition === 'rollback') throw new Error('carrier proposals do not use rollback disposition');
+        state.carrier = applyCarrierTransition(state.carrier, proposal.transition);
+        inferencePolicyFromCarrier(state.carrier);
       }
-      state.tools.set(tool.id, tool);
-      state.toolHistory.set(toolModuleDigest(tool), tool);
       proposal.status = decision.disposition === 'rollback' ? 'rolled-back' : 'admitted';
     } else {
       proposal.status = decision.disposition === 'deny' ? 'denied'
@@ -1525,20 +1614,37 @@ function applyDevelopmentalTransaction(state, transaction) {
 }
 
 function projectDevelopmentalProposal(proposal, includeSource) {
-  const revision = proposal.revision;
-  return {
+  const base = {
     proposalId: proposal.proposalId,
     kind: proposal.kind,
     authoredAt: proposal.authoredAt,
     status: proposal.status,
-    interpretation: revision.interpretation,
-    evidence: structuredClone(revision.evidence),
-    consequences: structuredClone(revision.consequences),
     trials: structuredClone(proposal.trials),
     standing: structuredClone(proposal.standing),
-    tool: includeSource
-      ? structuredClone(revision.tool)
-      : { id: revision.tool.id, version: revision.tool.version, digest: toolModuleDigest(revision.tool) },
+  };
+  if (proposal.kind === 'tool') {
+    const revision = proposal.revision;
+    return {
+      ...base,
+      interpretation: revision.interpretation,
+      evidence: structuredClone(revision.evidence),
+      consequences: structuredClone(revision.consequences),
+      tool: includeSource
+        ? structuredClone(revision.tool)
+        : { id: revision.tool.id, version: revision.tool.version, digest: toolModuleDigest(revision.tool) },
+    };
+  }
+  return {
+    ...base,
+    interpretation: proposal.transition.interpretation,
+    evidence: structuredClone(proposal.transition.evidence),
+    consequences: structuredClone(proposal.transition.consequences),
+    carrier: {
+      componentId: proposal.transition.component.id,
+      parentRoot: proposal.transition.parentRoot,
+      successorRoot: proposal.transition.successorRoot,
+      ...(includeSource ? { component: structuredClone(proposal.transition.component) } : {}),
+    },
   };
 }
 

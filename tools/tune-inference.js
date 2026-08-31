@@ -5,7 +5,7 @@ export function initialTuneInferenceTool() {
     id: 'tune_inference',
     version: 1,
     parent: null,
-    description: 'Stage the inference policy that will govern later encounters: maximum model steps, maximum bytes in each retained inference event, and total encounter timeout. Supply the complete successor policy; broad physical ceilings remain in the continuity kernel.',
+    description: 'Author a provisional inference policy for later encounters: maximum model steps, retained-event bytes, and total timeout. Supply a complete policy. It becomes active only after developmental exercise and explicit admission; broad physical ceilings remain in the kernel.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -42,11 +42,11 @@ async function tuneInference(input, context) {
     consequenceDeltaIds: input.consequenceDeltaIds ?? [],
   });
   return {
-    kind: 'inference-policy-transition',
+    kind: 'inference-policy-proposal',
+    proposalId: transition.proposalId,
     policy: transition.component.state.value,
     generation: transition.component.state.generation,
     successorRoot: transition.successorRoot,
-    visible: 'next-sounding',
+    active: false,
   };
 }
-

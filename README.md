@@ -153,10 +153,10 @@ the further copy if the local doctor or repository metadata is damaged.
 
 `revise_tool` and `rollback_tool` are bootstrap meta-tools. A revision carries a
 complete replacement description, JSON Schema, optional selection geometry, and
-JavaScript function body. It remains unavailable in the current Sounding and
-becomes active only when the inference completes successfully. Rollback does not
-erase history: it copies a retained earlier executable body into a new child of
-the current version.
+JavaScript function body. It remains provisional across clean completion until
+the subject exercises and explicitly admits it. Rollback does not erase history:
+it authors a provisional child that copies a retained earlier executable body,
+then passes through the same exercise and explicit rollback transaction.
 
 A world-authored Delta may declare that it `bearsOn` an exact retained tool
 invocation. That reference assigns no meaning to the observation. The one mind

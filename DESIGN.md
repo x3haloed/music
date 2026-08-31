@@ -312,7 +312,7 @@ When `revise_tool`, `revise_carrier`, or `rollback_tool` cites a
 `consequenceDeltaIds` entry, the kernel verifies that the exact consequence
 Delta was delivered in the current Sounding—either as a new Delta or on the
 unresolved-consequence surface—and retains its referenced invocation IDs on the
-staged change. A change may still be authored without world consequence;
+provisional proposal. A change may still be authored without world consequence;
 consequence attribution, when claimed, cannot point to an undelivered or
 invented observation.
 
@@ -320,9 +320,11 @@ Consequence disposition belongs to the subject. The initial ordinary
 `attend_consequence` module can stage `defer` or `settle` through a kernel
 primitive. Deferral keeps the complete world Delta and the subject's bounded
 interpretation active in later Soundings. Settlement removes it from the active
-surface without erasing history. Like source and carrier changes, disposition
-activates only on successful inference completion; interruption leaves the
-prior consequence state intact.
+surface without erasing history. Consequence disposition currently commits only
+after its explicit tool invocation and successful encounter completion;
+interruption leaves the prior consequence state intact. Tool and carrier changes
+instead pass through retained proposal, exercise, and developmental transaction
+standing before becoming active.
 
 For uncertain invocations, audit distinguishes uncertainty with and without
 later exact world contact. Contact is not itself declared reconciliation; only

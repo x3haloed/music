@@ -5,7 +5,7 @@ export function initialRetainContextTool() {
     id: 'retain_context',
     version: 1,
     parent: null,
-    description: 'Stage the bounded, subject-authored account of the current situation that should be present in later encounters. Completed transcripts remain audit history; this tool decides what becomes active continuity. No update is obligatory.',
+    description: 'Author a provisional bounded account of the current situation. Completed transcripts remain audit history; no update is obligatory. The account becomes active continuity only after developmental exercise and explicit admission.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -36,11 +36,11 @@ async function retainContext(input, context) {
     consequenceDeltaIds: input.consequenceDeltaIds ?? [],
   });
   return {
-    kind: 'continuity-transition',
+    kind: 'continuity-proposal',
+    proposalId: transition.proposalId,
     componentId: transition.component.id,
     generation: transition.component.state.generation,
     successorRoot: transition.successorRoot,
-    visible: 'next-sounding',
+    active: false,
   };
 }
-
