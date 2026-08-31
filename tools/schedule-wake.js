@@ -5,12 +5,14 @@ export function initialScheduleWakeTool() {
     id: 'schedule_wake',
     version: 1,
     parent: null,
-    description: 'Choose when this same continuing subject should next wake without waiting for world contact. The wake activates only if the current inference completes; world contact may preempt it without erasing its retained reason.',
+    description: 'Close the current developmental opening and author a structured successor opening for this same subject. Its bounded content and earliest presentation time become part of the parent-bound position after successful transaction commit; incoming world contact can present it once it is due.',
     inputSchema: {
       type: 'object',
       properties: {
         afterMs: { type: 'integer', minimum: 1_000 },
         reason: { type: 'string', minLength: 1, maxLength: 2_048 },
+        closureStatus: { type: 'string', minLength: 1, maxLength: 128 },
+        content: { type: 'object', additionalProperties: true },
       },
       required: ['afterMs', 'reason'],
       additionalProperties: false,

@@ -182,7 +182,7 @@ export function createTools(kernel, inferenceId, soundingId) {
     inputSchema: jsonSchema({
       type: 'object', properties: {
         decisions: {
-          type: 'array', minItems: 1, maxItems: 32, items: {
+          type: 'array', maxItems: 32, items: {
             type: 'object', properties: {
               proposalId: { type: 'string', minLength: 1, maxLength: 128 },
               disposition: { type: 'string', enum: ['admit', 'deny', 'defer', 'contradict', 'retire', 'rollback'] },
@@ -190,9 +190,22 @@ export function createTools(kernel, inferenceId, soundingId) {
             }, required: ['proposalId', 'disposition', 'interpretation'], additionalProperties: false,
           },
         },
+        opening: {
+          type: 'object', properties: {
+            notBefore: { type: ['string', 'null'] },
+            content: { type: 'object', additionalProperties: true },
+            closes: {
+              type: 'object', properties: {
+                openingId: { type: ['string', 'null'], maxLength: 128 },
+                status: { type: 'string', minLength: 1, maxLength: 128 },
+                interpretation: { type: 'string', minLength: 1, maxLength: 4_096 },
+              }, required: ['openingId', 'status', 'interpretation'], additionalProperties: false,
+            },
+          }, required: ['content', 'closes'], additionalProperties: false,
+        },
         interpretation: { type: 'string', minLength: 1, maxLength: 4_096 },
         evidence: { type: 'array', maxItems: 32, items: { type: 'string', minLength: 1, maxLength: 512 } },
-      }, required: ['decisions', 'interpretation'], additionalProperties: false,
+      }, required: ['interpretation'], additionalProperties: false,
     }),
     execute: async input => kernel.stageDevelopmentalTransaction(inferenceId, soundingId, input),
   });

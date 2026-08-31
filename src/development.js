@@ -45,6 +45,10 @@ export function projectDevelopmentalPosition(position) {
   return structuredClone(readDevelopmentalPosition(position));
 }
 
+export function createDevelopmentalOpening(value) {
+  return validateOpening(value);
+}
+
 export function createDevelopmentalSuccessor(position, {
   tools,
   carrier,

@@ -8,7 +8,7 @@ import { applyCarrierTransition, createCarrierTransition, initialCarrier, projec
 import { inferencePolicyFromCarrier, inferencePolicyFromProjection } from './inference-policy.js';
 import { executeToolModule, toolModuleDigest, validateToolModule } from './tool-module.js';
 import {
-  createDevelopmentalSuccessor, initialDevelopmentalPosition, openingFromWake,
+  createDevelopmentalOpening, createDevelopmentalSuccessor, initialDevelopmentalPosition, openingFromWake,
   projectDevelopmentalPosition, readDevelopmentalPosition,
 } from './development.js';
 
@@ -101,7 +101,7 @@ export class MusicKernel {
     requireSubject(state);
     if (state.activeInferenceId) throw new Error(`cannot open a Sounding while inference is active: ${state.activeInferenceId}`);
     if (state.openSoundingId) throw new Error(`an opened Sounding is still awaiting an encounter: ${state.openSoundingId}`);
-    if (!['delta', 'continuation', 'scheduled', 'heartbeat', 'manual'].includes(trigger)) throw new Error('invalid Sounding trigger');
+    if (!['delta', 'continuation', 'opening', 'scheduled', 'heartbeat', 'manual'].includes(trigger)) throw new Error('invalid Sounding trigger');
     const base = {
       id: this.id(),
       subject: structuredClone(state.subject),
@@ -112,6 +112,10 @@ export class MusicKernel {
       carrier: projectCarrier(state.carrier),
       ...(state.position ? { position: projectDevelopmentalPosition(state.position) } : {}),
     };
+    if (trigger === 'opening' && !dueUnpresentedOpening(state, Date.parse(base.at))) {
+      const notBefore = state.position?.activeOpening?.notBefore;
+      throw new Error(notBefore ? `developmental opening is not due until ${notBefore}` : 'no due unpresented developmental opening');
+    }
     base.wake = projectOpeningWake(state.nextWake, trigger, base.at);
     const surface = planSoundingSurface(state, base);
     const sounding = { ...base, ...surface.sounding };
@@ -404,18 +408,56 @@ export class MusicKernel {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
     if (state.stagedDevelopmentalTransaction) throw new Error('only one developmental transaction may be staged per encounter');
-    const decisions = validateDevelopmentalDecisions(proposal?.decisions, state);
+    const decisions = validateDevelopmentalDecisions(proposal?.decisions ?? [], state, { allowEmpty: proposal?.opening !== undefined });
     const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
     if (!interpretation || interpretation.length > 4_096) throw new Error('developmental transaction needs a bounded interpretation');
+    const opening = proposal?.opening === undefined ? null : validateProposedOpening(proposal.opening, state, this.id, this.clock);
+    if (decisions.length === 0 && opening === null) throw new Error('developmental transaction needs decisions or a successor opening');
     const transaction = {
       transactionId: this.id(), inferenceId, soundingId, projection: encounter.projection,
       positionRoot: state.position?.root ?? null,
       interpretation,
       evidence: boundedEvidence(proposal.evidence),
       decisions,
+      opening,
     };
     this.append('developmental_transaction_staged', transaction);
     return structuredClone(transaction);
+  }
+
+  stageOpeningTransition(inferenceId, soundingId, invocationId, proposal) {
+    const state = this.state();
+    const invocation = state.activeToolInvocations.get(invocationId);
+    if (!invocation || invocation.inferenceId !== inferenceId || invocation.soundingId !== soundingId) {
+      throw new Error('successor opening requires its active tool invocation');
+    }
+    const afterMs = proposal?.afterMs;
+    if (!Number.isSafeInteger(afterMs) || afterMs < 1_000) throw new Error('successor opening afterMs must be at least 1000');
+    const reason = typeof proposal?.reason === 'string' ? proposal.reason.trim() : '';
+    if (!reason || reason.length > 2_048) throw new Error('successor opening needs a bounded reason');
+    const authoredAt = this.clock().toISOString();
+    const notBefore = new Date(Date.parse(authoredAt) + afterMs).toISOString();
+    return this.stageDevelopmentalTransaction(inferenceId, soundingId, {
+      decisions: [],
+      interpretation: reason,
+      evidence: [],
+      opening: {
+        authoredAt,
+        notBefore,
+        content: {
+          reason,
+          ...(proposal.content === undefined ? {} : { content: jsonValue(proposal.content, 'successor opening content') }),
+          invocationId,
+          tool: structuredClone(invocation.tool),
+        },
+        closes: {
+          openingId: state.position?.activeOpening?.id ?? null,
+          status: typeof proposal?.closureStatus === 'string' && proposal.closureStatus.trim()
+            ? proposal.closureStatus.trim() : 'continued',
+          interpretation: reason,
+        },
+      },
+    });
   }
 
   inspectTool(inferenceId, soundingId, toolId) {
@@ -588,7 +630,7 @@ export class MusicKernel {
           const authored = this.authorCarrierProposal(inferenceId, soundingId, proposal);
           return { ...authored.transition, proposalId: authored.proposalId, status: authored.status };
         },
-        stageWakeTransition: proposal => this.stageWakeTransition(inferenceId, soundingId, invocationId, proposal),
+        stageWakeTransition: proposal => this.stageOpeningTransition(inferenceId, soundingId, invocationId, proposal),
       });
       this.append('tool_invocation_completed', { invocationId, output });
       return output;
@@ -852,6 +894,9 @@ export class MusicKernel {
         reason: state.nextWake.reason,
         invocationId: state.nextWake.invocationId,
       } : null,
+      activeOpening: state.position?.activeOpening ? structuredClone(state.position.activeOpening) : null,
+      activeOpeningPresented: state.position?.activeOpening
+        ? state.presentedOpeningIds.has(state.position.activeOpening.id) : false,
       uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
         .filter(([invocationId, invocation]) => invocation.status === 'uncertain' && !state.contactedInvocationIds.has(invocationId)).length,
       selections: state.selectionCount,
@@ -938,6 +983,7 @@ function reduceEvents(events) {
     developmentalProposals: new Map(),
     developmentalTrials: new Map(),
     nextWake: null,
+    presentedOpeningIds: new Set(),
     selections: new Map(),
     usedSelectionIds: new Set(),
     selectionCount: 0,
@@ -1014,6 +1060,10 @@ function reduceEvents(events) {
         if (state.soundings.has(sounding.id)) throw new Error(`ledger repeats Sounding id: ${sounding.id}`);
         const toolBindings = bindProjectedTools(state.tools, sounding.tools);
         validateOpeningWake(sounding.wake ?? null, state.nextWake, sounding.trigger, sounding.at);
+        const opening = dueUnpresentedOpening(state, Date.parse(sounding.at));
+        if (sounding.trigger === 'opening' && !opening) throw new Error('Sounding claims no due unpresented opening');
+        const presentedOpeningId = opening?.id ?? null;
+        if (presentedOpeningId) state.presentedOpeningIds.add(presentedOpeningId);
         if (sounding.frontier === undefined) {
           if (digest(sounding.unresolvedConsequences) !== digest(projectUnresolvedConsequences(state))) {
             throw new Error('Sounding unresolved consequence projection mismatch');
@@ -1047,6 +1097,7 @@ function reduceEvents(events) {
           steeringDeltas: [],
           status: 'opened',
           inferenceId: null,
+          presentedOpeningId,
         });
         state.openSoundingId = sounding.id;
         state.nextWake = null;
@@ -1223,7 +1274,8 @@ function reduceEvents(events) {
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         if (state.stagedDevelopmentalTransaction) throw new Error('ledger stages more than one developmental transaction in an encounter');
         if (event.payload.positionRoot !== (state.position?.root ?? null)) throw new Error('developmental transaction position binding mismatch');
-        validateDevelopmentalDecisions(event.payload.decisions, state);
+        validateDevelopmentalDecisions(event.payload.decisions, state, { allowEmpty: event.payload.opening !== null });
+        if (event.payload.opening !== null) validateRetainedOpeningTransition(event.payload.opening, state);
         state.stagedDevelopmentalTransaction = structuredClone(event.payload);
         break;
       }
@@ -1471,6 +1523,9 @@ function reduceEvents(events) {
         if (state.activeEncounter.sounding.wake) {
           state.nextWake = restoreOpeningWake(state.activeEncounter.sounding.wake);
         }
+        if (state.activeEncounter.presentedOpeningId) {
+          state.presentedOpeningIds.delete(state.activeEncounter.presentedOpeningId);
+        }
         for (const [invocationId, invocation] of state.activeToolInvocations) {
           if (invocation.inferenceId === event.payload.inferenceId) {
             state.activeToolInvocations.delete(invocationId);
@@ -1521,15 +1576,15 @@ function developmentalSuccessorForCompletion(state, {
   if (admittedCarrierTransitions.length > 1) throw new Error('one developmental transaction cannot admit multiple carrier successors');
   const changes = revisions.length + consequenceTransitions.length
     + admittedRevisions.length + admittedCarrierTransitions.length + (developmentalTransaction?.decisions.length ?? 0)
+    + (developmentalTransaction?.opening ? 1 : 0)
     + (carrierTransition ? 1 : 0) + (wakeTransition ? 1 : 0);
   if (changes === 0) return null;
   const tools = new Map(state.tools);
   for (const revision of [...revisions, ...admittedRevisions]) tools.set(revision.tool.id, revision.tool);
   let carrier = carrierTransition ? applyCarrierTransition(state.carrier, carrierTransition) : state.carrier;
   if (admittedCarrierTransitions[0]) carrier = applyCarrierTransition(carrier, admittedCarrierTransitions[0]);
-  const opening = wakeTransition
-    ? openingFromWake(wakeTransition, state.position.activeOpening)
-    : undefined;
+  const opening = developmentalTransaction?.opening?.successor
+    ?? (wakeTransition ? openingFromWake(wakeTransition, state.position.activeOpening) : undefined);
   return createDevelopmentalSuccessor(state.position, {
     tools,
     carrier,
@@ -1552,9 +1607,9 @@ function developmentalStandingSuccessor(state, transition) {
   });
 }
 
-function validateDevelopmentalDecisions(value, state) {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 32) {
-    throw new Error('developmental transaction needs 1-32 decisions');
+function validateDevelopmentalDecisions(value, state, { allowEmpty = false } = {}) {
+  if (!Array.isArray(value) || value.length > 32 || (!allowEmpty && value.length < 1)) {
+    throw new Error(`developmental transaction needs ${allowEmpty ? '0' : '1'}-32 decisions`);
   }
   const seen = new Set();
   return value.map(raw => {
@@ -1579,6 +1634,40 @@ function validateDevelopmentalDecisions(value, state) {
     if (!interpretation || interpretation.length > 4_096) throw new Error('developmental decision needs a bounded interpretation');
     return { proposalId, disposition, interpretation };
   });
+}
+
+function validateProposedOpening(raw, state, id, clock) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('successor opening must be an object');
+  const current = state.position?.activeOpening ?? null;
+  const closes = validateOpeningClosure(raw.closes, current);
+  const authoredAt = raw.authoredAt ?? clock().toISOString();
+  const successor = createDevelopmentalOpening({
+    id: id(),
+    parent: current?.id ?? null,
+    authoredAt,
+    notBefore: raw.notBefore ?? null,
+    content: raw.content,
+  });
+  return { successor, closes };
+}
+
+function validateRetainedOpeningTransition(value, state) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('retained opening transition must be an object');
+  const current = state.position?.activeOpening ?? null;
+  const successor = createDevelopmentalOpening(value.successor);
+  if (successor.parent !== (current?.id ?? null)) throw new Error('successor opening ancestry mismatch');
+  const closes = validateOpeningClosure(value.closes, current);
+  return { successor, closes };
+}
+
+function validateOpeningClosure(value, current) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('successor opening needs an explicit closure receipt');
+  if ((value.openingId ?? null) !== (current?.id ?? null)) throw new Error('opening closure does not cite the active opening');
+  const status = typeof value.status === 'string' ? value.status.trim() : '';
+  const interpretation = typeof value.interpretation === 'string' ? value.interpretation.trim() : '';
+  if (!status || status.length > 128) throw new Error('opening closure status must be 1-128 characters');
+  if (!interpretation || interpretation.length > 4_096) throw new Error('opening closure interpretation must be 1-4096 characters');
+  return { openingId: value.openingId ?? null, status, interpretation };
 }
 
 function applyDevelopmentalTransaction(state, transaction) {
@@ -1847,6 +1936,13 @@ function projectOpeningWake(nextWake, trigger, soundingAt) {
     ...structuredClone(nextWake),
     opening: trigger === 'scheduled' ? 'due' : 'preempted',
   };
+}
+
+function dueUnpresentedOpening(state, now) {
+  const opening = state.position?.activeOpening;
+  if (!opening || state.presentedOpeningIds.has(opening.id)) return null;
+  if (opening.notBefore !== null && now < Date.parse(opening.notBefore)) return null;
+  return opening;
 }
 
 function validateOpeningWake(openingWake, nextWake, trigger, soundingAt) {

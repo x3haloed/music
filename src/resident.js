@@ -54,13 +54,22 @@ export class MusicResident {
       this.startSounding(state.openSoundingId);
       return { admitted, started: true };
     }
+    const openingPending = state.position?.activeOpening
+      && !state.presentedOpeningIds?.has(state.position.activeOpening.id);
+    const openingDue = openingPending
+      && (state.position.activeOpening.notBefore === null
+        || this.clock() >= Date.parse(state.position.activeOpening.notBefore));
     const trigger = state.pendingDeltas.length > 0
       ? 'delta'
       : (state.consequenceSweepActive && state.consequenceSweepIds.length > 0
         ? 'continuation'
-        : (state.nextWake
-          ? (this.clock() >= Date.parse(state.nextWake.wakeAt) ? 'scheduled' : null)
-          : (this.clock() - this.lastEncounterAt >= this.heartbeatMs ? 'heartbeat' : null)));
+        : (openingDue
+          ? 'opening'
+          : (openingPending
+            ? null
+            : (state.nextWake
+              ? (this.clock() >= Date.parse(state.nextWake.wakeAt) ? 'scheduled' : null)
+              : (this.clock() - this.lastEncounterAt >= this.heartbeatMs ? 'heartbeat' : null)))));
     if (!trigger) return { admitted, started: false };
     this.startEncounter(trigger);
     return { admitted, started: true };

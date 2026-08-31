@@ -102,7 +102,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.get('message').required.includes('selectionReceipt'));
     assert.equal(tools.get('select_tool_action').properties.candidates.items.properties.input.type, 'object');
     assert.deepEqual(tools.get('shape_encounter').properties.phase.enum, ['sounding', 'steering']);
-    assert.deepEqual(tools.get('shape_encounter').properties.trigger.enum, ['delta', 'continuation', 'scheduled', 'heartbeat', 'manual']);
+    assert.deepEqual(tools.get('shape_encounter').properties.trigger.enum, ['delta', 'continuation', 'opening', 'scheduled', 'heartbeat', 'manual']);
     assert.deepEqual(tools.get('manage_dependency').properties.action.enum, ['install', 'remove', 'list']);
     assert.equal(tools.get('revise_tool').properties.tool.properties.source.type, 'string');
     assert.equal(tools.get('revise_tool').properties.consequenceDeltaIds.items.type, 'string');

@@ -293,10 +293,10 @@ test('a retained consequence remainder immediately opens a continuation Sounding
   await resident.activeEncounter;
 });
 
-test('a retained subject-authored wake suppresses fallback heartbeat until it is due', async () => {
+test('a retained subject-authored opening suppresses fallback heartbeat until it is due', async () => {
   const root = mkdtempSync(join(tmpdir(), 'music-resident-wake-test-'));
   let now = Date.UTC(2026, 7, 30, 18, 0, 0);
-  const wakeAt = new Date(now + 60_000).toISOString();
+  const notBefore = new Date(now + 60_000).toISOString();
   let openedWith = null;
   const kernel = {
     events: () => [{ type: 'sounding_opened', at: new Date(now - 3_600_000).toISOString() }],
@@ -306,7 +306,9 @@ test('a retained subject-authored wake suppresses fallback heartbeat until it is
       pendingDeltas: [],
       consequenceSweepActive: false,
       consequenceSweepIds: [],
-      nextWake: { wakeAt },
+      position: { activeOpening: { id: 'future-opening', notBefore } },
+      presentedOpeningIds: new Set(),
+      nextWake: null,
     }),
     openSounding(trigger) {
       openedWith = trigger;
@@ -319,10 +321,10 @@ test('a retained subject-authored wake suppresses fallback heartbeat until it is
     clock: () => now,
   });
 
-  assert.equal((await resident.pump()).started, false, 'chosen wake suppresses the otherwise overdue fallback heartbeat');
+  assert.equal((await resident.pump()).started, false, 'chosen opening suppresses the otherwise overdue fallback heartbeat');
   now += 60_000;
   assert.equal((await resident.pump()).started, true);
-  assert.equal(openedWith, 'scheduled');
+  assert.equal(openedWith, 'opening');
   await resident.activeEncounter;
 });
 

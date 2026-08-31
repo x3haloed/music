@@ -226,7 +226,7 @@ test('AI SDK tool loop invokes active Music geometry and performs durable human-
   assert.ok(model.doGenerateCalls[1].prompt.some(message => message.role === 'tool'));
 });
 
-test('the one mind can choose and retain its own next wake through ordinary tool geometry', async () => {
+test('the one mind can choose and retain its own next opening through ordinary tool geometry', async () => {
   const model = new MockLanguageModelV4({
     doGenerate: [
       toolCallResult('schedule_wake', { afterMs: 30_000, reason: 'Continue this thought after a short interval.' }),
@@ -237,8 +237,9 @@ test('the one mind can choose and retain its own next wake through ordinary tool
 
   await mind.receive(kernel.openSounding('manual').id);
 
-  assert.equal(kernel.audit().nextWake.reason, 'Continue this thought after a short interval.');
-  assert.equal(kernel.audit().nextWake.invocationId, kernel.state().invocations.at(-1).invocationId);
+  assert.equal(kernel.audit().nextWake, null);
+  assert.equal(kernel.audit().activeOpening.content.reason, 'Continue this thought after a short interval.');
+  assert.equal(kernel.audit().activeOpening.content.invocationId, kernel.state().invocations.at(-1).invocationId);
   assert.equal(kernel.state().invocations.at(-1).tool.id, 'schedule_wake');
 });
 

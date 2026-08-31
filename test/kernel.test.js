@@ -204,7 +204,7 @@ test('staged learned geometry is refused before it can consume the active contac
   assert.equal(next.frontier.pending.remaining, 0);
 });
 
-test('an ordinary tool stages a durable future wake that becomes exact Sounding contact', async () => {
+test('an ordinary tool authors a durable future opening that becomes exact Sounding contact', async () => {
   let now = Date.UTC(2026, 7, 30, 15, 0, 0);
   const { kernel } = harness({ clock: () => new Date(now) });
   const first = kernel.openSounding('manual');
@@ -215,29 +215,29 @@ test('an ordinary tool stages a durable future wake that becomes exact Sounding 
   });
   complete(kernel, inferenceId);
 
-  assert.equal(kernel.audit().nextWake.wakeAt, new Date(now + 10_000).toISOString());
-  assert.equal(kernel.audit().nextWake.invocationId, scheduled.invocationId);
+  assert.equal(kernel.audit().nextWake, null);
+  assert.equal(kernel.audit().activeOpening.notBefore, new Date(now + 10_000).toISOString());
+  assert.equal(kernel.audit().activeOpening.id, scheduled.opening.successor.id);
+  assert.equal(kernel.audit().activeOpening.content.invocationId, kernel.state().invocations.at(-1).invocationId);
   const reconstructed = new MusicKernel(kernel.ledgerPath, {
     clock: () => new Date(now),
     toolEnvironment: kernel.toolEnvironment,
   });
-  assert.equal(reconstructed.audit().nextWake.wakeId, scheduled.wakeId);
+  assert.equal(reconstructed.audit().activeOpening.id, scheduled.opening.successor.id);
   now += 9_999;
-  assert.throws(() => reconstructed.openSounding('scheduled'), /not due/);
+  assert.throws(() => reconstructed.openSounding('opening'), /not due/);
   now += 1;
-  const waking = reconstructed.openSounding('scheduled');
-  assert.equal(waking.wake.opening, 'due');
-  assert.equal(waking.wake.reason, 'Return to the unfinished thought.');
-  assert.equal(waking.wake.invocationId, scheduled.invocationId);
-  assert.equal(waking.position.activeOpening.id, scheduled.wakeId);
-  assert.equal(waking.position.activeOpening.notBefore, scheduled.wakeAt);
+  const waking = reconstructed.openSounding('opening');
+  assert.equal(waking.wake, null);
+  assert.equal(waking.position.activeOpening.id, scheduled.opening.successor.id);
+  assert.equal(waking.position.activeOpening.notBefore, new Date(now).toISOString());
   assert.equal(waking.position.activeOpening.content.reason, 'Return to the unfinished thought.');
   const projected = await reconstructed.projectEncounter(waking.id, 'sounding');
-  assert.match(projected.message.content, /sounding:wake/);
+  assert.match(projected.message.content, /sounding:position/);
   assert.match(projected.message.content, /Return to the unfinished thought/);
 });
 
-test('interruption restores the exact wake that opened the failed encounter', async () => {
+test('interruption restores presentation of the exact opening that opened the failed encounter', async () => {
   let now = Date.UTC(2026, 7, 30, 16, 0, 0);
   const { kernel } = harness({ clock: () => new Date(now) });
   const first = kernel.openSounding('manual');
@@ -248,17 +248,17 @@ test('interruption restores the exact wake that opened the failed encounter', as
   });
   complete(kernel, firstInference);
   now += 1_000;
-  const waking = kernel.openSounding('scheduled');
+  const waking = kernel.openSounding('opening');
   const failedInference = begin(kernel, waking.id);
-  kernel.failInference(failedInference, new Error('right-censored wake'));
+  kernel.failInference(failedInference, new Error('right-censored opening'));
 
-  assert.equal(kernel.audit().nextWake.wakeId, scheduled.wakeId);
-  const retried = kernel.openSounding('scheduled');
-  assert.equal(retried.wake.wakeId, scheduled.wakeId);
-  assert.equal(retried.wake.opening, 'due');
+  assert.equal(kernel.audit().activeOpening.id, scheduled.opening.successor.id);
+  assert.equal(kernel.audit().activeOpeningPresented, false);
+  const retried = kernel.openSounding('opening');
+  assert.equal(retried.position.activeOpening.id, scheduled.opening.successor.id);
 });
 
-test('world contact preempts a future wake without erasing its reason', async () => {
+test('world contact before an opening is due preserves it for later presentation', async () => {
   let now = Date.UTC(2026, 7, 30, 17, 0, 0);
   const { kernel } = harness({ clock: () => new Date(now) });
   const first = kernel.openSounding('manual');
@@ -271,13 +271,17 @@ test('world contact preempts a future wake without erasing its reason', async ()
   kernel.admitDelta({
     authority: 'world', id: 'wake-preempting-contact', stream: 'inbox', at: new Date(now).toISOString(), payload: { content: 'Earlier contact.' },
   });
-  const preempted = kernel.openSounding('delta');
+  const contacted = kernel.openSounding('delta');
 
-  assert.equal(preempted.wake.opening, 'preempted');
-  assert.equal(preempted.wake.reason, 'Wake later if the world remains quiet.');
-  const inferenceId = begin(kernel, preempted.id);
+  assert.equal(contacted.wake, null);
+  assert.equal(contacted.position.activeOpening.content.reason, 'Wake later if the world remains quiet.');
+  const inferenceId = begin(kernel, contacted.id);
   complete(kernel, inferenceId);
   assert.equal(kernel.audit().nextWake, null);
+  assert.equal(kernel.audit().activeOpeningPresented, false);
+  now += 60_000;
+  const opened = kernel.openSounding('opening');
+  assert.equal(opened.position.activeOpening.content.reason, 'Wake later if the world remains quiet.');
 });
 
 test('a failed inference cannot activate its newly staged future wake', async () => {
@@ -290,6 +294,7 @@ test('a failed inference cannot activate its newly staged future wake', async ()
   });
   kernel.failInference(inferenceId, new Error('do not promote'));
   assert.equal(kernel.audit().nextWake, null);
+  assert.deepEqual(kernel.audit().activeOpening.content, { origin: 'birth' });
 });
 
 test('the subject can revise the ordinary geometry that constructs its later wake', async () => {
@@ -316,8 +321,8 @@ test('the subject can revise the ordinary geometry that constructs its later wak
   });
   complete(kernel, laterInference);
 
-  assert.equal(result.afterMs, 4_000);
-  assert.equal(kernel.audit().nextWake.reason, 'settled: Revisit the question.');
+  assert.equal(Date.parse(result.opening.successor.notBefore) - Date.parse(result.opening.successor.authoredAt), 4_000);
+  assert.equal(kernel.audit().activeOpening.content.reason, 'settled: Revisit the question.');
   assert.equal(kernel.audit().tools.find(tool => tool.id === 'schedule_wake').version, 2);
 });
 

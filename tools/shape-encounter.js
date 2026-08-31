@@ -10,7 +10,7 @@ export function initialEncounterShapeTool() {
       type: 'object',
       properties: {
         phase: { type: 'string', enum: ['sounding', 'steering'] },
-        trigger: { type: 'string', enum: ['delta', 'continuation', 'scheduled', 'heartbeat', 'manual'] },
+        trigger: { type: 'string', enum: ['delta', 'continuation', 'opening', 'scheduled', 'heartbeat', 'manual'] },
         soundingId: { type: 'string', minLength: 1, maxLength: 128 },
         facts: {
           type: 'array', minItems: 1, maxItems: 128,
