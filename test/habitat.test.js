@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { createHabitat, defaultModelConfig, readHabitat, snapshotHabitat } from '../src/habitat.js';
+import { createHabitat, defaultModelConfig, migrateHabitat, readHabitat, snapshotHabitat } from '../src/habitat.js';
 import { MusicKernel } from '../src/kernel.js';
 
 const repository = resolve(import.meta.dirname, '..');
@@ -73,6 +73,30 @@ test('snapshot refuses a destination that could recursively absorb or overwrite 
   const habitat = createHabitat(join(parent, 'resident'));
   assert.throws(() => snapshotHabitat(habitat.root, join(habitat.root, 'backups')), /must not contain one another/);
   assert.throws(() => snapshotHabitat(habitat.root, parent), /must not contain one another/);
+});
+
+test('legacy migration preserves exact lineage and resumes the same subject in current developmental geometry', () => {
+  const parent = mkdtempSync(join(tmpdir(), 'music-habitat-migration-'));
+  const habitat = createHabitat(join(parent, 'resident'));
+  const source = readFileSync(join(repository, 'test', 'fixtures', 'music-event-11.jsonl'));
+  writeFileSync(habitat.ledger, source, { mode: 0o600 });
+  const legacy = new MusicKernel(habitat.ledger);
+  const legacyAudit = legacy.audit();
+
+  const result = migrateHabitat(habitat.root);
+  const current = new MusicKernel(habitat.ledger);
+  const audit = current.audit();
+
+  assert.deepEqual(audit.subject, legacyAudit.subject);
+  assert.deepEqual(audit.tools, legacyAudit.tools);
+  assert.equal(audit.carrierRoot, legacyAudit.carrierRoot);
+  assert.equal(audit.lineage.sourceHead, legacyAudit.head);
+  assert.equal(audit.lineage.sourceSha256, createHash('sha256').update(source).digest('hex'));
+  assert.deepEqual(readFileSync(result.archive), source);
+  assert.equal(current.events().length, 1);
+  assert.equal(current.state().position.activeOpening.content.origin, 'legacy-migration');
+  assert.equal(current.state().position.activeOpening.content.lineage.sourceHead, legacyAudit.head);
+  assert.throws(() => migrateHabitat(habitat.root), /does not need legacy migration/);
 });
 
 function habitatCommand(args) {

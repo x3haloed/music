@@ -4,6 +4,7 @@ import {
   realpathSync, renameSync, statSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { serializeCarrier } from './carrier.js';
 import { MusicKernel } from './kernel.js';
 
 export const MUSIC_HABITAT_FORMAT = 'music-habitat-1';
@@ -72,6 +73,56 @@ export function snapshotHabitat(rootArgument, backupRootArgument) {
     return { habitat: habitat.root, snapshot: target, files: files.length };
   } catch (error) {
     throw new Error(`habitat snapshot failed at ${target}: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    release();
+  }
+}
+
+export function migrateHabitat(rootArgument) {
+  const habitat = readHabitat(rootArgument);
+  if (!existsSync(habitat.ledger)) throw new Error(`habitat has not been initialized: ${habitat.root}`);
+  const kernel = new MusicKernel(habitat.ledger);
+  const release = kernel.acquireWriter('legacy habitat migration');
+  try {
+    const events = kernel.events();
+    const sourceFormat = events[0]?.format;
+    if (!['music-event-10', 'music-event-11'].includes(sourceFormat)) {
+      throw new Error(sourceFormat ? `habitat ledger ${sourceFormat} does not need legacy migration` : 'habitat ledger is empty');
+    }
+    const state = kernel.state();
+    const sourceBytes = readFileSync(habitat.ledger);
+    const lineageDirectory = join(habitat.state, 'lineage');
+    mkdirSync(lineageDirectory, { recursive: true, mode: 0o700 });
+    const archive = join(lineageDirectory, `events-${sourceFormat}-${safeTimestamp()}.jsonl`);
+    const lineage = {
+      format: 'music-legacy-lineage-1',
+      sourceFormat,
+      sourceHead: state.head,
+      sourceSha256: sha256(sourceBytes),
+      eventCount: events.length,
+      archive: relative(habitat.root, archive),
+      migratedAt: new Date().toISOString(),
+    };
+    renameSync(habitat.ledger, archive);
+    try {
+      kernel.initializeMigrated({
+        subject: state.subject,
+        tools: [...state.tools.values()],
+        carrier: serializeCarrier(state.carrier),
+        lineage,
+      });
+    } catch (error) {
+      if (existsSync(habitat.ledger)) unlinkSync(habitat.ledger);
+      renameSync(archive, habitat.ledger);
+      throw error;
+    }
+    return {
+      habitat: habitat.root,
+      ledger: habitat.ledger,
+      archive,
+      lineage,
+      positionRoot: kernel.state().position.root,
+    };
   } finally {
     release();
   }

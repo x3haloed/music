@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHabitat, readHabitat, snapshotHabitat } from '../src/habitat.js';
+import { createHabitat, migrateHabitat, readHabitat, snapshotHabitat } from '../src/habitat.js';
 
 const [command, root, ...args] = process.argv.slice(2);
 
@@ -13,6 +13,8 @@ try {
     process.stdout.write(`${JSON.stringify({ ok: true, habitat }, null, 2)}\n`);
   } else if (command === 'snapshot') {
     process.stdout.write(`${JSON.stringify({ ok: true, ...snapshotHabitat(root, args[0]) }, null, 2)}\n`);
+  } else if (command === 'migrate') {
+    process.stdout.write(`${JSON.stringify({ ok: true, ...migrateHabitat(root) }, null, 2)}\n`);
   } else if (['init', 'reside', 'audit'].includes(command)) {
     const habitat = readHabitat(root);
     if (command === 'init' && existsSync(habitat.ledger)) throw new Error(`habitat already has a resident ledger: ${habitat.ledger}`);
@@ -33,5 +35,5 @@ try {
 }
 
 function usage() {
-  throw new Error('usage: music-habitat <create|init|reside|audit|snapshot> HABITAT [arguments]');
+  throw new Error('usage: music-habitat <create|init|migrate|reside|audit|snapshot> HABITAT [arguments]');
 }

@@ -78,6 +78,40 @@ export class MusicKernel {
     return this.state();
   }
 
+  initializeMigrated({ subject, tools, carrier, lineage }) {
+    if (this.state().subject) throw new Error('Music subject already exists');
+    const retainedSubject = validateMigratedSubject(subject);
+    const initial = validateInitialTools(tools);
+    const retainedCarrier = readCarrier(carrier);
+    const retainedLineage = validateLegacyLineage(lineage);
+    const toolsById = new Map(initial.map(tool => [tool.id, tool]));
+    const at = this.clock().toISOString();
+    const position = initialDevelopmentalPosition({
+      tools: toolsById,
+      carrier: retainedCarrier,
+      openingId: this.id(),
+      at,
+      openingContent: {
+        origin: 'legacy-migration',
+        lineage: {
+          sourceFormat: retainedLineage.sourceFormat,
+          sourceHead: retainedLineage.sourceHead,
+          sourceSha256: retainedLineage.sourceSha256,
+          eventCount: retainedLineage.eventCount,
+        },
+      },
+    });
+    assertActiveGeometryFits(toolsById, retainedCarrier, retainedSubject, position);
+    this.append('subject_created', {
+      subject: retainedSubject,
+      tools: initial,
+      carrier: serializeCarrier(retainedCarrier),
+      position,
+      lineage: retainedLineage,
+    });
+    return this.state();
+  }
+
   admitDelta(delta) {
     const state = this.state();
     requireSubject(state);
@@ -775,6 +809,7 @@ export class MusicKernel {
       ledgerTailRecoveries: state.ledgerTailRecoveryCount,
       runtimeStarts: state.runtimeHistory.length,
       runtime: state.runtime ? structuredClone(state.runtime) : null,
+      lineage: state.lineage ? structuredClone(state.lineage) : null,
       inferenceCheckpoints: state.inferenceCheckpointCount,
       unresolvedConsequences: [...state.consequences.values()].filter(consequence => consequence.status !== 'settled').length,
       deferredConsequences: [...state.consequences.values()].filter(consequence => consequence.status === 'deferred').length,
@@ -893,6 +928,7 @@ function reduceEvents(events) {
     ledgerTailRecoveryCount: 0,
     runtimeHistory: [],
     runtime: null,
+    lineage: null,
     inferenceCheckpointCount: 0,
   };
   for (const event of events) {
@@ -910,6 +946,7 @@ function reduceEvents(events) {
         state.position = event.format === FORMAT
           ? readDevelopmentalPosition(event.payload.position, { tools: state.tools, carrier: state.carrier })
           : null;
+        state.lineage = event.payload.lineage === undefined ? null : validateLegacyLineage(event.payload.lineage);
         assertActiveGeometryFits(state.tools, state.carrier, state.subject, state.position);
         break;
       case 'ledger_tail_recovered':
@@ -1795,6 +1832,35 @@ function validateRuntimeProvenance(value, eventFormat) {
     throw new Error('invalid resident runtime provenance');
   }
   return structuredClone(value);
+}
+
+function validateMigratedSubject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('migration needs a retained subject');
+  const id = typeof value.id === 'string' ? value.id.trim() : '';
+  const name = value.name === null ? null : (typeof value.name === 'string' ? value.name.trim() : '');
+  if (!id || id.length > 128) throw new Error('migrated subject id must be 1-128 characters');
+  if (name !== null && name.length > 128) throw new Error('migrated subject designation must be at most 128 characters');
+  if (typeof value.bornAt !== 'string' || Number.isNaN(Date.parse(value.bornAt))) throw new Error('migrated subject needs its original birth time');
+  return { id, name: name || null, bornAt: value.bornAt };
+}
+
+function validateLegacyLineage(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('migration needs legacy lineage');
+  if (!['music-event-10', 'music-event-11'].includes(value.sourceFormat)) throw new Error('legacy lineage source format is not migratable');
+  if (typeof value.sourceHead !== 'string' || !/^[a-f0-9]{64}$/.test(value.sourceHead)) throw new Error('legacy lineage needs its source head');
+  if (typeof value.sourceSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.sourceSha256)) throw new Error('legacy lineage needs its source digest');
+  if (!Number.isSafeInteger(value.eventCount) || value.eventCount < 1) throw new Error('legacy lineage needs a positive event count');
+  if (typeof value.archive !== 'string' || !value.archive || value.archive.length > 1_024) throw new Error('legacy lineage needs a bounded archive path');
+  if (typeof value.migratedAt !== 'string' || Number.isNaN(Date.parse(value.migratedAt))) throw new Error('legacy lineage needs a migration time');
+  return {
+    format: 'music-legacy-lineage-1',
+    sourceFormat: value.sourceFormat,
+    sourceHead: value.sourceHead,
+    sourceSha256: value.sourceSha256,
+    eventCount: value.eventCount,
+    archive: value.archive,
+    migratedAt: value.migratedAt,
+  };
 }
 
 function validateDelta(delta) {

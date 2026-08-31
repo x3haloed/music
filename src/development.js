@@ -12,13 +12,13 @@ export function toolsetRoot(tools) {
     .sort((left, right) => left.id.localeCompare(right.id)));
 }
 
-export function initialDevelopmentalPosition({ tools, carrier, openingId, at }) {
+export function initialDevelopmentalPosition({ tools, carrier, openingId, at, openingContent = { origin: 'birth' } }) {
   const opening = validateOpening({
     id: requiredId(openingId, 'initial opening id'),
     parent: null,
     authoredAt: requiredTimestamp(at, 'initial opening time'),
     notBefore: null,
-    content: { origin: 'birth' },
+    content: openingContent,
   });
   return sealPosition({
     generation: 0,
