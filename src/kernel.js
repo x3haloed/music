@@ -213,37 +213,6 @@ export class MusicKernel {
     return { deltas: this.state().activeEncounter.steeringDeltas.slice(-deltaIds.length), message };
   }
 
-  stageToolRevision(inferenceId, soundingId, proposal) {
-    const state = this.state();
-    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
-    const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
-    if (!interpretation || interpretation.length > 4_096) throw new Error('revision needs a bounded interpretation');
-    const requested = proposal?.tool;
-    const current = state.tools.get(requested?.id);
-    const tool = validateToolModule({
-      ...requested,
-      version: current ? current.version + 1 : 1,
-      parent: current ? toolModuleDigest(current) : null,
-    });
-    if (RESERVED_TOOL_IDS.has(tool.id)) throw new Error(`${tool.id} is reserved by the continuity kernel`);
-    const stagedNewTools = state.stagedRevisions.filter(revision => revision.previousTool === null).length;
-    if (!current && state.tools.size + stagedNewTools >= MAX_TOOLS) throw new Error(`tool limit ${MAX_TOOLS} reached`);
-    if (state.stagedToolIds.has(tool.id)) throw new Error(`tool ${tool.id} already has a revision staged in this encounter`);
-    assertProspectiveGeometryFits(state, { tool });
-    this.append('tool_revision_staged', {
-      inferenceId,
-      soundingId,
-      projection: encounter.projection,
-      interpretation,
-      evidence: boundedEvidence(proposal.evidence),
-      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter),
-      previousTool: current ? toolModuleDigest(current) : null,
-      tool,
-      rollbackOf: null,
-    });
-    return tool;
-  }
-
   authorToolProposal(inferenceId, soundingId, proposal) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
@@ -372,8 +341,13 @@ export class MusicKernel {
       const output = proposal.kind === 'tool'
         ? await executeToolModule(proposal.revision.tool, input, {
           trialId, proposalId, inferenceId, soundingId, projection: encounter.projection,
+          invocationId: `developmental-trial:${trialId}`,
           ledgerPath: this.ledgerPath,
           environment: structuredClone(this.toolEnvironment),
+          selectToolAction: (selectedToolId, frontier) => previewToolSelection(selectedToolId, frontier),
+          stageConsequenceTransition: candidate => previewConsequenceTransition(candidate, state, encounter),
+          stageCarrierTransition: candidate => createCarrierTransition(state.carrier, candidate),
+          stageWakeTransition: candidate => previewOpeningTransition(candidate, this.clock),
         })
         : {
           kind: 'provisional-carrier-projection',
@@ -421,6 +395,7 @@ export class MusicKernel {
       decisions,
       opening,
     };
+    assertDevelopmentalTransactionFits(state, transaction);
     this.append('developmental_transaction_staged', transaction);
     return structuredClone(transaction);
   }
@@ -476,56 +451,6 @@ export class MusicKernel {
     };
   }
 
-  stageToolRollback(inferenceId, soundingId, toolId, targetDigest, proposal = {}) {
-    const state = this.state();
-    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
-    const current = state.tools.get(toolId);
-    if (!current) throw new Error(`unknown tool: ${toolId}`);
-    if (state.stagedToolIds.has(toolId)) throw new Error(`tool ${toolId} already has a revision staged in this encounter`);
-    const target = state.toolHistory.get(targetDigest);
-    if (!target || target.id !== toolId) throw new Error(`unknown prior version for ${toolId}: ${targetDigest}`);
-    const interpretation = typeof proposal.interpretation === 'string' ? proposal.interpretation.trim() : '';
-    if (!interpretation || interpretation.length > 4_096) throw new Error('rollback needs a bounded interpretation');
-    const tool = validateToolModule({
-      ...target,
-      version: current.version + 1,
-      parent: toolModuleDigest(current),
-    });
-    assertProspectiveGeometryFits(state, { tool });
-    this.append('tool_revision_staged', {
-      inferenceId,
-      soundingId,
-      projection: encounter.projection,
-      interpretation,
-      evidence: boundedEvidence(proposal.evidence),
-      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter),
-      previousTool: toolModuleDigest(current),
-      tool,
-      rollbackOf: targetDigest,
-    });
-    return tool;
-  }
-
-  stageCarrierTransition(inferenceId, soundingId, proposal) {
-    const state = this.state();
-    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
-    if (state.stagedCarrierTransition) throw new Error('only one carrier transition may be staged per encounter');
-    const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
-    if (!interpretation || interpretation.length > 4_096) throw new Error('carrier transition needs a bounded interpretation');
-    const transition = createCarrierTransition(state.carrier, proposal);
-    assertProspectiveGeometryFits(state, { carrierTransition: transition });
-    this.append('carrier_transition_staged', {
-      inferenceId,
-      soundingId,
-      projection: encounter.projection,
-      interpretation,
-      evidence: boundedEvidence(proposal.evidence),
-      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter),
-      ...transition,
-    });
-    return transition;
-  }
-
   stageConsequenceTransition(inferenceId, soundingId, proposal) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
@@ -539,39 +464,6 @@ export class MusicKernel {
       projection: encounter.projection,
       ...transition,
     });
-    return transition;
-  }
-
-  stageWakeTransition(inferenceId, soundingId, invocationId, proposal) {
-    const state = this.state();
-    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
-    const invocation = state.activeToolInvocations.get(invocationId);
-    if (!invocation || invocation.inferenceId !== inferenceId || invocation.soundingId !== soundingId) {
-      throw new Error('future wake requires its active tool invocation');
-    }
-    if (state.stagedWakeTransition) throw new Error('only one future wake may be staged per encounter');
-    const afterMs = proposal?.afterMs;
-    if (!Number.isSafeInteger(afterMs) || afterMs < 1_000) throw new Error('future wake afterMs must be a safe integer of at least 1000');
-    const reason = typeof proposal?.reason === 'string' ? proposal.reason.trim() : '';
-    if (!reason || reason.length > 2_048) throw new Error('future wake needs a bounded reason');
-    const stagedAt = this.clock().toISOString();
-    const wakeAtMs = Date.parse(stagedAt) + afterMs;
-    if (!Number.isSafeInteger(wakeAtMs) || !Number.isFinite(wakeAtMs)) throw new Error('future wake exceeds the supported clock range');
-    let wakeAt;
-    try { wakeAt = new Date(wakeAtMs).toISOString(); } catch { throw new Error('future wake exceeds the supported clock range'); }
-    const transition = {
-      wakeId: this.id(),
-      inferenceId,
-      soundingId,
-      projection: encounter.projection,
-      invocationId,
-      tool: structuredClone(invocation.tool),
-      stagedAt,
-      afterMs,
-      wakeAt,
-      reason,
-    };
-    this.append('wake_transition_staged', transition);
     return transition;
   }
 
@@ -1146,6 +1038,7 @@ function reduceEvents(events) {
         break;
       }
       case 'tool_revision_staged': {
+        if (event.format === FORMAT) throw new Error('current ledgers require developmental proposals for tool changes');
         requireSubject(state);
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         const revision = validateStagedRevision(event.payload, state);
@@ -1156,6 +1049,7 @@ function reduceEvents(events) {
         break;
       }
       case 'carrier_transition_staged': {
+        if (event.format === FORMAT) throw new Error('current ledgers require developmental proposals for carrier changes');
         requireSubject(state);
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         if (state.stagedCarrierTransition) throw new Error('ledger stages more than one carrier transition in an encounter');
@@ -1177,6 +1071,7 @@ function reduceEvents(events) {
         break;
       }
       case 'wake_transition_staged': {
+        if (event.format === FORMAT) throw new Error('current ledgers retain recurrence in developmental openings');
         requireSubject(state);
         const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         if (state.stagedWakeTransition) throw new Error('ledger stages more than one future wake in an encounter');
@@ -1668,6 +1563,62 @@ function validateOpeningClosure(value, current) {
   if (!status || status.length > 128) throw new Error('opening closure status must be 1-128 characters');
   if (!interpretation || interpretation.length > 4_096) throw new Error('opening closure interpretation must be 1-4096 characters');
   return { openingId: value.openingId ?? null, status, interpretation };
+}
+
+function previewOpeningTransition(proposal, clock) {
+  const afterMs = proposal?.afterMs;
+  if (!Number.isSafeInteger(afterMs) || afterMs < 1_000) throw new Error('successor opening afterMs must be at least 1000');
+  const reason = typeof proposal?.reason === 'string' ? proposal.reason.trim() : '';
+  if (!reason || reason.length > 2_048) throw new Error('successor opening needs a bounded reason');
+  const authoredAt = clock().toISOString();
+  return {
+    kind: 'provisional-opening-transition',
+    afterMs,
+    reason,
+    authoredAt,
+    notBefore: new Date(Date.parse(authoredAt) + afterMs).toISOString(),
+    ...(proposal.content === undefined ? {} : { content: jsonValue(proposal.content, 'successor opening content') }),
+  };
+}
+
+function previewConsequenceTransition(proposal, state, encounter) {
+  return { kind: 'provisional-consequence-transition', ...validateConsequenceTransition(proposal, state, encounter) };
+}
+
+function previewToolSelection(toolId, frontier) {
+  if (!frontier || typeof frontier !== 'object' || Array.isArray(frontier)) throw new Error('selection frontier must be an object');
+  if (frontier.tool !== toolId) throw new Error('selection frontier tool mismatch');
+  if (!Array.isArray(frontier.candidates) || frontier.candidates.length < 1 || frontier.candidates.length > MAX_SELECTION_CANDIDATES) {
+    throw new Error(`selection frontier needs 1-${MAX_SELECTION_CANDIDATES} candidates`);
+  }
+  const selected = frontier.candidates.find(candidate => candidate?.id === frontier.selectedCandidateId);
+  if (!selected) throw new Error('selection frontier does not contain its selected candidate');
+  return {
+    kind: 'provisional-tool-selection',
+    selectionReceipt: null,
+    selectedCandidateId: frontier.selectedCandidateId,
+    selected: jsonValue(selected, 'selected developmental trial candidate'),
+  };
+}
+
+function assertDevelopmentalTransactionFits(state, transaction) {
+  const tools = new Map(state.tools);
+  let carrier = state.carrier;
+  for (const decision of transaction.decisions) {
+    if (decision.disposition !== 'admit' && decision.disposition !== 'rollback') continue;
+    const proposal = state.developmentalProposals.get(decision.proposalId);
+    if (proposal.kind === 'tool') {
+      const current = tools.get(proposal.revision.tool.id);
+      if ((current ? toolModuleDigest(current) : null) !== proposal.revision.previousTool) {
+        throw new Error(`developmental proposal ${decision.proposalId} no longer succeeds active tool geometry`);
+      }
+      tools.set(proposal.revision.tool.id, proposal.revision.tool);
+    } else {
+      carrier = applyCarrierTransition(carrier, proposal.transition);
+    }
+  }
+  const position = developmentalSuccessorForCompletion(state, { developmentalTransaction: transaction });
+  assertActiveGeometryFits(tools, carrier, state.subject, position ?? state.position);
 }
 
 function applyDevelopmentalTransaction(state, transaction) {

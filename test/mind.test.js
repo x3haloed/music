@@ -186,8 +186,8 @@ test('retained carrier consequence changes selection over the same actor-authore
   const erasedModel = carrierDirectedSelectionModel();
   const retained = harness(retainedModel);
   const erased = harness(erasedModel);
-  primeOrientation(retained.kernel, 'When contact is ambiguous, prefer asking before sending.');
-  primeOrientation(erased.kernel, 'No learned selection consequence is currently active.');
+  await primeOrientation(retained.kernel, 'When contact is ambiguous, prefer asking before sending.');
+  await primeOrientation(erased.kernel, 'No learned selection consequence is currently active.');
 
   const retainedSounding = retained.kernel.openSounding();
   const erasedSounding = erased.kernel.openSounding();
@@ -372,7 +372,7 @@ test('the one mind can revise the retained geometry that shapes later Soundings'
     { provider: 'fixture', model: 'fixture' },
     { role: 'user', content: 'Revise delivery geometry.' },
   );
-  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+  const authored = kernel.authorToolProposal(revisionInference, revisionSounding.id, {
     interpretation: 'Later encounters should present exact facts in reverse order with a visible learned cadence.',
     tool: {
       id: current.id,
@@ -382,6 +382,10 @@ test('the one mind can revise the retained geometry that shapes later Soundings'
     },
   });
   completeFixture(kernel, revisionInference);
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, {
+    phase: 'sounding', trigger: 'manual', soundingId: 'trial',
+    facts: [{ id: 'trial', digest: '0'.repeat(64), envelope: 'trial fact' }],
+  });
 
   await mind.receive(kernel.openSounding().id);
 
@@ -432,7 +436,7 @@ test('broken learned delivery geometry exposes exact recovery facts and can be r
     { provider: 'fixture', model: 'fixture' },
     { role: 'user', content: 'Install a broken delivery successor.' },
   );
-  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+  const authored = kernel.authorToolProposal(revisionInference, revisionSounding.id, {
     interpretation: 'Fixture a learned delivery failure whose recovery path must remain available.',
     tool: {
       id: original.id, description: original.description, inputSchema: original.inputSchema,
@@ -440,6 +444,10 @@ test('broken learned delivery geometry exposes exact recovery facts and can be r
     },
   });
   completeFixture(kernel, revisionInference);
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, {
+    phase: 'sounding', trigger: 'manual', soundingId: 'broken-trial',
+    facts: [{ id: 'trial', digest: '0'.repeat(64), envelope: 'trial fact' }],
+  });
 
   await mind.receive(kernel.openSounding().id);
 
@@ -661,14 +669,14 @@ function carrierDirectedSelectionModel() {
   });
 }
 
-function primeOrientation(kernel, value) {
+async function primeOrientation(kernel, value) {
   const sounding = kernel.openSounding();
   const inferenceId = kernel.beginInference(
     sounding.id,
     { provider: 'fixture-provider', model: 'fixture-model' },
     { role: 'user', content: 'Prime the bounded carrier.' },
   );
-  kernel.stageCarrierTransition(inferenceId, sounding.id, {
+  const authored = kernel.authorCarrierProposal(inferenceId, sounding.id, {
     componentId: 'orientation', value,
     interpretation: 'Fixture an exact retained-versus-erased active consequence.',
     evidence: [],
@@ -677,6 +685,7 @@ function primeOrientation(kernel, value) {
     responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: 'Carrier transition staged.' }] }],
     text: 'Carrier transition staged.', finishReason: 'stop', usage: {}, steps: [], requests: [],
   });
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, { contact: 'ambiguous' });
 }
 
 async function exerciseAndAdmitProposal(kernel, proposalId, input, disposition = 'admit') {

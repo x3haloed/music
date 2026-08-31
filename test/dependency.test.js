@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -25,7 +25,7 @@ test('the ordinary dependency tool installs a real package used by a later inven
   });
   assert.equal(installed.action, 'install');
   assert.match(installed.retainedSpec, /^file:/);
-  kernel.stageToolRevision(inferenceId, sounding.id, {
+  const authored = kernel.authorToolProposal(inferenceId, sounding.id, {
     interpretation: 'Use the newly installed resident dependency in a later executable affordance.',
     tool: {
       id: 'dependency_probe',
@@ -42,6 +42,7 @@ return { value: loaded.default };`,
     },
   });
   complete(kernel, inferenceId);
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, {});
 
   const later = kernel.openSounding();
   const laterInference = begin(kernel, later.id);
@@ -52,7 +53,7 @@ test('a broken learned dependency surfaces its exact failure and the same mind c
   const { kernel } = harness();
   const first = kernel.openSounding();
   const firstInference = begin(kernel, first.id);
-  const working = kernel.stageToolRevision(firstInference, first.id, {
+  const workingProposal = kernel.authorToolProposal(firstInference, first.id, {
     interpretation: 'Create a working dependency-backed affordance before exercising correction.',
     tool: {
       id: 'fragile_dependency', description: 'Exercise a learned dependency.',
@@ -61,19 +62,29 @@ test('a broken learned dependency surfaces its exact failure and the same mind c
     },
   });
   complete(kernel, firstInference);
+  await exerciseAndAdmitProposal(kernel, workingProposal.proposalId, {});
+  const working = kernel.state().tools.get('fragile_dependency');
   const workingDigest = toolModuleDigest(working);
 
+  const availability = join(kernel.toolEnvironment.dependencyRoot, 'fragile-availability.txt');
+  mkdirSync(kernel.toolEnvironment.dependencyRoot, { recursive: true });
+  writeFileSync(availability, 'available');
   const revision = kernel.openSounding();
   const revisionInference = begin(kernel, revision.id);
-  kernel.stageToolRevision(revisionInference, revision.id, {
-    interpretation: 'Fixture a successor whose declared runtime dependency is absent.',
+  const fragile = kernel.authorToolProposal(revisionInference, revision.id, {
+    interpretation: 'Fixture a successor whose exercised external dependency can later disappear.',
     tool: {
       id: 'fragile_dependency', description: 'Exercise a learned dependency.',
       inputSchema: working.inputSchema,
-      source: `await import('music-package-that-does-not-exist'); return { unreachable: true };`,
+      source: `
+const { readFile } = await import('node:fs/promises');
+const { join } = await import('node:path');
+return { value: await readFile(join(context.environment.dependencyRoot, 'fragile-availability.txt'), 'utf8') };`,
     },
   });
   complete(kernel, revisionInference);
+  await exerciseAndAdmitProposal(kernel, fragile.proposalId, {});
+  unlinkSync(availability);
 
   const failed = kernel.openSounding();
   const failedInference = begin(kernel, failed.id);
@@ -83,7 +94,7 @@ test('a broken learned dependency surfaces its exact failure and the same mind c
   } catch (error) {
     dependencyError = error;
   }
-  assert.match(dependencyError.message, /music-package-that-does-not-exist/);
+  assert.match(dependencyError.message, /fragile-availability\.txt/);
   kernel.failInference(failedInference, dependencyError);
 
   let call = 0;
@@ -105,7 +116,7 @@ test('a broken learned dependency surfaces its exact failure and the same mind c
 
   const prompt = JSON.stringify(model.doGenerateCalls[0].prompt);
   assert.match(prompt, /music_runtime_failure/);
-  assert.match(prompt, /music-package-that-does-not-exist/);
+  assert.match(prompt, /fragile-availability\.txt/);
   assert.equal(kernel.state().tools.get('fragile_dependency').version, 2);
   const rollback = [...kernel.state().developmentalProposals.values()]
     .find(proposal => proposal.revision?.rollbackOf === workingDigest);
@@ -150,6 +161,20 @@ function complete(kernel, inferenceId) {
     responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: 'Done.' }] }],
     text: 'Done.', finishReason: 'stop', usage: {}, steps: [], requests: [],
   });
+}
+
+async function exerciseAndAdmitProposal(kernel, proposalId, input, disposition = 'admit') {
+  const trial = kernel.openSounding();
+  const trialInference = begin(kernel, trial.id);
+  await kernel.trialDevelopmentalProposal(trialInference, trial.id, proposalId, input);
+  complete(kernel, trialInference);
+  const admission = kernel.openSounding();
+  const admissionInference = begin(kernel, admission.id);
+  kernel.stageDevelopmentalTransaction(admissionInference, admission.id, {
+    interpretation: 'Fixture explicit promotion after retained exercise.',
+    decisions: [{ proposalId, disposition, interpretation: 'The retained exercise supports promotion.' }],
+  });
+  complete(kernel, admissionInference);
 }
 
 function toolCallResult(toolName, input) {

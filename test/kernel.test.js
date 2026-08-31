@@ -170,38 +170,40 @@ test('unresolved consequences complete one bounded sweep without starvation or i
   assert.equal(kernel.audit().consequenceSweepActive, false);
 });
 
-test('staged learned geometry is refused before it can consume the active contact envelope', () => {
+test('provisional learned geometry is refused at admission before it can consume the active contact envelope', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding('manual');
   const inferenceId = begin(kernel, sounding.id);
-  let accepted = 0;
-  let rejected = null;
-  for (let index = 0; index < 20; index += 1) {
-    try {
-      kernel.stageToolRevision(inferenceId, sounding.id, {
-        interpretation: 'Capacity probe.',
-        tool: {
-          id: `wide_${index}`,
-          description: 'A deliberately wide projected schema.',
-          inputSchema: {
-            type: 'object',
-            properties: { value: { type: 'string', enum: ['x'.repeat(60_000)] } },
-            required: ['value'], additionalProperties: false,
-          },
-          source: 'return { ok: true };',
-        },
-      });
-      accepted += 1;
-    } catch (error) {
-      rejected = error;
-      break;
-    }
-  }
-  assert.equal(accepted > 0, true);
-  assert.match(rejected?.message ?? '', /active tool, carrier, and position geometry exceeds/);
+  const authored = Array.from({ length: 10 }, (_, index) => kernel.authorToolProposal(inferenceId, sounding.id, {
+    interpretation: 'Capacity probe.',
+    tool: {
+      id: `too_wide_${index}`,
+      description: 'A deliberately wide projected schema.',
+      inputSchema: {
+        type: 'object',
+        properties: { value: { type: 'string', enum: ['x'.repeat(60_000)] } },
+        required: ['value'], additionalProperties: false,
+      },
+      source: 'return { ok: true };',
+    },
+  }));
   complete(kernel, inferenceId);
-  const next = kernel.openSounding('manual');
-  assert.equal(next.frontier.pending.remaining, 0);
+  const trial = kernel.openSounding('manual');
+  const trialInference = begin(kernel, trial.id);
+  for (const proposal of authored) {
+    await kernel.trialDevelopmentalProposal(trialInference, trial.id, proposal.proposalId, {});
+  }
+  complete(kernel, trialInference);
+  const admission = kernel.openSounding('manual');
+  const admissionInference = begin(kernel, admission.id);
+  assert.throws(() => kernel.stageDevelopmentalTransaction(admissionInference, admission.id, {
+    interpretation: 'Attempt to admit the exercised but oversized successor.',
+    decisions: authored.map(proposal => ({
+      proposalId: proposal.proposalId, disposition: 'admit', interpretation: 'Exercise completed.',
+    })),
+  }), /active tool, carrier, and position geometry exceeds/);
+  kernel.failInference(admissionInference, new Error('oversized admission refused'));
+  assert.equal(kernel.state().tools.has('too_wide_0'), false);
 });
 
 test('an ordinary tool authors a durable future opening that becomes exact Sounding contact', async () => {
@@ -302,7 +304,7 @@ test('the subject can revise the ordinary geometry that constructs its later wak
   const revisionSounding = kernel.openSounding('manual');
   const revisionInference = begin(kernel, revisionSounding.id);
   const current = kernel.inspectTool(revisionInference, revisionSounding.id, 'schedule_wake');
-  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+  const authored = kernel.authorToolProposal(revisionInference, revisionSounding.id, {
     interpretation: 'Give this scheduler a deliberate settling interval.',
     tool: {
       id: 'schedule_wake',
@@ -312,6 +314,9 @@ test('the subject can revise the ordinary geometry that constructs its later wak
     },
   });
   complete(kernel, revisionInference);
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, {
+    afterMs: 2_000, reason: 'Trial the revised temporal transform.',
+  });
 
   const later = kernel.openSounding('manual');
   const laterInference = begin(kernel, later.id);
@@ -337,7 +342,7 @@ test('a staged executable revision cannot alter the current projection and activ
   const inspected = kernel.inspectTool(inferenceId, first.id, 'message');
   assert.equal(inspected.digest, projected.digest);
   assert.equal(inspected.source, current.source);
-  const staged = kernel.stageToolRevision(inferenceId, first.id, {
+  const authored = kernel.authorToolProposal(inferenceId, first.id, {
     interpretation: 'Later messages should visibly use the revised executable body.',
     evidence: ['delta:reply-1'],
     tool: {
@@ -348,12 +353,16 @@ if (input.action === 'ask') return { kind: 'emission', channel: 'outbox', body: 
 throw new Error('unknown action');`,
     },
   });
-  assert.equal(staged.version, 2);
+  assert.equal(authored.revision.tool.version, 2);
   assert.equal(kernel.state().tools.get('message').version, 1);
   const oldInput = { action: 'send', recipient: 'Chad', content: 'Still exact.' };
   const oldReceipt = selectMessage(kernel, inferenceId, first.id, oldInput);
   assert.equal((await kernel.invokeTool(inferenceId, first.id, 'message', oldInput, oldReceipt)).body, 'to=Chad\nStill exact.');
   complete(kernel, inferenceId);
+
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, {
+    action: 'send', recipient: 'Chad', content: 'Exercise the provisional body.',
+  });
 
   const later = kernel.openSounding();
   assert.equal(later.tools.find(tool => tool.id === 'message').version, 2);
@@ -426,7 +435,7 @@ test('the subject can invent and execute an unrestricted process-running tool', 
   const { kernel } = harness();
   const sounding = kernel.openSounding();
   const inferenceId = begin(kernel, sounding.id);
-  kernel.stageToolRevision(inferenceId, sounding.id, {
+  const authored = kernel.authorToolProposal(inferenceId, sounding.id, {
     interpretation: 'Prove that ordinary tool modules have normal Node process authority.',
     tool: {
       id: 'runtime_probe', description: 'Run an unrestricted child process probe.',
@@ -439,6 +448,7 @@ return { output, cwd: process.cwd() };`,
   });
   await assert.rejects(() => kernel.invokeTool(inferenceId, sounding.id, 'runtime_probe', {}), /was not projected/);
   complete(kernel, inferenceId);
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, {});
   const later = kernel.openSounding();
   const laterInference = begin(kernel, later.id);
   const result = await kernel.invokeTool(laterInference, later.id, 'runtime_probe', {});
@@ -451,7 +461,7 @@ test('selection sequencing is itself an ordinary revisable executable tool', asy
   const current = kernel.state().tools.get('select_tool_action');
   const sounding = kernel.openSounding();
   const inferenceId = begin(kernel, sounding.id);
-  kernel.stageToolRevision(inferenceId, sounding.id, {
+  const authored = kernel.authorToolProposal(inferenceId, sounding.id, {
     interpretation: 'Selection delivery shape belongs in the revisable substrate too.',
     tool: {
       id: current.id,
@@ -461,6 +471,9 @@ test('selection sequencing is itself an ordinary revisable executable tool', asy
     },
   });
   complete(kernel, inferenceId);
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, {
+    tool: 'message', candidates: [{ id: 'one', input: {} }], selectedCandidateId: 'one',
+  });
 
   const later = kernel.openSounding();
   const laterInference = begin(kernel, later.id);
@@ -475,16 +488,22 @@ test('a hanging learned encounter shaper reaches a stable deadline and preserves
   const current = kernel.state().tools.get('shape_encounter');
   const revisionSounding = kernel.openSounding();
   const revisionInference = begin(kernel, revisionSounding.id);
-  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+  const authored = kernel.authorToolProposal(revisionInference, revisionSounding.id, {
     interpretation: 'Exercise recovery when learned delivery geometry never returns.',
     tool: {
       id: current.id,
       description: current.description,
       inputSchema: current.inputSchema,
-      source: 'await new Promise(() => {});',
+      source: `
+if (input.trigger === 'manual') return { role: 'user', content: input.facts.map(fact => fact.envelope).join('\\n') };
+await new Promise(() => {});`,
     },
   });
   complete(kernel, revisionInference);
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, {
+    phase: 'sounding', trigger: 'manual', soundingId: 'trial',
+    facts: [{ id: 'trial', digest: '0'.repeat(64), envelope: 'trial fact' }],
+  });
 
   kernel.admitDelta({
     authority: 'world', id: 'deadline-contact', stream: 'inbox', at: '2026-08-30T12:00:00.000Z',
@@ -506,16 +525,22 @@ test('an interrupted delivery projection is retained and explicitly abandoned af
   const current = kernel.state().tools.get('shape_encounter');
   const revisionSounding = kernel.openSounding();
   const revisionInference = begin(kernel, revisionSounding.id);
-  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+  const authored = kernel.authorToolProposal(revisionInference, revisionSounding.id, {
     interpretation: 'Simulate process death after learned delivery begins.',
     tool: {
       id: current.id,
       description: current.description,
       inputSchema: current.inputSchema,
-      source: 'await new Promise(() => {});',
+      source: `
+if (input.trigger === 'manual') return { role: 'user', content: input.facts.map(fact => fact.envelope).join('\\n') };
+await new Promise(() => {});`,
     },
   });
   complete(kernel, revisionInference);
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, {
+    phase: 'sounding', trigger: 'manual', soundingId: 'trial',
+    facts: [{ id: 'trial', digest: '0'.repeat(64), envelope: 'trial fact' }],
+  });
 
   const sounding = kernel.openSounding();
   const interruptedAttempt = kernel.projectEncounter(sounding.id, 'sounding').catch(() => {});
@@ -568,28 +593,32 @@ test('rollback restores a retained executable body as a new successor after rest
   const originalDigest = toolModuleDigest(original);
   const sounding = kernel.openSounding();
   const inferenceId = begin(kernel, sounding.id);
-  kernel.stageToolRevision(inferenceId, sounding.id, {
+  const changed = kernel.authorToolProposal(inferenceId, sounding.id, {
     interpretation: 'Temporarily replace patch behavior to prove executable identity changes.',
     tool: { id: 'file_patch', description: original.description, inputSchema: original.inputSchema, source: `return { kind: 'replacement-body', path: input.path };` },
   });
   complete(kernel, inferenceId);
+  await exerciseAndAdmitProposal(kernel, changed.proposalId, { path: 'unused', oldText: 'x', newText: 'y' });
 
   const restarted = new MusicKernel(kernel.ledgerPath);
   const changedSounding = restarted.openSounding();
   const changedInference = begin(restarted, changedSounding.id);
   assert.equal((await restarted.invokeTool(changedInference, changedSounding.id, 'file_patch', { path: 'unused', oldText: 'x', newText: 'y' })).kind, 'replacement-body');
-  restarted.stageToolRollback(changedInference, changedSounding.id, 'file_patch', originalDigest, {
+  const rollback = restarted.authorToolRollbackProposal(changedInference, changedSounding.id, 'file_patch', originalDigest, {
     interpretation: 'World contact rejected the replacement body.', evidence: ['delta:patch-rejected'],
   });
   complete(restarted, changedInference);
 
   const target = join(root, 'rollback.txt');
   writeFileSync(target, 'old');
+  await exerciseAndAdmitProposal(restarted, rollback.proposalId, {
+    path: target, oldText: 'old', newText: 'restored',
+  }, 'rollback');
   const restoredSounding = restarted.openSounding();
   const restoredInference = begin(restarted, restoredSounding.id);
-  const restored = await restarted.invokeTool(restoredInference, restoredSounding.id, 'file_patch', { path: target, oldText: 'old', newText: 'restored' });
+  const restored = await restarted.invokeTool(restoredInference, restoredSounding.id, 'file_patch', { path: target, oldText: 'restored', newText: 'verified' });
   assert.equal(restored.kind, 'file_patch');
-  assert.equal(readFileSync(target, 'utf8'), 'restored');
+  assert.equal(readFileSync(target, 'utf8'), 'verified');
   assert.equal(restarted.state().tools.get('file_patch').version, 3);
 });
 
@@ -627,7 +656,7 @@ test('world consequence changes real file_patch behavior and later correction re
   assert.equal(revisionSounding.unresolvedConsequences[0].status, 'deferred');
   const revisionInference = begin(kernel, revisionSounding.id);
   const current = kernel.state().tools.get('file_patch');
-  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+  const learned = kernel.authorToolProposal(revisionInference, revisionSounding.id, {
     interpretation: 'This consequence bears on file_patch: preserve the prior file beside future patched files.',
     consequenceDeltaIds: ['patch-feedback-1'],
     tool: {
@@ -648,16 +677,19 @@ return { kind: 'backing-file-patch', path: input.path, backup: input.path + '.mu
     evidence: ['tool:file_patch@2'],
   });
   complete(kernel, revisionInference);
-  const learnedEvent = kernel.events().findLast(event => event.type === 'tool_revision_staged');
-  assert.deepEqual(learnedEvent.payload.consequences, [{ deltaId: 'patch-feedback-1', invocationIds: [firstInvocationId] }]);
+  const learnedEvent = kernel.events().findLast(event => event.type === 'developmental_proposal_authored');
+  assert.deepEqual(learnedEvent.payload.revision.consequences, [{ deltaId: 'patch-feedback-1', invocationIds: [firstInvocationId] }]);
 
   const secondTarget = join(root, 'second.txt');
   writeFileSync(secondTarget, 'old');
+  await exerciseAndAdmitProposal(kernel, learned.proposalId, {
+    path: secondTarget, oldText: 'old', newText: 'new',
+  });
   const changedSounding = kernel.openSounding();
   const changedInference = begin(kernel, changedSounding.id);
   const learnedTool = kernel.state().tools.get('file_patch');
   assert.equal(changedSounding.unresolvedConsequences.length, 0);
-  assert.throws(() => kernel.stageToolRevision(changedInference, changedSounding.id, {
+  assert.throws(() => kernel.authorToolProposal(changedInference, changedSounding.id, {
     interpretation: 'This must not claim consequence evidence absent from the current encounter.',
     consequenceDeltaIds: ['patch-feedback-1'],
     tool: {
@@ -666,11 +698,11 @@ return { kind: 'backing-file-patch', path: input.path, backup: input.path + '.mu
     },
   }), /not delivered in this Sounding/);
   const changedOutput = await kernel.invokeTool(changedInference, changedSounding.id, 'file_patch', {
-    path: secondTarget, oldText: 'old', newText: 'new',
+    path: secondTarget, oldText: 'new', newText: 'newer',
   });
   complete(kernel, changedInference);
   assert.equal(changedOutput.kind, 'backing-file-patch');
-  assert.equal(readFileSync(`${secondTarget}.music-backup`, 'utf8'), 'old');
+  assert.equal(readFileSync(`${secondTarget}.music-backup`, 'utf8'), 'new');
   const changedInvocationId = kernel.state().invocations.at(-1).invocationId;
 
   kernel.admitDelta({
@@ -680,11 +712,16 @@ return { kind: 'backing-file-patch', path: input.path, backup: input.path + '.mu
   });
   const correctionSounding = kernel.openSounding('delta');
   const correctionInference = begin(kernel, correctionSounding.id);
-  kernel.stageToolRollback(correctionInference, correctionSounding.id, 'file_patch', originalDigest, {
+  const correction = kernel.authorToolRollbackProposal(correctionInference, correctionSounding.id, 'file_patch', originalDigest, {
     interpretation: 'The corrective consequence rejects the learned backup behavior.',
     consequenceDeltaIds: ['patch-correction-1'],
   });
   complete(kernel, correctionInference);
+  const rollbackTrialTarget = join(root, 'rollback-trial.txt');
+  writeFileSync(rollbackTrialTarget, 'trial-left');
+  await exerciseAndAdmitProposal(kernel, correction.proposalId, {
+    path: rollbackTrialTarget, oldText: 'trial-left', newText: 'trial-right',
+  }, 'rollback');
 
   const restoredTarget = join(root, 'restored.txt');
   writeFileSync(restoredTarget, 'left');
@@ -696,8 +733,8 @@ return { kind: 'backing-file-patch', path: input.path, backup: input.path + '.mu
   complete(kernel, restoredInference);
   assert.equal(restoredOutput.kind, 'file_patch');
   assert.equal(existsSync(`${restoredTarget}.music-backup`), false);
-  const rollbackEvent = kernel.events().findLast(event => event.type === 'tool_revision_staged');
-  assert.deepEqual(rollbackEvent.payload.consequences, [{ deltaId: 'patch-correction-1', invocationIds: [changedInvocationId] }]);
+  const rollbackEvent = kernel.events().filter(event => event.type === 'developmental_proposal_authored').at(-1);
+  assert.deepEqual(rollbackEvent.payload.revision.consequences, [{ deltaId: 'patch-correction-1', invocationIds: [changedInvocationId] }]);
 });
 
 test('world consequence cannot cite an invocation Music has never retained', () => {
@@ -783,8 +820,12 @@ test('initial and live-steered Deltas return without duplication after interrupt
 test('agent authority cannot be self-asserted outside an active encounter', async () => {
   const { kernel } = harness();
   assert.equal(kernel.activateToolRevision, undefined);
+  assert.equal(kernel.stageToolRevision, undefined);
+  assert.equal(kernel.stageToolRollback, undefined);
+  assert.equal(kernel.stageCarrierTransition, undefined);
+  assert.equal(kernel.stageWakeTransition, undefined);
   await assert.rejects(() => kernel.invokeTool('invented', 'invented', 'message', {}), /inference is not active/);
-  assert.throws(() => kernel.stageToolRevision('invented', 'invented', { interpretation: 'no', tool: {} }), /inference is not active/);
+  assert.throws(() => kernel.authorToolProposal('invented', 'invented', { interpretation: 'no', tool: {} }), /inference is not active/);
 });
 
 test('restart recovery preserves an in-flight unrestricted effect as uncertain', () => {
@@ -815,28 +856,30 @@ test('restart recovery preserves an in-flight unrestricted effect as uncertain',
   assert.equal(restarted.audit().uncertainInvocationsWithoutWorldContact, 0);
 });
 
-test('carrier state stages inside an encounter and merges with stable rule identity on completion', () => {
+test('carrier state remains provisional until exercise and explicit admission', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding();
   const before = sounding.carrier;
   const beforePosition = sounding.position;
   const inferenceId = begin(kernel, sounding.id);
-  const staged = kernel.stageCarrierTransition(inferenceId, sounding.id, {
+  const authored = kernel.authorCarrierProposal(inferenceId, sounding.id, {
     componentId: 'orientation', value: 'When contact is ambiguous, prefer asking before sending.',
     interpretation: 'A reply made premature sending a live selection concern.', evidence: ['delta:reply-1'],
   });
   assert.equal(kernel.state().carrier.get('orientation').state.generation, 0);
-  assert.notEqual(staged.successorRoot, before.root);
+  assert.notEqual(authored.transition.successorRoot, before.root);
   complete(kernel, inferenceId);
+  assert.equal(kernel.state().carrier.get('orientation').state.generation, 0);
+  await exerciseAndAdmitProposal(kernel, authored.proposalId, { contact: 'ambiguous' });
   const later = kernel.openSounding();
   assert.equal(
     later.carrier.components.find(component => component.id === 'orientation').ruleDigest,
     before.components.find(component => component.id === 'orientation').ruleDigest,
   );
-  assert.equal(later.carrier.root, staged.successorRoot);
-  assert.equal(later.position.parentPositionRoot, beforePosition.root);
+  assert.equal(later.carrier.root, authored.transition.successorRoot);
+  assert.notEqual(later.position.parentPositionRoot, beforePosition.root);
   assert.equal(later.position.carrierRoot, later.carrier.root);
-  assert.equal(later.position.generation, beforePosition.generation + 1);
+  assert.equal(later.position.generation, beforePosition.generation + 3);
 });
 
 test('only the exact selected input can execute and a selection receipt is single-use', async () => {
@@ -962,6 +1005,24 @@ function complete(kernel, inferenceId) {
     responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: 'done' }] }],
     text: 'done', finishReason: 'stop', usage: {}, steps: [], requests: [],
   });
+}
+
+async function exerciseAndAdmitProposal(kernel, proposalId, input, disposition = 'admit') {
+  const trial = kernel.openSounding('manual');
+  const trialInference = begin(kernel, trial.id);
+  await kernel.trialDevelopmentalProposal(trialInference, trial.id, proposalId, input);
+  complete(kernel, trialInference);
+  const admission = kernel.openSounding('manual');
+  const admissionInference = begin(kernel, admission.id);
+  kernel.stageDevelopmentalTransaction(admissionInference, admission.id, {
+    interpretation: 'Promote only after retained exercise and explicit judgment.',
+    decisions: [{
+      proposalId,
+      disposition,
+      interpretation: 'The retained exercise supports this explicit disposition.',
+    }],
+  });
+  complete(kernel, admissionInference);
 }
 
 function selectMessage(kernel, inferenceId, soundingId, selectedInput) {
