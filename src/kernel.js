@@ -8,7 +8,7 @@ import { initialMessageTool } from '../tools/message.js';
 import { initialSelectionTool } from '../tools/select-tool-action.js';
 import { initialConsequenceTool } from '../tools/attend-consequence.js';
 
-const FORMAT = 'music-event-6';
+const FORMAT = 'music-event-7';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
 const MAX_SELECTION_BYTES = 64 * 1_024;
@@ -79,7 +79,36 @@ export class MusicKernel {
   inferenceMessages(inferenceId) {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId || !state.activeInputMessage) throw new Error(`inference is not active: ${inferenceId}`);
-    return structuredClone([...state.recoveryMessages, state.activeInputMessage]);
+    return structuredClone([...state.recoveryMessages, state.activeInputMessage, ...state.activeTurnMessages]);
+  }
+
+  pendingSteeringDeltas(inferenceId) {
+    const state = this.state();
+    if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
+    return structuredClone(state.pendingDeltas);
+  }
+
+  steerInference(inferenceId, deltaIds, checkpointMessages, inputMessage) {
+    const state = this.state();
+    if (state.activeInferenceId !== inferenceId || !state.activeEncounter) throw new Error(`inference is not active: ${inferenceId}`);
+    const expected = state.pendingDeltas.map(delta => delta.id);
+    if (!Array.isArray(deltaIds) || digest(deltaIds) !== digest(expected) || deltaIds.length === 0) {
+      throw new Error('steering Delta acknowledgement does not match pending world contact');
+    }
+    const checkpoints = jsonValue(checkpointMessages, 'steering checkpoint messages');
+    if (!Array.isArray(checkpoints)) throw new Error('steering checkpoint messages must be an array');
+    const message = validateSteeringMessage(inputMessage);
+    const payload = {
+      inferenceId,
+      soundingId: state.activeEncounter.sounding.id,
+      projection: state.activeEncounter.projection,
+      deliveredDeltaIds: [...deltaIds],
+      checkpointMessages: checkpoints,
+      inputMessage: message,
+    };
+    if (Buffer.byteLength(canonical(payload)) > MAX_INFERENCE_BYTES) throw new Error(`steering checkpoint exceeds ${MAX_INFERENCE_BYTES} bytes`);
+    this.append('inference_steered', payload);
+    return { deltas: this.state().activeEncounter.steeringDeltas.slice(-deltaIds.length), message };
   }
 
   stageToolRevision(inferenceId, soundingId, proposal) {
@@ -342,6 +371,8 @@ export class MusicKernel {
       uncertainInvocations: countInvocationStatus(state, 'uncertain'),
       activeInvocations: state.activeToolInvocations.size,
       consequenceDeltas: state.consequenceDeltaIds.size,
+      steeringEvents: state.steeringEvents,
+      steeredDeltas: state.steeredDeltaCount,
       unresolvedConsequences: [...state.consequences.values()].filter(consequence => consequence.status !== 'settled').length,
       deferredConsequences: [...state.consequences.values()].filter(consequence => consequence.status === 'deferred').length,
       uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
@@ -412,6 +443,7 @@ function reduceEvents(events) {
     messages: [],
     recoveryMessages: [],
     activeInputMessage: null,
+    activeTurnMessages: [],
     activeInferenceId: null,
     activeEncounter: null,
     stagedRevisions: [],
@@ -425,6 +457,8 @@ function reduceEvents(events) {
     inferenceIds: new Set(),
     completedInferences: 0,
     failedInferences: 0,
+    steeringEvents: 0,
+    steeredDeltaCount: 0,
   };
   for (const event of events) {
     state.head = event.hash;
@@ -469,6 +503,7 @@ function reduceEvents(events) {
           sounding: structuredClone(sounding),
           projection: event.payload.projection,
           toolBindings,
+          steeringDeltas: [],
           status: 'opened',
           inferenceId: null,
         });
@@ -527,7 +562,7 @@ function reduceEvents(events) {
         break;
       }
       case 'tool_revision_activated': {
-        throw new Error('music-event-6 does not allow standalone tool activation');
+        throw new Error('music-event-7 does not allow standalone tool activation');
       }
       case 'tool_invocation_started': {
         requireSubject(state);
@@ -582,7 +617,28 @@ function reduceEvents(events) {
         sounding.inferenceId = event.payload.inferenceId;
         state.pendingDeltas = state.pendingDeltas.filter(delta => !delivered.has(delta.id));
         state.activeInputMessage = structuredClone(event.payload.inputMessage);
+        state.activeTurnMessages = [];
         state.messages.push(structuredClone(event.payload.inputMessage));
+        break;
+      }
+      case 'inference_steered': {
+        const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        const expected = state.pendingDeltas.map(delta => delta.id);
+        if (!Array.isArray(event.payload.deliveredDeltaIds)
+          || event.payload.deliveredDeltaIds.length === 0
+          || digest(event.payload.deliveredDeltaIds) !== digest(expected)) {
+          throw new Error('steered Delta acknowledgement does not match pending world contact');
+        }
+        if (!Array.isArray(event.payload.checkpointMessages)) throw new Error('steered inference lacks checkpoint messages');
+        const message = validateSteeringMessage(event.payload.inputMessage);
+        const delivered = structuredClone(state.pendingDeltas);
+        encounter.steeringDeltas.push(...delivered);
+        state.pendingDeltas = [];
+        const retainedMessages = [...structuredClone(event.payload.checkpointMessages), message];
+        state.activeTurnMessages.push(...retainedMessages);
+        state.messages.push(...retainedMessages);
+        state.steeringEvents += 1;
+        state.steeredDeltaCount += delivered.length;
         break;
       }
       case 'inference_completed': {
@@ -634,6 +690,7 @@ function reduceEvents(events) {
         state.usedSelectionIds = new Set();
         state.recoveryMessages = [];
         state.activeInputMessage = null;
+        state.activeTurnMessages = [];
         state.completedInferences += 1;
         break;
       }
@@ -644,10 +701,11 @@ function reduceEvents(events) {
         state.messages.push(...structuredClone(event.payload.checkpointMessages));
         const interruptionMessage = {
           role: 'user',
-          content: `[inference_interrupted]\nThe previous inference ended unexpectedly after ${event.payload.checkpointMessages.length} retained response messages. Its error was recorded by the harness. Reorient from the completed tool results and current Sounding rather than inventing missing output.\n[/inference_interrupted]`,
+          content: `[inference_interrupted]\nThe previous inference ended unexpectedly after ${state.activeTurnMessages.length + event.payload.checkpointMessages.length} retained response and steering messages. Its error was recorded by the harness. Every world Delta delivered to that encounter has been returned to the next Sounding. Reorient from retained completed tool results rather than inventing missing output.\n[/inference_interrupted]`,
         };
         state.messages.push(interruptionMessage);
-        state.recoveryMessages = [...structuredClone(event.payload.checkpointMessages), interruptionMessage];
+        state.recoveryMessages = [...structuredClone(state.activeTurnMessages), ...structuredClone(event.payload.checkpointMessages), interruptionMessage];
+        state.pendingDeltas = requeueDeliveredDeltas(state.activeEncounter, state.pendingDeltas);
         for (const [invocationId, invocation] of state.activeToolInvocations) {
           if (invocation.inferenceId === event.payload.inferenceId) {
             state.activeToolInvocations.delete(invocationId);
@@ -665,6 +723,7 @@ function reduceEvents(events) {
         state.selections = new Map();
         state.usedSelectionIds = new Set();
         state.activeInputMessage = null;
+        state.activeTurnMessages = [];
         state.failedInferences += 1;
         break;
       default:
@@ -758,7 +817,26 @@ function deliveredConsequences(encounter) {
       .map(delta => [delta.id, delta]),
     ...(encounter.sounding.unresolvedConsequences ?? [])
       .map(consequence => [consequence.delta.id, consequence.delta]),
+    ...(encounter.steeringDeltas ?? [])
+      .filter(delta => delta.bearsOn?.length)
+      .map(delta => [delta.id, delta]),
   ]);
+}
+
+function requeueDeliveredDeltas(encounter, pendingDeltas) {
+  const pendingIds = new Set(pendingDeltas.map(delta => delta.id));
+  const delivered = [...encounter.sounding.deltas, ...(encounter.steeringDeltas ?? [])]
+    .filter(delta => !pendingIds.has(delta.id));
+  return [...structuredClone(delivered), ...structuredClone(pendingDeltas)];
+}
+
+function validateSteeringMessage(value) {
+  const message = jsonValue(value, 'steering input message');
+  if (!message || typeof message !== 'object' || Array.isArray(message)
+    || message.role !== 'user' || typeof message.content !== 'string' || !message.content) {
+    throw new Error('steering input message must be a nonempty user text message');
+  }
+  return message;
 }
 
 function validateConsequenceTransition(proposal, state, encounter) {

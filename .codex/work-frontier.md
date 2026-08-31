@@ -45,8 +45,9 @@ tools retain the unrestricted machine authority of the harness process.
   **Evidence:** Watch constructs each Sounding from typed, timestamped Deltas and
   can inject waking Deltas into an inference already in progress. Music now has
   a durable adapter-neutral filesystem ingress whose admitted arrivals wake the
-  resident, including a follow-up Sounding for contact arriving during inference;
-  same-Sounding steering remains unproved.
+  resident. Real ingress during an AI SDK step now appends the completed protocol
+  and exact new contact into the same inference without changing its projected
+  tool or carrier geometry. Initial and steered Deltas return after interruption.
 - **The subject may leave consequence meaning genuinely unresolved across
   encounters.**
   **Evidence:** Music's ordinary consequence-attention tool now stages explicit

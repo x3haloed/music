@@ -116,6 +116,64 @@ test('a Delta arriving during inference is durably queued and wakes the next Sou
   assert.equal(kernel.audit().pendingDeltas, 0);
 });
 
+test('real ingress during an AI SDK step steers the same encounter and can be interpreted there', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'music-resident-live-steering-test-'));
+  const ledger = join(root, 'events.jsonl');
+  const ingress = join(root, 'ingress');
+  const kernel = new MusicKernel(ledger);
+  kernel.initialize('Aster');
+  const target = join(root, 'steered.txt');
+  writeFileSync(target, 'before');
+  const actionSounding = kernel.openSounding();
+  const actionInference = begin(kernel, actionSounding.id);
+  await kernel.invokeTool(actionInference, actionSounding.id, 'file_patch', {
+    path: target, oldText: 'before', newText: 'after',
+  });
+  complete(kernel, actionInference);
+  const invocationId = kernel.state().invocations.at(-1).invocationId;
+
+  let resident;
+  let call = 0;
+  let ingestionDuringStep;
+  const model = new MockLanguageModelV4({
+    doGenerate: async options => {
+      call += 1;
+      if (call === 1) {
+        submitWorldDelta(ingress, {
+          authority: 'world', id: 'arrived-mid-step', stream: 'workspace', at: '2026-08-30T16:01:00.000Z',
+          bearsOn: [{ kind: 'tool-invocation', invocationId }],
+          payload: { observation: 'This arrived while the same encounter was already thinking.' },
+        }, { id: () => 'mid-step-file' });
+        ingestionDuringStep = await resident.pump();
+        return textResult('I have completed my response to the opening contact.');
+      }
+      if (call === 2) {
+        assert.match(JSON.stringify(options.prompt), /arrived-mid-step/);
+        assert.match(JSON.stringify(options.prompt), /same encounter was already thinking/);
+        return toolCallResult('attend_consequence', {
+          deltaId: 'arrived-mid-step', action: 'defer',
+          interpretation: 'I received this during the same encounter and want it present again later.',
+        });
+      }
+      return textResult('I incorporated the waking contact without becoming a second mind.');
+    },
+  });
+  resident = new MusicResident(kernel, mind(kernel, model), { ingress });
+  submitWorldDelta(ingress, worldDelta('opening-contact'), { id: () => 'opening-file' });
+  const inferenceCountBefore = kernel.events().filter(event => event.type === 'inference_started').length;
+  await resident.pump();
+  await resident.whenIdle();
+
+  assert.deepEqual(ingestionDuringStep, { admitted: 1, started: false });
+  assert.equal(kernel.events().filter(event => event.type === 'inference_started').length, inferenceCountBefore + 1);
+  const steering = kernel.events().findLast(event => event.type === 'inference_steered');
+  assert.deepEqual(steering.payload.deliveredDeltaIds, ['arrived-mid-step']);
+  assert.match(JSON.stringify(steering.payload.checkpointMessages), /completed my response to the opening contact/);
+  assert.equal(kernel.audit().deferredConsequences, 1);
+  assert.equal(kernel.audit().steeringEvents, 1);
+  assert.equal(kernel.audit().pendingDeltas, 0);
+});
+
 function mind(kernel, model) {
   return new MusicMind(kernel, {
     model,

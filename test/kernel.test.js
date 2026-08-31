@@ -331,6 +331,42 @@ test('an interrupted encounter cannot settle a deferred consequence', async () =
   assert.equal(recovered.unresolvedConsequences[0].status, 'deferred');
 });
 
+test('initial and live-steered Deltas return without duplication after interrupted inference', () => {
+  const { kernel } = harness();
+  kernel.admitDelta({
+    authority: 'world', id: 'initial-contact', stream: 'inbox', at: '2026-08-30T13:00:00.000Z', payload: { content: 'first' },
+  });
+  const sounding = kernel.openSounding('delta');
+  const inferenceId = begin(kernel, sounding.id);
+  kernel.admitDelta({
+    authority: 'world', id: 'live-contact', stream: 'inbox', at: '2026-08-30T13:01:00.000Z', payload: { content: 'second' },
+  });
+  assert.throws(() => kernel.steerInference(
+    inferenceId,
+    ['invented-contact'],
+    [],
+    { role: 'user', content: 'counterfeit steering' },
+  ), /does not match pending world contact/);
+  kernel.steerInference(
+    inferenceId,
+    ['live-contact'],
+    [{ role: 'assistant', content: [{ type: 'text', text: 'I saw the first contact.' }] }],
+    { role: 'user', content: '[live_steering]\nsecond\n[/live_steering]' },
+  );
+  assert.equal(kernel.audit().steeringEvents, 1);
+  assert.equal(kernel.audit().steeredDeltas, 1);
+  assert.equal(kernel.state().pendingDeltas.length, 0);
+  kernel.failInference(inferenceId, new Error('failure after live steering'));
+
+  const restarted = new MusicKernel(kernel.ledgerPath);
+  assert.deepEqual(restarted.state().pendingDeltas.map(delta => delta.id), ['initial-contact', 'live-contact']);
+  const retry = restarted.openSounding('delta');
+  assert.deepEqual(retry.deltas.map(delta => delta.id), ['initial-contact', 'live-contact']);
+  const retryInference = begin(restarted, retry.id);
+  restarted.failInference(retryInference, new Error('second failure before completion'));
+  assert.deepEqual(restarted.state().pendingDeltas.map(delta => delta.id), ['initial-contact', 'live-contact']);
+});
+
 test('agent authority cannot be self-asserted outside an active encounter', async () => {
   const { kernel } = harness();
   assert.equal(kernel.activateToolRevision, undefined);

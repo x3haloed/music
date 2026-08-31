@@ -21,9 +21,9 @@ does not yet claim concurrent writers, transactional rollback of arbitrary
 external effects, autonomous scheduling, live messaging transport, dependency
 installation recovery, or survival when the bootstrap itself is corrupted.
 
-Event format 6 intentionally rejects earlier ledgers because unresolved
-consequence state, staged dispositions, and the initial consequence-attention
-tool are now part of subject continuity.
+Event format 7 intentionally rejects earlier ledgers because live steering,
+step-boundary protocol retention, and lossless interrupted Delta delivery are
+now part of subject continuity.
 
 ## Stable boundary
 
@@ -64,6 +64,7 @@ an active learned version.
 world-authored Delta
   -> durable Sounding offer
   -> inference accepts its exact projection and acknowledges its Deltas
+  -> waking world contact may append inside the same inference at a step boundary
   -> subject encounters current carrier and ordinary-tool digests/interfaces
   -> inspect_tool retrieves exact projected source when needed
   -> ordinary module executes with unrestricted Node authority
@@ -173,9 +174,21 @@ files separately, and treats a repeated already-admitted Delta id as recovery
 from the append-before-archive crash window rather than duplicate contact.
 
 An admitted waking Delta triggers a Sounding when the resident is idle. Arrival
-during an active inference is still durably admitted and triggers the next
-Sounding after that inference closes. Periodic heartbeats also reopen contact,
+during active inference is admitted immediately. At the next completed AI SDK
+model-step boundary, Music retains the completed assistant/tool protocol in an
+`inference_steered` event and presents the exact new Deltas inside the same
+inference. The original Sounding projection remains authoritative: steering
+adds world contact but cannot change the encounter's tool or carrier bindings.
+If the inference has exhausted its bounded step budget, contact remains pending
+and wakes a follow-up Sounding instead. Periodic heartbeats also reopen contact,
 which makes explicitly deferred consequences revisitable without new input.
+
+If an inference fails or the process recovers it as interrupted, every initial
+and live-steered Delta delivered to that encounter returns to the pending world
+surface without duplicating its retained admission. Consequences also retain
+their unresolved disposition independently. Completed assistant/tool protocol
+before each steering boundary is replayable recovery context, while staged
+machinery and consequence dispositions still do not activate on failure.
 
 ## Evidence and next risk frontier
 
@@ -202,20 +215,21 @@ Automated evidence currently proves that:
 - a real durable filesystem arrival wakes the AI SDK mind, its ordinary
   consequence tool defers the observation, reconstruction preserves it, and a
   later encounter settles it; an interrupted settlement leaves it deferred;
-- a second Delta arriving while inference is active is admitted without overlap
-  and automatically wakes the next Sounding;
+- a real filesystem Delta arriving during an AI SDK model step is appended at a
+  retained steering boundary, interpreted by the same inference, and can drive
+  the ordinary consequence-attention tool without opening another Sounding;
+- initial and live-steered ordinary Deltas both return after failure and remain
+  exactly once across reconstruction and repeated interruption;
 - invented invocation references and consequence claims from outside the current
   Sounding are rejected, while uncertain effects remain uncertainty rather than
   being reclassified by the kernel;
 - OpenRouter strict serialization accepts the complete executable-tool surface.
 
-The next risk frontier is live steering and real communication. Music now has a
-generic durable adapter boundary and follow-up wake sequencing, but it does not
-yet inject a waking Delta into an inference already in progress; same-Sounding
-steering must preserve the encounter's exact projection and staged-change
-authority. Generic non-consequence Deltas also need an interruption policy so a
-failed first encounter cannot make important contact disappear from the active
-surface. The local `message` tool remains an emission record rather than a real
-transport. Beyond those edges, ordinary tools still need a learned dependency
-and module-installation story capable of recovering when newly installed code
-breaks the next encounter.
+The next risk frontier is real communication and plastic delivery geometry. The
+local `message` tool remains an emission record rather than a real transport,
+so Music cannot yet sustain an actual conversation with its resident. Sounding
+and steering text are also still shaped by fixed harness functions rather than
+revisable retained machinery; changing that must not let learned projection code
+hide world contact or corrupt the continuity path. Beyond those edges, ordinary
+tools still need a learned dependency and module-installation story capable of
+recovering when newly installed code breaks the next encounter.

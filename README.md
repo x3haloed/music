@@ -15,8 +15,9 @@ ancestry and deferred activation—not from limiting what ordinary tools can do.
 A resident runtime watches a durable filesystem ingress. External adapters
 atomically submit world-authored Delta files without writing the subject ledger;
 the one resident runtime admits them, wakes an encounter, and archives each
-arrival. A Delta arriving during inference is durably queued for a follow-up
-Sounding.
+arrival. A Delta arriving during inference is durably injected into that same
+encounter at the next completed model-step boundary. If the encounter has
+exhausted its step budget, the pending contact wakes a follow-up Sounding.
 
 The current causal path is:
 
