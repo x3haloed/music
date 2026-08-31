@@ -122,6 +122,19 @@ tools retain the unrestricted machine authority of the harness process.
   preempts without erasure, interruption restores the opening wake, failed
   inference cannot promote a new wake, and a revised scheduler body constructs
   different later timing. The heartbeat remains only the no-choice fallback.
+- **A heartbeat is secluded existence, not an externally assigned task.**
+  **Evidence:** The seed encounter shaper receives the exact Sounding trigger
+  and projects heartbeat facts without appending a request, reporting
+  obligation, or behavioral instruction. Exact subject, tool, carrier, and
+  frontier geometry remains present, and the shaper remains ordinary revisable
+  machinery.
+- **A new resident must have immediate general leverage over its habitat without
+  first inventing basic perception and action while blind.**
+  **Evidence:** Watch-informed ordinary `read_file`, `write_file`,
+  `search_files`, `shell`, and `web_fetch` seed modules cross real filesystem,
+  subprocess, and HTTP boundaries through the normal retained Music invocation
+  path. They bound projected output rather than authority, retain failure and
+  timeout dispositions, survive reconstruction, and remain fully revisable.
 
 ## Evaluation regime
 

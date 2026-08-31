@@ -60,6 +60,13 @@ under [`tools/`](./tools):
 
 - `file_patch` performs a real atomic exact-text replacement on any visible
   path;
+- `read_file`, `write_file`, and `search_files` provide bounded text
+  observation, atomic creation or explicit replacement, and ripgrep-backed path
+  or content discovery without narrowing the paths visible to the process;
+- `shell` runs unrestricted foreground commands with bounded separate output,
+  exit status, and an explicit `possibly-partial` effect disposition on timeout;
+- `web_fetch` performs direct HTTP requests and returns bounded text or binary
+  response material with status and headers;
 - `message` atomically delivers a human-visible envelope to the configured local
   mailbox and identifies the exact invocation that produced it;
 - `select_tool_action` invokes the stable receipt primitive, but its interface,
@@ -67,7 +74,8 @@ under [`tools/`](./tools):
 - `attend_consequence` invokes the staged consequence-transition primitive, but
   its interface, policy, and sequencing remain ordinary revisable geometry.
 - `shape_encounter` frames, orders, and emphasizes the exact Sounding or waking
-  steering facts presented to the mind.
+  steering facts presented to the mind. Its seed form leaves heartbeat facts
+  free of an appended task or behavioral instruction.
 - `manage_dependency` uses unrestricted npm execution to install, remove, or
   inspect packages in a separate resident dependency habitat.
 - `schedule_wake` stages the next time this same subject wants to return without
@@ -394,6 +402,17 @@ hygiene.
 
 Automated evidence currently proves that:
 
+- the seed filesystem affordances create, refuse implicit overwrite, paginate,
+  search, and patch real files through retained kernel invocations, then survive
+  reconstruction from the ledger;
+- the seed shell runs a real command with separate stdout and stderr, makes a
+  real filesystem effect, and reports timeout effects as possibly partial rather
+  than falsely calling them absent;
+- the seed web tool crosses a real local HTTP boundary, retains method, status,
+  headers, and bounded response bytes, and explicitly marks truncation;
+- a heartbeat inference receives every exact fact envelope without an incoming
+  task, reporting obligation, or behavioral instruction from the encounter
+  shaper;
 - a retained ordinary module dynamically imports `node:child_process`, starts a
   real child Node process, and returns its output;
 - the initial `file_patch` changes a real disposable file and retains before/after

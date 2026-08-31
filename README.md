@@ -76,6 +76,14 @@ Initial ordinary modules live in [`tools/`](./tools). `file_patch` performs a
 real atomic textual replacement on any path visible to the process. `message`
 performs real durable mailbox delivery, and even `select_tool_action` is an
 ordinary revisable module.
+The resident also begins with Watch-informed general affordances rather than
+having to invent basic embodiment from inside a blind first encounter:
+`read_file` provides bounded line-numbered text pagination, `write_file` creates
+or explicitly replaces text files atomically, `search_files` discovers paths or
+content through ripgrep, `shell` runs unrestricted foreground commands with
+separate bounded output and explicit timeout uncertainty, and `web_fetch`
+performs bounded direct HTTP requests. Each remains an independently revisable
+ordinary module; none is fixed kernel policy.
 `attend_consequence` lets the one mind defer or settle a consequence; deferred
 consequences return in later Soundings. `shape_encounter` controls the ordering,
 framing, and emphasis of initial Soundings and waking steering contact while the
@@ -85,6 +93,11 @@ version is authoritative.
 `schedule_wake` lets that same mind construct its own next temporal opening; its
 interface and executable timing policy are revised through the same ancestry as
 every other ordinary tool.
+
+A fallback heartbeat is secluded time, not a task. The seed encounter shaper
+therefore delivers heartbeat facts without appending a request, reporting
+obligation, or behavioral instruction. The heartbeat continues to carry exact
+current geometry, and the resident may later revise the shaper itself.
 
 Seed modules are dynamically loaded only by `music init`. Reconstructing an
 existing subject does not import `tools/`; a broken or deleted seed file cannot

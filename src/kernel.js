@@ -1400,6 +1400,7 @@ function frontierLane(available, included, remainder, idOf) {
 function soundingProjectionInput(sounding) {
   return {
     phase: 'sounding',
+    trigger: sounding.trigger,
     soundingId: sounding.id,
     facts: [
       projectionFact('sounding:meta', { id: sounding.id, parent: sounding.parent, at: sounding.at, trigger: sounding.trigger }),
@@ -1417,6 +1418,7 @@ function soundingProjectionInput(sounding) {
 function steeringProjectionInput(encounter, deltas, frontier) {
   return {
     phase: 'steering',
+    trigger: encounter.sounding.trigger,
     soundingId: encounter.sounding.id,
     facts: [
       projectionFact('steering:meta', { soundingId: encounter.sounding.id, projection: encounter.projection }),
@@ -1478,6 +1480,7 @@ function projectionInput(state, encounter, phase, deltaIds) {
     if (sounding.frontier === undefined) {
       return {
         phase,
+        trigger: sounding.trigger,
         soundingId: sounding.id,
         facts: [
           projectionFact('sounding:meta', { id: sounding.id, parent: sounding.parent, at: sounding.at, trigger: sounding.trigger }),

@@ -243,6 +243,21 @@ test('the one mind can revise the retained geometry that shapes later Soundings'
   assert.equal(kernel.audit().failedDeliveryProjections, 0);
 });
 
+test('a heartbeat arrives as exact contact without an incoming task or behavioral instruction', async () => {
+  const model = new MockLanguageModelV4({ doGenerate: [textResult('')] });
+  const { kernel, mind } = harness(model);
+
+  await mind.receive(kernel.openSounding('heartbeat').id);
+
+  const incoming = model.doGenerateCalls[0].prompt.find(message => message.role === 'user');
+  const prompt = JSON.stringify(incoming);
+  assert.match(prompt, /music_fact/);
+  assert.match(prompt, /heartbeat/);
+  assert.doesNotMatch(prompt, /Use current tools/);
+  assert.doesNotMatch(prompt, /A quiet final response is valid/);
+  assert.doesNotMatch(prompt, /Incorporate them/);
+});
+
 test('broken learned delivery geometry exposes exact recovery facts and can be rolled back by the same mind', async () => {
   let targetDigest;
   let call = 0;

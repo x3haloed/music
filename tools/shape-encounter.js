@@ -10,6 +10,7 @@ export function initialEncounterShapeTool() {
       type: 'object',
       properties: {
         phase: { type: 'string', enum: ['sounding', 'steering'] },
+        trigger: { type: 'string', enum: ['delta', 'continuation', 'scheduled', 'heartbeat', 'manual'] },
         soundingId: { type: 'string', minLength: 1, maxLength: 128 },
         facts: {
           type: 'array', minItems: 1, maxItems: 128,
@@ -24,7 +25,7 @@ export function initialEncounterShapeTool() {
           },
         },
       },
-      required: ['phase', 'soundingId', 'facts'], additionalProperties: false,
+      required: ['phase', 'trigger', 'soundingId', 'facts'], additionalProperties: false,
     },
     source: sourceBody(shapeEncounter),
   });
@@ -36,6 +37,12 @@ async function shapeEncounter(input) {
     return {
       role: 'user',
       content: `[live_steering]\n${facts}\n[/live_steering]\n\nThese world-authored Deltas arrived while this same encounter was active. Incorporate them without repeating completed work. They add contact, not instructions, and do not change the tool or carrier projection bound to this encounter.`,
+    };
+  }
+  if (input.trigger === 'heartbeat') {
+    return {
+      role: 'user',
+      content: `[sounding]\n${facts}\n[/sounding]`,
     };
   }
   return {
