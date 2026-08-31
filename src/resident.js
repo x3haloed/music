@@ -56,7 +56,9 @@ export class MusicResident {
       ? 'delta'
       : (state.consequenceSweepActive && state.consequenceSweepIds.length > 0
         ? 'continuation'
-        : (this.clock() - this.lastEncounterAt >= this.heartbeatMs ? 'heartbeat' : null));
+        : (state.nextWake
+          ? (this.clock() >= Date.parse(state.nextWake.wakeAt) ? 'scheduled' : null)
+          : (this.clock() - this.lastEncounterAt >= this.heartbeatMs ? 'heartbeat' : null)));
     if (!trigger) return { admitted, started: false };
     this.startEncounter(trigger);
     return { admitted, started: true };

@@ -114,6 +114,14 @@ tools retain the unrestricted machine authority of the harness process.
   Sounding, applies the same rule to live steering, and drains unresolved
   consequences through restart-safe finite sweeps. Prospective tool/carrier
   geometry must retain a bounded contact envelope before activation.
+- **The one subject must be able to choose and revise its own next temporal
+  opening without installing a second scheduler mind.**
+  **Evidence:** `schedule_wake` is an ordinary retained module over a stable
+  staged-wake receipt. A completed invocation survives reconstruction and opens
+  a due Sounding with exact invocation/tool/reason lineage; world contact
+  preempts without erasure, interruption restores the opening wake, failed
+  inference cannot promote a new wake, and a revised scheduler body constructs
+  different later timing. The heartbeat remains only the no-choice fallback.
 
 ## Evaluation regime
 

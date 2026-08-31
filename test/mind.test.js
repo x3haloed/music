@@ -90,6 +90,22 @@ test('AI SDK tool loop invokes active Music geometry and performs durable human-
   assert.ok(model.doGenerateCalls[1].prompt.some(message => message.role === 'tool'));
 });
 
+test('the one mind can choose and retain its own next wake through ordinary tool geometry', async () => {
+  const model = new MockLanguageModelV4({
+    doGenerate: [
+      toolCallResult('schedule_wake', { afterMs: 30_000, reason: 'Continue this thought after a short interval.' }),
+      textResult('I have chosen when to return.'),
+    ],
+  });
+  const { kernel, mind } = harness(model);
+
+  await mind.receive(kernel.openSounding('manual').id);
+
+  assert.equal(kernel.audit().nextWake.reason, 'Continue this thought after a short interval.');
+  assert.equal(kernel.audit().nextWake.invocationId, kernel.state().invocations.at(-1).invocationId);
+  assert.equal(kernel.state().invocations.at(-1).tool.id, 'schedule_wake');
+});
+
 test('the one mind can embody a new tool and encounter it on the next Sounding', async () => {
   const revision = {
     interpretation: 'Repeated contrast should become an explicit affordance.',

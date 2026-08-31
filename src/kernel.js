@@ -75,7 +75,7 @@ export class MusicKernel {
     requireSubject(state);
     if (state.activeInferenceId) throw new Error(`cannot open a Sounding while inference is active: ${state.activeInferenceId}`);
     if (state.openSoundingId) throw new Error(`an opened Sounding is still awaiting an encounter: ${state.openSoundingId}`);
-    if (!['delta', 'continuation', 'heartbeat', 'manual'].includes(trigger)) throw new Error('invalid Sounding trigger');
+    if (!['delta', 'continuation', 'scheduled', 'heartbeat', 'manual'].includes(trigger)) throw new Error('invalid Sounding trigger');
     const base = {
       id: this.id(),
       subject: structuredClone(state.subject),
@@ -85,6 +85,7 @@ export class MusicKernel {
       tools: [...state.tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
       carrier: projectCarrier(state.carrier),
     };
+    base.wake = projectOpeningWake(state.nextWake, trigger, base.at);
     const surface = planSoundingSurface(state, base);
     const sounding = { ...base, ...surface.sounding };
     this.append('sounding_opened', {
@@ -288,6 +289,39 @@ export class MusicKernel {
     return transition;
   }
 
+  stageWakeTransition(inferenceId, soundingId, invocationId, proposal) {
+    const state = this.state();
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    const invocation = state.activeToolInvocations.get(invocationId);
+    if (!invocation || invocation.inferenceId !== inferenceId || invocation.soundingId !== soundingId) {
+      throw new Error('future wake requires its active tool invocation');
+    }
+    if (state.stagedWakeTransition) throw new Error('only one future wake may be staged per encounter');
+    const afterMs = proposal?.afterMs;
+    if (!Number.isSafeInteger(afterMs) || afterMs < 1_000) throw new Error('future wake afterMs must be a safe integer of at least 1000');
+    const reason = typeof proposal?.reason === 'string' ? proposal.reason.trim() : '';
+    if (!reason || reason.length > 2_048) throw new Error('future wake needs a bounded reason');
+    const stagedAt = this.clock().toISOString();
+    const wakeAtMs = Date.parse(stagedAt) + afterMs;
+    if (!Number.isSafeInteger(wakeAtMs) || !Number.isFinite(wakeAtMs)) throw new Error('future wake exceeds the supported clock range');
+    let wakeAt;
+    try { wakeAt = new Date(wakeAtMs).toISOString(); } catch { throw new Error('future wake exceeds the supported clock range'); }
+    const transition = {
+      wakeId: this.id(),
+      inferenceId,
+      soundingId,
+      projection: encounter.projection,
+      invocationId,
+      tool: structuredClone(invocation.tool),
+      stagedAt,
+      afterMs,
+      wakeAt,
+      reason,
+    };
+    this.append('wake_transition_staged', transition);
+    return transition;
+  }
+
   selectToolAction(inferenceId, soundingId, toolId, frontier) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
@@ -339,6 +373,7 @@ export class MusicKernel {
         environment: structuredClone(this.toolEnvironment),
         selectToolAction: (selectedToolId, frontier) => this.selectToolAction(inferenceId, soundingId, selectedToolId, frontier),
         stageConsequenceTransition: proposal => this.stageConsequenceTransition(inferenceId, soundingId, proposal),
+        stageWakeTransition: proposal => this.stageWakeTransition(inferenceId, soundingId, invocationId, proposal),
       });
       this.append('tool_invocation_completed', { invocationId, output });
       return output;
@@ -376,6 +411,7 @@ export class MusicKernel {
     const stagedRevisions = state.stagedRevisions.map(revision => structuredClone(revision));
     const stagedCarrierTransition = state.stagedCarrierTransition ? structuredClone(state.stagedCarrierTransition) : null;
     const stagedConsequenceTransitions = state.stagedConsequenceTransitions.map(transition => structuredClone(transition));
+    const stagedWakeTransition = state.stagedWakeTransition ? structuredClone(state.stagedWakeTransition) : null;
     const payload = jsonValue({
       inferenceId,
       soundingId: state.activeEncounter.sounding.id,
@@ -389,6 +425,7 @@ export class MusicKernel {
       activatedRevisions: stagedRevisions,
       activatedCarrierTransition: stagedCarrierTransition,
       activatedConsequenceTransitions: stagedConsequenceTransitions,
+      activatedWakeTransition: stagedWakeTransition,
     }, 'inference result');
     if (Buffer.byteLength(canonical(payload)) > MAX_INFERENCE_BYTES) throw new Error(`inference result exceeds ${MAX_INFERENCE_BYTES} bytes`);
     this.append('inference_completed', payload);
@@ -555,6 +592,12 @@ export class MusicKernel {
       deferredConsequences: [...state.consequences.values()].filter(consequence => consequence.status === 'deferred').length,
       consequenceSweepActive: state.consequenceSweepActive,
       unprojectedConsequences: state.consequenceSweepIds.length,
+      nextWake: state.nextWake ? {
+        wakeId: state.nextWake.wakeId,
+        wakeAt: state.nextWake.wakeAt,
+        reason: state.nextWake.reason,
+        invocationId: state.nextWake.invocationId,
+      } : null,
       uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
         .filter(([invocationId, invocation]) => invocation.status === 'uncertain' && !state.contactedInvocationIds.has(invocationId)).length,
       selections: state.selectionCount,
@@ -632,6 +675,8 @@ function reduceEvents(events) {
     stagedCarrierTransition: null,
     stagedConsequenceTransitions: [],
     stagedConsequenceIds: new Set(),
+    stagedWakeTransition: null,
+    nextWake: null,
     selections: new Map(),
     usedSelectionIds: new Set(),
     selectionCount: 0,
@@ -689,6 +734,7 @@ function reduceEvents(events) {
         if (state.openSoundingId || state.activeInferenceId) throw new Error('ledger opens overlapping Soundings');
         if (state.soundings.has(sounding.id)) throw new Error(`ledger repeats Sounding id: ${sounding.id}`);
         const toolBindings = bindProjectedTools(state.tools, sounding.tools);
+        validateOpeningWake(sounding.wake ?? null, state.nextWake, sounding.trigger, sounding.at);
         if (sounding.frontier === undefined) {
           if (digest(sounding.unresolvedConsequences) !== digest(projectUnresolvedConsequences(state))) {
             throw new Error('Sounding unresolved consequence projection mismatch');
@@ -702,6 +748,7 @@ function reduceEvents(events) {
             trigger: sounding.trigger,
             tools: sounding.tools,
             carrier: sounding.carrier,
+            wake: sounding.wake ?? null,
           });
           if (digest(sounding.deltas) !== digest(planned.sounding.deltas)
             || digest(sounding.unresolvedConsequences) !== digest(planned.sounding.unresolvedConsequences)
@@ -722,6 +769,7 @@ function reduceEvents(events) {
           inferenceId: null,
         });
         state.openSoundingId = sounding.id;
+        state.nextWake = null;
         break;
       }
       case 'delivery_projection_started': {
@@ -795,6 +843,19 @@ function reduceEvents(events) {
         }
         state.stagedConsequenceTransitions.push(transition);
         state.stagedConsequenceIds.add(transition.deltaId);
+        break;
+      }
+      case 'wake_transition_staged': {
+        requireSubject(state);
+        const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        if (state.stagedWakeTransition) throw new Error('ledger stages more than one future wake in an encounter');
+        const invocation = state.activeToolInvocations.get(event.payload.invocationId);
+        if (!invocation || invocation.inferenceId !== event.payload.inferenceId || invocation.soundingId !== encounter.sounding.id) {
+          throw new Error('future wake is not bound to an active tool invocation');
+        }
+        const transition = validateWakeTransition(event.payload);
+        if (digest(transition.tool) !== digest(invocation.tool)) throw new Error('future wake tool binding mismatch');
+        state.stagedWakeTransition = transition;
         break;
       }
       case 'tool_selection_recorded': {
@@ -942,6 +1003,14 @@ function reduceEvents(events) {
           consequence.status = transition.action === 'defer' ? 'deferred' : 'settled';
           consequence.disposition = structuredClone(transition);
         }
+        if (digest(event.payload.activatedWakeTransition ?? null) !== digest(state.stagedWakeTransition)) {
+          throw new Error('completed inference wake activation does not match staged transition');
+        }
+        if (state.stagedWakeTransition
+          && state.invocationHistory.get(state.stagedWakeTransition.invocationId)?.status !== 'completed') {
+          throw new Error('completed inference cannot activate a wake from an incomplete invocation');
+        }
+        state.nextWake = state.stagedWakeTransition ? structuredClone(state.stagedWakeTransition) : null;
         if (state.activeEncounter.sounding.frontier !== undefined) {
           const projectedConsequenceIds = new Set([
             ...state.activeEncounter.sounding.deltas.filter(delta => delta.bearsOn?.length).map(delta => delta.id),
@@ -965,6 +1034,7 @@ function reduceEvents(events) {
         state.stagedCarrierTransition = null;
         state.stagedConsequenceTransitions = [];
         state.stagedConsequenceIds = new Set();
+        state.stagedWakeTransition = null;
         state.selections = new Map();
         state.usedSelectionIds = new Set();
         state.recoveryMessages = [];
@@ -989,6 +1059,9 @@ function reduceEvents(events) {
         state.messages.push(interruptionMessage);
         state.recoveryMessages = [...structuredClone(state.activeTurnMessages), ...structuredClone(event.payload.checkpointMessages), interruptionMessage];
         state.pendingDeltas = requeueDeliveredDeltas(state.activeEncounter, state.pendingDeltas);
+        if (state.activeEncounter.sounding.wake) {
+          state.nextWake = restoreOpeningWake(state.activeEncounter.sounding.wake);
+        }
         for (const [invocationId, invocation] of state.activeToolInvocations) {
           if (invocation.inferenceId === event.payload.inferenceId) {
             state.activeToolInvocations.delete(invocationId);
@@ -1003,6 +1076,7 @@ function reduceEvents(events) {
         state.stagedCarrierTransition = null;
         state.stagedConsequenceTransitions = [];
         state.stagedConsequenceIds = new Set();
+        state.stagedWakeTransition = null;
         state.selections = new Map();
         state.usedSelectionIds = new Set();
         state.activeInputMessage = null;
@@ -1175,6 +1249,51 @@ function deliveredConsequences(encounter) {
   ]);
 }
 
+function projectOpeningWake(nextWake, trigger, soundingAt) {
+  if (!nextWake) {
+    if (trigger === 'scheduled') throw new Error('scheduled Sounding requires an active future wake');
+    return null;
+  }
+  if (trigger === 'scheduled' && Date.parse(soundingAt) < Date.parse(nextWake.wakeAt)) {
+    throw new Error(`future wake is not due until ${nextWake.wakeAt}`);
+  }
+  return {
+    ...structuredClone(nextWake),
+    opening: trigger === 'scheduled' ? 'due' : 'preempted',
+  };
+}
+
+function validateOpeningWake(openingWake, nextWake, trigger, soundingAt) {
+  const expected = projectOpeningWake(nextWake, trigger, soundingAt);
+  if (digest(openingWake) !== digest(expected)) throw new Error('Sounding future-wake binding mismatch');
+}
+
+function restoreOpeningWake(openingWake) {
+  const restored = structuredClone(openingWake);
+  delete restored.opening;
+  return validateWakeTransition(restored);
+}
+
+function validateWakeTransition(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || typeof value.wakeId !== 'string' || !value.wakeId
+    || typeof value.inferenceId !== 'string' || !value.inferenceId
+    || typeof value.soundingId !== 'string' || !value.soundingId
+    || typeof value.projection !== 'string' || !/^[a-f0-9]{64}$/.test(value.projection)
+    || typeof value.invocationId !== 'string' || !value.invocationId
+    || !value.tool || typeof value.tool.id !== 'string' || !value.tool.id
+    || !Number.isInteger(value.tool.version) || value.tool.version < 1
+    || typeof value.tool.digest !== 'string' || !/^[a-f0-9]{64}$/.test(value.tool.digest)
+    || typeof value.stagedAt !== 'string' || Number.isNaN(Date.parse(value.stagedAt))
+    || !Number.isSafeInteger(value.afterMs) || value.afterMs < 1_000
+    || typeof value.wakeAt !== 'string' || Number.isNaN(Date.parse(value.wakeAt))
+    || Date.parse(value.wakeAt) !== Date.parse(value.stagedAt) + value.afterMs
+    || typeof value.reason !== 'string' || !value.reason.trim() || value.reason.length > 2_048) {
+    throw new Error('invalid retained future wake');
+  }
+  return structuredClone(value);
+}
+
 function planSoundingSurface(state, base) {
   const pending = state.pendingDeltas;
   const sweep = currentConsequenceSweep(state);
@@ -1201,7 +1320,7 @@ function planSoundingSurface(state, base) {
     let progressed = false;
     if (!pendingBlocked && deltas.length < pending.length) {
       const next = candidate([...deltas, pending[deltas.length]], unresolvedConsequences);
-      if (projectionFactCount(next) <= MAX_PROJECTION_FACTS && fits(next)) {
+      if (soundingProjectionInput({ ...base, ...next }).facts.length <= MAX_PROJECTION_FACTS && fits(next)) {
         deltas = next.deltas;
         progressed = true;
       } else {
@@ -1210,7 +1329,7 @@ function planSoundingSurface(state, base) {
     }
     if (!consequenceBlocked && unresolvedConsequences.length < sweep.length) {
       const next = candidate(deltas, [...unresolvedConsequences, sweep[unresolvedConsequences.length]]);
-      if (projectionFactCount(next) <= MAX_PROJECTION_FACTS && fits(next)) {
+      if (soundingProjectionInput({ ...base, ...next }).facts.length <= MAX_PROJECTION_FACTS && fits(next)) {
         unresolvedConsequences = next.unresolvedConsequences;
         progressed = true;
       } else {
@@ -1278,10 +1397,6 @@ function frontierLane(available, included, remainder, idOf) {
   };
 }
 
-function projectionFactCount(surface) {
-  return 5 + surface.deltas.length + surface.unresolvedConsequences.length;
-}
-
 function soundingProjectionInput(sounding) {
   return {
     phase: 'sounding',
@@ -1292,6 +1407,7 @@ function soundingProjectionInput(sounding) {
       projectionFact('sounding:tools', sounding.tools),
       projectionFact('sounding:carrier', sounding.carrier),
       projectionFact('sounding:frontier', sounding.frontier),
+      ...(sounding.wake ? [projectionFact('sounding:wake', sounding.wake)] : []),
       ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
       ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
     ],
@@ -1340,6 +1456,7 @@ function assertActiveGeometryFits(tools, carrier, subject) {
     trigger: 'manual',
     tools: [...tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
     carrier: projectCarrier(carrier),
+    wake: null,
     deltas: [],
     unresolvedConsequences: [],
     frontier: buildSoundingFrontier([], [], [], []),

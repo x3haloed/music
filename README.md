@@ -22,6 +22,15 @@ default), so restart does not erase it. Ingress remains live and durable during
 the delay. This is an emergency continuity floor beneath revisable scheduling,
 not a claim that fixed kernel policy should decide when the subject wants contact.
 
+The subject can decide that timing itself. The ordinary, revisable
+`schedule_wake` tool stages an exact future wake during an encounter. It becomes
+active only when that inference completes, survives restart, suppresses the
+fallback heartbeat until due, and returns as an exact fact in the waking
+Sounding. Earlier world contact preempts the timer but carries its retained
+reason into the contact Sounding. Interruption restores the wake that opened the
+failed encounter. The fixed heartbeat is only the continuity fallback when the
+subject chose no future wake.
+
 The first SIGINT or SIGTERM requests graceful shutdown: Music stops opening new
 encounters and waits for the active one to retain completion. A second signal is
 the explicit force-abort path. This prevents receiving an outbound effect and
@@ -73,6 +82,9 @@ framing, and emphasis of initial Soundings and waking steering contact while the
 kernel requires every authoritative fact envelope to remain byte-exact. Their
 source is seed material for a new subject; afterward, the ledger-retained active
 version is authoritative.
+`schedule_wake` lets that same mind construct its own next temporal opening; its
+interface and executable timing policy are revised through the same ancestry as
+every other ordinary tool.
 
 Seed modules are dynamically loaded only by `music init`. Reconstructing an
 existing subject does not import `tools/`; a broken or deleted seed file cannot
@@ -119,7 +131,10 @@ disposable subject and `z-ai/glm-5.3-flash`: real inbound mailbox contact, retai
 actor-authored selection, explicit outbound delivery with exact Delta lineage,
 completed inference and Sounding, then clean one-signal shutdown. The final
 ledger had no pending contact, failed inference, or failed/uncertain invocation
-or projection. Music is ready to host its first long-term resident. This marks
+or projection. A subsequent independent audit's aggregate-capacity finding is
+now closed by retained ordered frontiers, and the resident can construct and
+revise its own future wakes without a second scheduler actor. Music is ready to
+host its first long-term resident. This marks
 habitat readiness, not the end of learning or a claim that future tools and
 contact surfaces should be designed in advance.
 

@@ -18,8 +18,8 @@ mean that arbitrary external effects can always be undone.
 The current envelope is one trusted local Node.js process, one ledger writer,
 AI SDK 7 inference, and OpenRouter or a generic OpenAI-compatible provider. It
 includes a real local mailbox transport but does not yet claim concurrent
-writers, transactional rollback of arbitrary external effects, autonomous
-scheduling, network messaging transports, dependency installation recovery, or
+writers, transactional rollback of arbitrary external effects, network
+messaging transports, dependency installation recovery, or
 survival when the bootstrap itself is corrupted.
 
 Event format 10 intentionally rejects earlier ledgers because exclusive writer
@@ -48,6 +48,7 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - `inspect_tool`, `revise_tool`, and `rollback_tool`;
 - carrier mutation and parent-bound activation mechanics;
 - staged consequence deferral and settlement mechanics;
+- staged future-wake activation, preemption, and interruption restoration;
 - the receipt primitive used by selection modules.
 
 The JavaScript loader is not a capability filter. A tool body receives `input`
@@ -69,6 +70,8 @@ under [`tools/`](./tools):
   steering facts presented to the mind.
 - `manage_dependency` uses unrestricted npm execution to install, remove, or
   inspect packages in a separate resident dependency habitat.
+- `schedule_wake` stages the next time this same subject wants to return without
+  waiting for world contact. Its source and interface are ordinary geometry.
 
 These files seed a new subject only. Once initialized, the ledger-retained tool
 version is authoritative. The bootstrap does not re-read seed source to replace
@@ -97,7 +100,9 @@ world-authored Delta
   -> the subject may defer it; unresolved consequence returns in later Soundings
   -> revise_tool stages a complete replacement interface and source body
   -> the subject may explicitly settle the consequence
+  -> schedule_wake may stage the subject's own next temporal opening
   -> successful inference completion atomically promotes the staged successor
+     and activates the staged future wake
   -> later Sounding projects the successor digest and interface
   -> later invocation runs the changed source
   -> rollback_tool can copy retained prior source into a new parent-bound version
@@ -215,6 +220,28 @@ Normal completed conversation remains audit history and is not replayed as the
 active self. The current Sounding, current carrier, current tool geometry, and a
 bounded immediately interrupted protocol are the active encounter surface.
 
+## Self-directed waking
+
+Future waking is neither another actor nor a fixed pursuit ontology. Any
+ordinary tool may call the stable staged-wake receipt primitive; the seed
+`schedule_wake` module exposes it as a simple relative delay and subject-authored
+reason. The invocation id, exact tool digest, originating Sounding, staged time,
+delay, due time, and reason are retained. Successful inference activates the
+wake; failed inference cannot promote it.
+
+When due, the wake is consumed into the next Sounding as a byte-exact
+`sounding:wake` fact. World contact may open a Sounding first, in which case the
+same fact says `preempted` rather than disappearing. If that encounter fails,
+the opening wake is restored and becomes eligible again after the retained
+failure-backoff floor. A newly staged wake replaces it only through successful
+completion. While a future wake exists, it suppresses the fixed heartbeat; when
+none exists, the heartbeat remains the stable continuity fallback.
+
+This supplies self-routing without declaring what a pursuit is. The subject may
+put trajectory state in its carrier, revise the scheduler tool that transforms
+its choices into timing, invent another tool using the same primitive, or choose
+no explicit wake and accept fallback contact.
+
 ## Provider boundary
 
 OpenRouter uses `@openrouter/ai-sdk-provider` in explicit strict mode. Generic
@@ -253,6 +280,8 @@ which makes explicitly deferred consequences revisitable without new input.
 Burst contact and unresolved consequence sets are drained through exact retained
 frontiers; a consequence remainder wakes a `continuation` Sounding without
 waiting for the heartbeat.
+An activated subject-authored wake opens a `scheduled` Sounding when due. A
+future wake suppresses periodic heartbeat but never blocks earlier world contact.
 
 If an inference fails or the process recovers it as interrupted, every initial
 and live-steered Delta delivered to that encounter returns to the pending world
@@ -409,6 +438,14 @@ Automated evidence currently proves that:
   the ordinary consequence-attention tool without opening another Sounding;
 - initial and live-steered ordinary Deltas both return after failure and remain
   exactly once across reconstruction and repeated interruption;
+- 36 valid 60 KiB Deltas drain through multiple exact ordered Soundings, retain
+  the same unopened prefix after interruption and reconstruction, and follow the
+  same bounded rule during live steering; 130 unresolved consequences complete
+  one finite sweep without starvation or immediate repetition;
+- the AI SDK mind can invoke ordinary `schedule_wake`; its exact future wake
+  survives reconstruction, opens a due Sounding, is visible when preempted by
+  world contact, returns after interruption, remains inactive after failed
+  inference, and changes later timing when its ordinary source is revised;
 - revising `shape_encounter` changes the exact later inference prompt while
   preserving every authoritative envelope;
 - malformed and indefinitely waiting learned shapers fall back to exact facts,

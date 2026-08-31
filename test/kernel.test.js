@@ -200,6 +200,120 @@ test('staged learned geometry is refused before it can consume the active contac
   assert.equal(next.frontier.pending.remaining, 0);
 });
 
+test('an ordinary tool stages a durable future wake that becomes exact Sounding contact', async () => {
+  let now = Date.UTC(2026, 7, 30, 15, 0, 0);
+  const { kernel } = harness({ clock: () => new Date(now) });
+  const first = kernel.openSounding('manual');
+  const inferenceId = begin(kernel, first.id);
+  const scheduled = await kernel.invokeTool(inferenceId, first.id, 'schedule_wake', {
+    afterMs: 10_000,
+    reason: 'Return to the unfinished thought.',
+  });
+  complete(kernel, inferenceId);
+
+  assert.equal(kernel.audit().nextWake.wakeAt, new Date(now + 10_000).toISOString());
+  assert.equal(kernel.audit().nextWake.invocationId, scheduled.invocationId);
+  const reconstructed = new MusicKernel(kernel.ledgerPath, {
+    clock: () => new Date(now),
+    toolEnvironment: kernel.toolEnvironment,
+  });
+  assert.equal(reconstructed.audit().nextWake.wakeId, scheduled.wakeId);
+  now += 9_999;
+  assert.throws(() => reconstructed.openSounding('scheduled'), /not due/);
+  now += 1;
+  const waking = reconstructed.openSounding('scheduled');
+  assert.equal(waking.wake.opening, 'due');
+  assert.equal(waking.wake.reason, 'Return to the unfinished thought.');
+  assert.equal(waking.wake.invocationId, scheduled.invocationId);
+  const projected = await reconstructed.projectEncounter(waking.id, 'sounding');
+  assert.match(projected.message.content, /sounding:wake/);
+  assert.match(projected.message.content, /Return to the unfinished thought/);
+});
+
+test('interruption restores the exact wake that opened the failed encounter', async () => {
+  let now = Date.UTC(2026, 7, 30, 16, 0, 0);
+  const { kernel } = harness({ clock: () => new Date(now) });
+  const first = kernel.openSounding('manual');
+  const firstInference = begin(kernel, first.id);
+  const scheduled = await kernel.invokeTool(firstInference, first.id, 'schedule_wake', {
+    afterMs: 1_000,
+    reason: 'Resume this trajectory.',
+  });
+  complete(kernel, firstInference);
+  now += 1_000;
+  const waking = kernel.openSounding('scheduled');
+  const failedInference = begin(kernel, waking.id);
+  kernel.failInference(failedInference, new Error('right-censored wake'));
+
+  assert.equal(kernel.audit().nextWake.wakeId, scheduled.wakeId);
+  const retried = kernel.openSounding('scheduled');
+  assert.equal(retried.wake.wakeId, scheduled.wakeId);
+  assert.equal(retried.wake.opening, 'due');
+});
+
+test('world contact preempts a future wake without erasing its reason', async () => {
+  let now = Date.UTC(2026, 7, 30, 17, 0, 0);
+  const { kernel } = harness({ clock: () => new Date(now) });
+  const first = kernel.openSounding('manual');
+  const firstInference = begin(kernel, first.id);
+  await kernel.invokeTool(firstInference, first.id, 'schedule_wake', {
+    afterMs: 60_000,
+    reason: 'Wake later if the world remains quiet.',
+  });
+  complete(kernel, firstInference);
+  kernel.admitDelta({
+    authority: 'world', id: 'wake-preempting-contact', stream: 'inbox', at: new Date(now).toISOString(), payload: { content: 'Earlier contact.' },
+  });
+  const preempted = kernel.openSounding('delta');
+
+  assert.equal(preempted.wake.opening, 'preempted');
+  assert.equal(preempted.wake.reason, 'Wake later if the world remains quiet.');
+  const inferenceId = begin(kernel, preempted.id);
+  complete(kernel, inferenceId);
+  assert.equal(kernel.audit().nextWake, null);
+});
+
+test('a failed inference cannot activate its newly staged future wake', async () => {
+  const { kernel } = harness();
+  const sounding = kernel.openSounding('manual');
+  const inferenceId = begin(kernel, sounding.id);
+  await kernel.invokeTool(inferenceId, sounding.id, 'schedule_wake', {
+    afterMs: 10_000,
+    reason: 'This proposal must remain provisional.',
+  });
+  kernel.failInference(inferenceId, new Error('do not promote'));
+  assert.equal(kernel.audit().nextWake, null);
+});
+
+test('the subject can revise the ordinary geometry that constructs its later wake', async () => {
+  const { kernel } = harness();
+  const revisionSounding = kernel.openSounding('manual');
+  const revisionInference = begin(kernel, revisionSounding.id);
+  const current = kernel.inspectTool(revisionInference, revisionSounding.id, 'schedule_wake');
+  kernel.stageToolRevision(revisionInference, revisionSounding.id, {
+    interpretation: 'Give this scheduler a deliberate settling interval.',
+    tool: {
+      id: 'schedule_wake',
+      description: current.description,
+      inputSchema: current.inputSchema,
+      source: `return context.stageWakeTransition({ afterMs: input.afterMs * 2, reason: 'settled: ' + input.reason });`,
+    },
+  });
+  complete(kernel, revisionInference);
+
+  const later = kernel.openSounding('manual');
+  const laterInference = begin(kernel, later.id);
+  const result = await kernel.invokeTool(laterInference, later.id, 'schedule_wake', {
+    afterMs: 2_000,
+    reason: 'Revisit the question.',
+  });
+  complete(kernel, laterInference);
+
+  assert.equal(result.afterMs, 4_000);
+  assert.equal(kernel.audit().nextWake.reason, 'settled: Revisit the question.');
+  assert.equal(kernel.audit().tools.find(tool => tool.id === 'schedule_wake').version, 2);
+});
+
 test('a staged executable revision cannot alter the current projection and activates later', async () => {
   const { kernel } = harness();
   const first = kernel.openSounding();

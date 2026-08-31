@@ -291,6 +291,39 @@ test('a retained consequence remainder immediately opens a continuation Sounding
   await resident.activeEncounter;
 });
 
+test('a retained subject-authored wake suppresses fallback heartbeat until it is due', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'music-resident-wake-test-'));
+  let now = Date.UTC(2026, 7, 30, 18, 0, 0);
+  const wakeAt = new Date(now + 60_000).toISOString();
+  let openedWith = null;
+  const kernel = {
+    events: () => [{ type: 'sounding_opened', at: new Date(now - 3_600_000).toISOString() }],
+    state: () => ({
+      activeInferenceId: null,
+      openSoundingId: null,
+      pendingDeltas: [],
+      consequenceSweepActive: false,
+      consequenceSweepIds: [],
+      nextWake: { wakeAt },
+    }),
+    openSounding(trigger) {
+      openedWith = trigger;
+      return { id: 'scheduled-sounding' };
+    },
+  };
+  const resident = new MusicResident(kernel, { receive: async () => ({ ok: true }) }, {
+    ingress: join(root, 'ingress'),
+    heartbeatMs: 1_000,
+    clock: () => now,
+  });
+
+  assert.equal((await resident.pump()).started, false, 'chosen wake suppresses the otherwise overdue fallback heartbeat');
+  now += 60_000;
+  assert.equal((await resident.pump()).started, true);
+  assert.equal(openedWith, 'scheduled');
+  await resident.activeEncounter;
+});
+
 function mind(kernel, model) {
   return new MusicMind(kernel, {
     model,
