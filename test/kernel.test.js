@@ -286,7 +286,7 @@ test('world contact before an opening is due preserves it for later presentation
   assert.equal(opened.position.activeOpening.content.reason, 'Wake later if the world remains quiet.');
 });
 
-test('a failed inference cannot activate its newly staged future wake', async () => {
+test('a failed inference cannot commit its newly authored successor opening', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding('manual');
   const inferenceId = begin(kernel, sounding.id);
@@ -299,7 +299,7 @@ test('a failed inference cannot activate its newly staged future wake', async ()
   assert.deepEqual(kernel.audit().activeOpening.content, { origin: 'birth' });
 });
 
-test('the subject can revise the ordinary geometry that constructs its later wake', async () => {
+test('the subject can revise the ordinary geometry that constructs its later opening', async () => {
   const { kernel } = harness();
   const revisionSounding = kernel.openSounding('manual');
   const revisionInference = begin(kernel, revisionSounding.id);
@@ -331,7 +331,7 @@ test('the subject can revise the ordinary geometry that constructs its later wak
   assert.equal(kernel.audit().tools.find(tool => tool.id === 'schedule_wake').version, 2);
 });
 
-test('a staged executable revision cannot alter the current projection and activates later', async () => {
+test('a provisional executable revision cannot alter the current projection and activates only after admission', async () => {
   const { kernel } = harness();
   const first = kernel.openSounding();
   const projected = first.tools.find(tool => tool.id === 'message');

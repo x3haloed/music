@@ -599,7 +599,7 @@ test('MusicMind renders the retained Sounding, not a caller-modified projection'
   assert.doesNotMatch(prompt, /Counterfeit/);
 });
 
-test('a staged revision cannot change another tool call in the same Sounding', async () => {
+test('an authored proposal cannot change another tool call in the same Sounding', async () => {
   const revision = {
     interpretation: 'A later encounter should ask before sending.',
     evidence: ['delta:reply-1'],
@@ -633,7 +633,7 @@ test('a staged revision cannot change another tool call in the same Sounding', a
   assert.match(proposal.revision.tool.source, /\[question\]/);
 });
 
-test('a revision staged by an interrupted inference remains historical but does not activate', async () => {
+test('a proposal authored by an interrupted inference remains historical but does not activate', async () => {
   let call = 0;
   const model = new MockLanguageModelV4({
     doGenerate: async () => {

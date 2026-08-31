@@ -189,19 +189,26 @@ actor-authored selection, explicit outbound delivery with exact Delta lineage,
 completed inference and Sounding, then clean one-signal shutdown. The final
 ledger had no pending contact, failed inference, or failed/uncertain invocation
 or projection. A subsequent independent audit's aggregate-capacity finding is
-now closed by retained ordered frontiers, and the resident can construct and
-revise its own future wakes without a second scheduler actor. Music is ready to
-host its first long-term resident. This marks
-habitat readiness, not the end of learning or a claim that future tools and
-contact surfaces should be designed in advance. The later developmental-position
-release has not been substituted into the stopped long-term habitat: its legacy
-ledger now has an explicit exact-lineage migration path, and migration remains a
-separate operator act after this release is verified.
+now closed by retained ordered frontiers, and that release went on to host the
+first long-term resident. The later developmental-position release has not been
+substituted into the stopped habitat: its legacy ledger now has an explicit
+exact-lineage migration path, and migration remains a separate operator act.
 
 A bounded live GLM Flash rehearsal also crossed the self-directed wake path: one
 inbound Delta caused one `schedule_wake` invocation and a completed inference
 with an exact retained ten-minute predecessor wake, no pending contact, and no failed or
 uncertain operation.
+
+The current structured-opening path has also crossed the live provider boundary
+from exact pushed release `b898d83`. A fresh unnamed disposable subject received
+one bounded verification Delta and made exactly one `schedule_wake` invocation.
+The retained transaction closed the cited birth opening with status `verified`
+and authored a parent-bound successor carrying trajectory
+`live-recurrence-verification`. Its audit had one completed inference and
+invocation, two checkpoints, no pending contact, failure, or uncertainty, and no
+legacy `nextWake` authority. Two GLM Flash requests used minimal reasoning,
+512-token output ceilings, eight steps maximum, zero retries, and cost
+`$0.00097172` total.
 
 ## Installation and hatch
 
@@ -221,8 +228,12 @@ in the append-only ledger.
 format-10 or format-11 ledger. It holds the writer lease, moves the exact legacy
 bytes under `state/lineage/`, records their format, head, SHA-256 digest, and
 event count, preserves the same subject/tools/carrier, and binds that lineage
-into the first current developmental opening. It refuses current ledgers and
-restores the old ledger if construction of the new checkpoint fails.
+into the first current developmental opening. The checkpoint also carries prior
+tool bodies for rollback, admitted and pending Delta identity, unresolved
+consequence/sweep state, invocation ancestry for later `bearsOn` contact, the
+last runtime failure surface, and any chosen legacy wake as the current opening.
+It refuses current ledgers and restores the old ledger if construction of the
+new checkpoint fails.
 
 See [`OPERATIONS.md`](./OPERATIONS.md) for the prepared machine layout, exact
 hatch procedure, snapshot discipline, and compatibility-gated upgrades.

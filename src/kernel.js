@@ -78,12 +78,14 @@ export class MusicKernel {
     return this.state();
   }
 
-  initializeMigrated({ subject, tools, carrier, lineage }) {
+  initializeMigrated({ subject, tools, toolHistory, carrier, lineage, checkpoint }) {
     if (this.state().subject) throw new Error('Music subject already exists');
     const retainedSubject = validateMigratedSubject(subject);
     const initial = validateInitialTools(tools);
     const retainedCarrier = readCarrier(carrier);
     const retainedLineage = validateLegacyLineage(lineage);
+    const retainedHistory = validateMigratedToolHistory(toolHistory, initial);
+    const retainedCheckpoint = validateLegacyCheckpoint(checkpoint);
     const toolsById = new Map(initial.map(tool => [tool.id, tool]));
     const at = this.clock().toISOString();
     const position = initialDevelopmentalPosition({
@@ -99,15 +101,29 @@ export class MusicKernel {
           sourceSha256: retainedLineage.sourceSha256,
           eventCount: retainedLineage.eventCount,
         },
+        ...(retainedCheckpoint.nextWake === null ? {} : {
+          legacyOpening: {
+            originalId: retainedCheckpoint.nextWake.wakeId,
+            originalNotBefore: retainedCheckpoint.nextWake.wakeAt,
+            reason: retainedCheckpoint.nextWake.reason,
+            invocationId: retainedCheckpoint.nextWake.invocationId,
+            tool: retainedCheckpoint.nextWake.tool,
+          },
+        }),
       },
+      openingNotBefore: retainedCheckpoint.nextWake === null
+        ? null
+        : new Date(Math.max(Date.parse(at), Date.parse(retainedCheckpoint.nextWake.wakeAt))).toISOString(),
     });
     assertActiveGeometryFits(toolsById, retainedCarrier, retainedSubject, position);
     this.append('subject_created', {
       subject: retainedSubject,
       tools: initial,
+      toolHistory: retainedHistory,
       carrier: serializeCarrier(retainedCarrier),
       position,
       lineage: retainedLineage,
+      legacyCheckpoint: retainedCheckpoint,
     });
     return this.state();
   }
@@ -788,6 +804,7 @@ export class MusicKernel {
       head: state.head,
       subject: state.subject,
       tools: [...state.tools.values()].map(tool => ({ id: tool.id, version: tool.version, digest: toolModuleDigest(tool) })),
+      retainedToolVersions: state.toolHistory.size,
       carrierRoot: projectCarrier(state.carrier).root,
       positionRoot: state.position?.root ?? null,
       developmentalProposals: state.developmentalProposals.size,
@@ -942,11 +959,18 @@ function reduceEvents(events) {
           state.tools.set(valid.id, valid);
           state.toolHistory.set(toolModuleDigest(valid), valid);
         }
+        for (const tool of event.payload.toolHistory ?? []) {
+          const valid = validateToolModule(tool);
+          state.toolHistory.set(toolModuleDigest(valid), valid);
+        }
         state.carrier = readCarrier(event.payload.carrier);
         state.position = event.format === FORMAT
           ? readDevelopmentalPosition(event.payload.position, { tools: state.tools, carrier: state.carrier })
           : null;
         state.lineage = event.payload.lineage === undefined ? null : validateLegacyLineage(event.payload.lineage);
+        if (event.payload.legacyCheckpoint !== undefined) {
+          hydrateLegacyCheckpoint(state, validateLegacyCheckpoint(event.payload.legacyCheckpoint));
+        }
         assertActiveGeometryFits(state.tools, state.carrier, state.subject, state.position);
         break;
       case 'ledger_tail_recovered':
@@ -1861,6 +1885,92 @@ function validateLegacyLineage(value) {
     archive: value.archive,
     migratedAt: value.migratedAt,
   };
+}
+
+function validateMigratedToolHistory(values, activeTools) {
+  if (!Array.isArray(values) || values.length < activeTools.length) throw new Error('migration needs complete retained tool history');
+  const retained = [];
+  const digests = new Set();
+  for (const candidate of values) {
+    const tool = validateToolModule(candidate);
+    const toolDigest = toolModuleDigest(tool);
+    if (digests.has(toolDigest)) continue;
+    digests.add(toolDigest);
+    retained.push(tool);
+  }
+  for (const tool of activeTools) {
+    if (!digests.has(toolModuleDigest(tool))) throw new Error(`migration tool history omits active ${tool.id}`);
+  }
+  return retained;
+}
+
+function validateLegacyCheckpoint(value) {
+  const checkpoint = jsonValue(value, 'legacy operational checkpoint');
+  if (!checkpoint || typeof checkpoint !== 'object' || Array.isArray(checkpoint)) throw new Error('migration needs a legacy operational checkpoint');
+  if (!Array.isArray(checkpoint.deltaIds) || checkpoint.deltaIds.some(id => typeof id !== 'string' || !id)) {
+    throw new Error('legacy checkpoint delta ids are invalid');
+  }
+  if (!Array.isArray(checkpoint.pendingDeltas)) throw new Error('legacy checkpoint pending Deltas are invalid');
+  checkpoint.pendingDeltas.forEach(validateDelta);
+  if (!Array.isArray(checkpoint.consequences)) throw new Error('legacy checkpoint consequences are invalid');
+  for (const entry of checkpoint.consequences) {
+    if (typeof entry?.deltaId !== 'string' || !entry.deltaId || !entry.consequence) throw new Error('legacy checkpoint consequence entry is invalid');
+    validateDelta(entry.consequence.delta);
+    if (!['open', 'deferred', 'settled'].includes(entry.consequence.status)) throw new Error('legacy checkpoint consequence status is invalid');
+  }
+  if (!Array.isArray(checkpoint.invocationHistory)
+    || checkpoint.invocationHistory.some(entry => typeof entry?.invocationId !== 'string' || !entry.invocationId || !entry.invocation)) {
+    throw new Error('legacy checkpoint invocation history is invalid');
+  }
+  if (!Array.isArray(checkpoint.invocations)) throw new Error('legacy checkpoint invocations are invalid');
+  if (!Array.isArray(checkpoint.contactedInvocationIds)
+    || checkpoint.contactedInvocationIds.some(id => typeof id !== 'string' || !id)) {
+    throw new Error('legacy checkpoint contacted invocations are invalid');
+  }
+  if (typeof checkpoint.consequenceSweepActive !== 'boolean' || !Array.isArray(checkpoint.consequenceSweepIds)) {
+    throw new Error('legacy checkpoint consequence sweep is invalid');
+  }
+  const nextWake = checkpoint.nextWake === null ? null : validateWakeTransition(checkpoint.nextWake);
+  const runtimeFailure = checkpoint.runtimeFailure === null ? null : jsonValue(checkpoint.runtimeFailure, 'legacy runtime failure');
+  return {
+    format: 'music-legacy-checkpoint-1',
+    deltaIds: [...new Set(checkpoint.deltaIds)],
+    pendingDeltas: structuredClone(checkpoint.pendingDeltas),
+    consequences: structuredClone(checkpoint.consequences),
+    invocationHistory: structuredClone(checkpoint.invocationHistory),
+    invocations: structuredClone(checkpoint.invocations),
+    contactedInvocationIds: [...new Set(checkpoint.contactedInvocationIds)],
+    consequenceSweepActive: checkpoint.consequenceSweepActive,
+    consequenceSweepIds: [...checkpoint.consequenceSweepIds],
+    nextWake,
+    runtimeFailure,
+  };
+}
+
+function hydrateLegacyCheckpoint(state, checkpoint) {
+  state.invocationHistory = new Map(checkpoint.invocationHistory.map(entry => [entry.invocationId, structuredClone(entry.invocation)]));
+  state.invocations = structuredClone(checkpoint.invocations);
+  state.contactedInvocationIds = new Set(checkpoint.contactedInvocationIds);
+  state.deltaIds = new Set(checkpoint.deltaIds);
+  state.pendingDeltas = structuredClone(checkpoint.pendingDeltas);
+  for (const delta of state.pendingDeltas) {
+    if (!state.deltaIds.has(delta.id)) throw new Error(`legacy checkpoint omits pending Delta id: ${delta.id}`);
+    validateConsequenceReferences(delta, state);
+  }
+  state.consequences = new Map();
+  state.consequenceDeltaIds = new Set();
+  for (const { deltaId, consequence } of checkpoint.consequences) {
+    if (deltaId !== consequence.delta.id || !state.deltaIds.has(deltaId)) throw new Error('legacy checkpoint consequence identity mismatch');
+    validateConsequenceReferences(consequence.delta, state);
+    state.consequences.set(deltaId, structuredClone(consequence));
+    state.consequenceDeltaIds.add(deltaId);
+  }
+  state.consequenceSweepActive = checkpoint.consequenceSweepActive;
+  state.consequenceSweepIds = [...checkpoint.consequenceSweepIds];
+  for (const deltaId of state.consequenceSweepIds) {
+    if (!state.consequences.has(deltaId)) throw new Error(`legacy checkpoint sweep cites unknown consequence: ${deltaId}`);
+  }
+  state.runtimeFailure = checkpoint.runtimeFailure === null ? undefined : structuredClone(checkpoint.runtimeFailure);
 }
 
 function validateDelta(delta) {

@@ -111,7 +111,12 @@ start from the new exact release. When the stopped ledger is format 10 or 11,
 `music-habitat migrate` first moves its exact bytes under `state/lineage/`, binds
 their format, head, SHA-256, and event count into a new current developmental
 opening, and preserves the same subject, active tools, and carrier. Copied real
-ledgers are never initialized or used for inference rehearsals.
+ledgers are never initialized or used for inference rehearsals. The migration
+checkpoint also preserves retained prior tool bodies, all admitted Delta ids,
+pending contact, unresolved consequence and sweep state, invocation ancestry,
+the last runtime-failure surface, and any subject-chosen legacy wake. The exact
+legacy archive remains the authority for inactive historical transcript and
+receipts rather than expanding them into approximate new events.
 
 The frozen `music-event-10` and `music-event-11` compatibility ledgers under
 `test/fixtures/` are minimum reader contracts for all later releases. A future
@@ -663,8 +668,17 @@ contact, failure, or uncertainty. The two requests used `minimal` reasoning,
 credential material.
 
 That evidence remains valid for the provider, mailbox, inference, and ordinary
-tool boundaries. The later developmental-position and plastic-recurrence release
-is judged here by complete deterministic causal paths plus a disposable live
-provider probe before it is offered to the stopped long-term resident. Network
-messaging and richer contact surfaces remain ordinary/adaptor growth rather than
-new stable-core policy.
+tool boundaries. The later developmental-position and plastic-recurrence path
+also crossed a fresh disposable live probe from exact pushed release `b898d83`.
+One bounded Delta caused exactly one `schedule_wake` invocation and no other
+tool. The retained transaction explicitly closed the cited birth opening with
+status `verified` and authored a parent-bound structured successor carrying
+trajectory `live-recurrence-verification`. The final audit reconstructed one
+completed inference, one completed invocation, two checkpoints, no pending
+contact, failure, uncertainty, or legacy `nextWake` authority. Two GLM Flash
+requests used minimal reasoning, 512-token output ceilings, eight steps maximum,
+zero retries, and cost `$0.00097172` total.
+
+Network messaging and richer contact surfaces remain ordinary/adaptor growth
+rather than new stable-core policy. The stopped long-term resident has not been
+migrated or restarted by this work.

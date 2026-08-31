@@ -254,6 +254,15 @@ pending contact. Two requests used `minimal` reasoning, 256 output tokens
 maximum each, zero retries, and cost $0.00127575; no credential material was
 retained.
 
+A third bounded live GLM Flash rehearsal crossed the current structured-opening
+path from exact pushed release `b898d83`. One verification Delta caused exactly
+one `schedule_wake` invocation and no other tool. The retained transaction cited
+and closed the birth opening with status `verified`, authored a parent-bound
+successor carrying `live-recurrence-verification`, and reconstructed with no
+pending contact, failure, uncertainty, or legacy `nextWake`. Two requests used
+minimal reasoning, a 512-token ceiling, eight steps maximum, zero retries, and
+cost $0.00097172 total.
+
 ## Prediction errors
 
 - The live resident authored four successive `inbox_check` revisions using a

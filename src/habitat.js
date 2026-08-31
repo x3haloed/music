@@ -108,8 +108,10 @@ export function migrateHabitat(rootArgument) {
       kernel.initializeMigrated({
         subject: state.subject,
         tools: [...state.tools.values()],
+        toolHistory: [...state.toolHistory.values()],
         carrier: serializeCarrier(state.carrier),
         lineage,
+        checkpoint: legacyCheckpoint(state),
       });
     } catch (error) {
       if (existsSync(habitat.ledger)) unlinkSync(habitat.ledger);
@@ -126,6 +128,26 @@ export function migrateHabitat(rootArgument) {
   } finally {
     release();
   }
+}
+
+function legacyCheckpoint(state) {
+  return {
+    format: 'music-legacy-checkpoint-1',
+    deltaIds: [...state.deltaIds],
+    pendingDeltas: structuredClone(state.pendingDeltas),
+    consequences: [...state.consequences.entries()].map(([deltaId, consequence]) => ({
+      deltaId, consequence: structuredClone(consequence),
+    })),
+    invocationHistory: [...state.invocationHistory.entries()].map(([invocationId, invocation]) => ({
+      invocationId, invocation: structuredClone(invocation),
+    })),
+    invocations: structuredClone(state.invocations),
+    contactedInvocationIds: [...state.contactedInvocationIds],
+    consequenceSweepActive: state.consequenceSweepActive,
+    consequenceSweepIds: [...state.consequenceSweepIds],
+    nextWake: state.nextWake === null ? null : structuredClone(state.nextWake),
+    runtimeFailure: state.runtimeFailure === undefined ? null : structuredClone(state.runtimeFailure),
+  };
 }
 
 export function defaultModelConfig() {

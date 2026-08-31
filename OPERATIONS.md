@@ -92,7 +92,8 @@ For a snapshot or upgrade:
    It archives the exact old bytes inside `state/lineage/`; it does not rewrite
    them into approximate current events.
 6. Audit again and verify the same subject, tool digests, carrier root, recorded
-   lineage head/digest/count, and a valid current position.
+   lineage head/digest/count, retained tool-version count, pending contact and
+   unresolved-consequence counts, and a valid current position.
 7. Start residence from that new exact release path.
 
 ```sh

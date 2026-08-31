@@ -12,12 +12,14 @@ export function toolsetRoot(tools) {
     .sort((left, right) => left.id.localeCompare(right.id)));
 }
 
-export function initialDevelopmentalPosition({ tools, carrier, openingId, at, openingContent = { origin: 'birth' } }) {
+export function initialDevelopmentalPosition({
+  tools, carrier, openingId, at, openingContent = { origin: 'birth' }, openingNotBefore = null,
+}) {
   const opening = validateOpening({
     id: requiredId(openingId, 'initial opening id'),
     parent: null,
     authoredAt: requiredTimestamp(at, 'initial opening time'),
-    notBefore: null,
+    notBefore: openingNotBefore,
     content: openingContent,
   });
   return sealPosition({

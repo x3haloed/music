@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { canonical, digest } from '../src/canonical.js';
 import { createHabitat, defaultModelConfig, migrateHabitat, readHabitat, snapshotHabitat } from '../src/habitat.js';
 import { MusicKernel } from '../src/kernel.js';
 
@@ -79,9 +80,24 @@ test('legacy migration preserves exact lineage and resumes the same subject in c
   const parent = mkdtempSync(join(tmpdir(), 'music-habitat-migration-'));
   const habitat = createHabitat(join(parent, 'resident'));
   const source = readFileSync(join(repository, 'test', 'fixtures', 'music-event-11.jsonl'));
-  writeFileSync(habitat.ledger, source, { mode: 0o600 });
+  const sourceEvents = source.toString('utf8').trimEnd().split('\n').map(line => JSON.parse(line));
+  const unsigned = {
+    format: 'music-event-11',
+    sequence: sourceEvents.length,
+    parent: sourceEvents.at(-1).hash,
+    at: '2026-08-31T19:00:00.000Z',
+    type: 'delta_admitted',
+    payload: { delta: {
+      authority: 'world', id: 'migration-pending-contact', stream: 'migration-test',
+      at: '2026-08-31T19:00:00.000Z', payload: { observation: 'Preserve me as active contact.' },
+    } },
+  };
+  const event = { ...unsigned, hash: digest(unsigned) };
+  const legacyBytes = Buffer.from(`${source.toString('utf8').trimEnd()}\n${canonical(event)}\n`);
+  writeFileSync(habitat.ledger, legacyBytes, { mode: 0o600 });
   const legacy = new MusicKernel(habitat.ledger);
   const legacyAudit = legacy.audit();
+  const legacyState = legacy.state();
 
   const result = migrateHabitat(habitat.root);
   const current = new MusicKernel(habitat.ledger);
@@ -89,11 +105,15 @@ test('legacy migration preserves exact lineage and resumes the same subject in c
 
   assert.deepEqual(audit.subject, legacyAudit.subject);
   assert.deepEqual(audit.tools, legacyAudit.tools);
+  assert.equal(audit.retainedToolVersions, legacyState.toolHistory.size);
   assert.equal(audit.carrierRoot, legacyAudit.carrierRoot);
   assert.equal(audit.lineage.sourceHead, legacyAudit.head);
-  assert.equal(audit.lineage.sourceSha256, createHash('sha256').update(source).digest('hex'));
-  assert.deepEqual(readFileSync(result.archive), source);
+  assert.equal(audit.lineage.sourceSha256, createHash('sha256').update(legacyBytes).digest('hex'));
+  assert.deepEqual(readFileSync(result.archive), legacyBytes);
   assert.equal(current.events().length, 1);
+  assert.deepEqual([...current.state().deltaIds], [...legacyState.deltaIds]);
+  assert.deepEqual(current.state().pendingDeltas.map(delta => delta.id), ['migration-pending-contact']);
+  assert.equal(current.state().toolHistory.size, legacyState.toolHistory.size);
   assert.equal(current.state().position.activeOpening.content.origin, 'legacy-migration');
   assert.equal(current.state().position.activeOpening.content.lineage.sourceHead, legacyAudit.head);
   assert.throws(() => migrateHabitat(habitat.root), /does not need legacy migration/);
