@@ -1,0 +1,16 @@
+{
+  "provider": "openrouter",
+  "model": "z-ai/glm-5.3-flash",
+  "apiKeyEnv": "OPENROUTER_API_KEY",
+  "appName": "Music recurrence probe",
+  "modelSettings": {
+    "extraBody": {
+      "reasoning": {
+        "effort": "minimal"
+      }
+    }
+  },
+  "maxSteps": 8,
+  "maxOutputTokens": 512,
+  "maxRetries": 0
+}
