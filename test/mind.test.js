@@ -77,8 +77,28 @@ test('the ordinary continuity tool makes a subject-authored current situation pr
   const provisionalInference = kernel.beginInference(
     provisional.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Exercise continuity proposal.' },
   );
-  await kernel.trialDevelopmentalProposal(provisionalInference, provisional.id, proposal.proposalId, { question: 'Will this remain present?' });
+  const armed = await kernel.trialDevelopmentalProposal(
+    provisionalInference, provisional.id, proposal.proposalId, { question: 'Will this remain present?' },
+  );
+  assert.equal(armed.status, 'armed');
   completeFixture(kernel, provisionalInference);
+
+  const trialSounding = kernel.openSounding();
+  assert.equal(trialSounding.developmentalTrial.proposalId, proposal.proposalId);
+  assert.match(
+    trialSounding.carrier.components.find(component => component.id === 'continuity').state.value,
+    /unresolved question is how I want to designate myself/,
+  );
+  assert.equal(kernel.state().carrier.get('continuity').state.generation, 0);
+  const trialModel = new MockLanguageModelV4({ doGenerate: [textResult('I actually encountered the provisional continuity.')] });
+  await new MusicMind(kernel, {
+    model: trialModel,
+    identity: { provider: trialModel.provider, model: trialModel.modelId },
+  }).receive(trialSounding.id);
+  assert.match(JSON.stringify(trialModel.doGenerateCalls[0].prompt), /unresolved question is how I want to designate myself/);
+  assert.match(JSON.stringify(trialModel.doGenerateCalls[0].prompt), /music-carrier-trial-1/);
+  assert.equal(kernel.state().developmentalProposals.get(proposal.proposalId).status, 'exercised');
+  assert.equal(kernel.state().carrier.get('continuity').state.generation, 0);
   await admitProposal(kernel, proposal.proposalId);
 
   const later = kernel.openSounding();
@@ -140,27 +160,41 @@ test('the subject can tune later step, event-size, and timeout policy through or
   await mind.receive(kernel.openSounding().id);
 
   const proposal = [...kernel.state().developmentalProposals.values()].find(candidate => candidate.kind === 'carrier');
-  await exerciseAndAdmitProposal(kernel, proposal.proposalId, { probe: 'validate wider policy' });
+  const arming = kernel.openSounding('manual');
+  const armingInference = kernel.beginInference(
+    arming.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Arm the wider policy.' },
+  );
+  const armed = await kernel.trialDevelopmentalProposal(
+    armingInference, arming.id, proposal.proposalId, { probe: 'validate wider policy' },
+  );
+  assert.equal(armed.status, 'armed');
+  completeFixture(kernel, armingInference);
+
+  const trial = kernel.openSounding('manual');
+  assert.deepEqual(kernel.inferencePolicy(trial.id), {
+    maxSteps: 240,
+    maxInferenceEventBytes: 4 * 1_024 * 1_024,
+    timeoutMs: 60 * 60_000,
+  });
+  const trialInference = kernel.beginInference(
+    trial.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Run under provisional policy.' },
+  );
+  const large = 'x'.repeat(3 * 1_024 * 1_024);
+  assert.doesNotThrow(() => kernel.checkpointInference(trialInference, {
+    responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: large }] }],
+    step: { finishReason: 'tool-calls', usage: {}, toolCalls: [], toolResults: [], text: '' },
+    usage: {}, requests: [],
+  }));
+  completeFixture(kernel, trialInference);
+  assert.equal(kernel.state().developmentalProposals.get(proposal.proposalId).status, 'exercised');
+  assert.equal(kernel.state().carrier.get('inference_policy').state.value.maxInferenceEventBytes, 2 * 1_024 * 1_024);
+  await admitProposal(kernel, proposal.proposalId);
 
   const later = kernel.openSounding();
   assert.deepEqual(kernel.inferencePolicy(later.id), {
     maxSteps: 240,
     maxInferenceEventBytes: 4 * 1_024 * 1_024,
     timeoutMs: 60 * 60_000,
-  });
-  const inferenceId = kernel.beginInference(
-    later.id,
-    { provider: 'fixture', model: 'fixture' },
-    { role: 'user', content: 'Exercise the successor retained-event limit.' },
-  );
-  const large = 'x'.repeat(3 * 1_024 * 1_024);
-  assert.doesNotThrow(() => kernel.checkpointInference(inferenceId, {
-    responseMessages: [{ role: 'assistant', content: [{ type: 'text', text: large }] }],
-    step: { finishReason: 'tool-calls', usage: {}, toolCalls: [], toolResults: [], text: '' },
-    usage: {}, requests: [],
-  }));
-  kernel.completeInference(inferenceId, {
-    responseMessages: [], text: '', finishReason: 'stop', usage: {}, steps: [], requests: [],
   });
 });
 
@@ -347,8 +381,17 @@ test('the one mind can author, exercise, and explicitly admit a bounded carrier 
   const provisionalInference = kernel.beginInference(
     provisional.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Exercise orientation proposal.' },
   );
-  await kernel.trialDevelopmentalProposal(provisionalInference, provisional.id, proposal.proposalId, { selection: 'ambiguous contact' });
+  const armed = await kernel.trialDevelopmentalProposal(
+    provisionalInference, provisional.id, proposal.proposalId, { selection: 'ambiguous contact' },
+  );
+  assert.equal(armed.status, 'armed');
   completeFixture(kernel, provisionalInference);
+  const trialSounding = kernel.openSounding('manual');
+  assert.equal(trialSounding.developmentalTrial.proposalId, proposal.proposalId);
+  const trialInference = kernel.beginInference(
+    trialSounding.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Encounter provisional orientation.' },
+  );
+  completeFixture(kernel, trialInference);
   await admitProposal(kernel, proposal.proposalId);
   const later = kernel.openSounding();
   const beforeOrientation = before.carrier.components.find(component => component.id === 'orientation');
@@ -742,8 +785,18 @@ async function exerciseAndAdmitProposal(kernel, proposalId, input, disposition =
     { provider: 'fixture-provider', model: 'fixture-model' },
     { role: 'user', content: 'Exercise provisional developmental machinery.' },
   );
-  await kernel.trialDevelopmentalProposal(inferenceId, sounding.id, proposalId, input);
+  const exercise = await kernel.trialDevelopmentalProposal(inferenceId, sounding.id, proposalId, input);
   completeFixture(kernel, inferenceId);
+  if (exercise.status === 'armed') {
+    const carrierEncounter = kernel.openSounding('manual');
+    assert.equal(carrierEncounter.developmentalTrial.proposalId, proposalId);
+    const carrierInference = kernel.beginInference(
+      carrierEncounter.id,
+      { provider: 'fixture-provider', model: 'fixture-model' },
+      { role: 'user', content: 'Encounter provisional carrier geometry.' },
+    );
+    completeFixture(kernel, carrierInference);
+  }
   await admitProposal(kernel, proposalId, disposition);
 }
 

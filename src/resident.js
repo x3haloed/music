@@ -43,7 +43,8 @@ export class MusicResident {
     const ledgerTail = this.kernel.recoverLedgerTail();
     const inferenceId = this.kernel.recoverInterruptedInference('The resident process ended before its active encounter completed.');
     const projectionIds = this.kernel.recoverInterruptedDeliveryProjections('The resident process ended before delivery projection completion was retained.');
-    return { ledgerTail, inferenceId, projectionIds };
+    const developmentalTrialIds = this.kernel.settleTerminalDevelopmentalTrials();
+    return { ledgerTail, inferenceId, projectionIds, developmentalTrialIds };
   }
 
   async pump() {

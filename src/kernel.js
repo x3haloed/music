@@ -25,6 +25,7 @@ const MAX_PROJECTION_BYTES = 2 * 1_024 * 1_024;
 const MAX_ACTIVE_SURFACE_BYTES = 512 * 1_024;
 const MAX_PROJECTION_FACTS = 128;
 const MAX_DEVELOPMENTAL_FRONTIER_PROPOSALS = 32;
+const MAX_CARRIER_TRIAL_PROBE_BYTES = 16 * 1_024;
 const MAX_DELIVERY_FAILURE_MESSAGE_BYTES = 2_048;
 const RESERVED_TOOL_IDS = new Set([
   'inspect_tool', 'revise_tool', 'rollback_tool', 'revise_carrier',
@@ -148,11 +149,19 @@ export class MusicKernel {
   }
 
   openSounding(trigger = 'manual') {
+    this.settleTerminalDevelopmentalTrials();
     const state = this.state();
     requireSubject(state);
     if (state.activeInferenceId) throw new Error(`cannot open a Sounding while inference is active: ${state.activeInferenceId}`);
     if (state.openSoundingId) throw new Error(`an opened Sounding is still awaiting an encounter: ${state.openSoundingId}`);
     if (!['delta', 'continuation', 'opening', 'scheduled', 'heartbeat', 'manual'].includes(trigger)) throw new Error('invalid Sounding trigger');
+    const carrierTrial = armedCarrierTrial(state);
+    const soundingCarrier = carrierTrial
+      ? projectCarrier(applyCarrierTransition(
+        state.carrier,
+        state.developmentalProposals.get(carrierTrial.proposalId).transition,
+      ))
+      : projectCarrier(state.carrier);
     const base = {
       id: this.id(),
       subject: structuredClone(state.subject),
@@ -160,9 +169,10 @@ export class MusicKernel {
       at: this.clock().toISOString(),
       trigger,
       tools: [...state.tools.values()].sort((a, b) => a.id.localeCompare(b.id)).map(projectTool),
-      carrier: projectCarrier(state.carrier),
+      carrier: soundingCarrier,
       ...(state.position ? { position: projectDevelopmentalPosition(state.position) } : {}),
       development: projectDevelopmentalFrontier(state),
+      ...(carrierTrial ? { developmentalTrial: projectArmedCarrierTrial(carrierTrial, soundingCarrier.root) } : {}),
     };
     if (trigger === 'opening' && !dueUnpresentedOpening(state, Date.parse(base.at))) {
       const notBefore = state.position?.activeOpening?.notBefore;
@@ -384,14 +394,38 @@ export class MusicKernel {
     const binding = proposal.kind === 'tool'
       ? { kind: 'tool', id: proposal.revision.tool.id, digest: toolModuleDigest(proposal.revision.tool) }
       : { kind: 'carrier', id: proposal.transition.component.id, digest: proposal.transition.successorRoot };
+    const retainedInput = jsonValue(input, 'developmental trial input');
+    if (proposal.kind === 'carrier') {
+      if (Buffer.byteLength(canonical(retainedInput)) > MAX_CARRIER_TRIAL_PROBE_BYTES) {
+        throw new Error(`developmental carrier trial probe exceeds ${MAX_CARRIER_TRIAL_PROBE_BYTES} bytes`);
+      }
+      if ([...state.developmentalTrials.values()].some(trial => trial.binding?.kind === 'carrier'
+        && ['armed', 'presented'].includes(trial.status))) {
+        throw new Error('only one carrier proposal may await a later-encounter trial');
+      }
+      if (stagedCarrierAdmission(state)) {
+        throw new Error('cannot arm a carrier trial while this encounter stages another carrier admission');
+      }
+      const position = developmentalStandingSuccessor(state, {
+        kind: 'proposal-trial-armed', proposalId, trialId, binding, inputDigest: digest(retainedInput),
+      });
+      this.append('developmental_trial_armed', {
+        trialId, proposalId, inferenceId, soundingId, projection: encounter.projection,
+        binding, input: retainedInput, position,
+      });
+      return {
+        trialId,
+        proposalId,
+        status: 'armed',
+        meaning: 'The provisional carrier will govern the next fresh encounter; it has not yet been exercised.',
+      };
+    }
     this.append('developmental_trial_started', {
       trialId, proposalId, inferenceId, soundingId, projection: encounter.projection,
-      binding,
-      input: jsonValue(input, 'developmental trial input'),
+      binding, input: retainedInput,
     });
     try {
-      const output = proposal.kind === 'tool'
-        ? await executeToolModule(proposal.revision.tool, input, {
+      const output = await executeToolModule(proposal.revision.tool, input, {
           trialId, proposalId, inferenceId, soundingId, projection: encounter.projection,
           invocationId: `developmental-trial:${trialId}`,
           ledgerPath: this.ledgerPath,
@@ -400,13 +434,7 @@ export class MusicKernel {
           stageConsequenceTransition: candidate => previewConsequenceTransition(candidate, state, encounter),
           stageCarrierTransition: candidate => createCarrierTransition(state.carrier, candidate),
           stageWakeTransition: candidate => previewOpeningTransition(candidate, this.clock),
-        })
-        : {
-          kind: 'provisional-carrier-projection',
-          componentId: proposal.transition.component.id,
-          carrier: projectCarrier(applyCarrierTransition(state.carrier, proposal.transition)),
-          probe: jsonValue(input, 'developmental carrier probe'),
-        };
+        });
       const current = this.state();
       this.append('developmental_trial_completed', {
         trialId,
@@ -435,6 +463,12 @@ export class MusicKernel {
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
     if (state.stagedDevelopmentalTransaction) throw new Error('only one developmental transaction may be staged per encounter');
     const decisions = validateDevelopmentalDecisions(proposal?.decisions ?? [], state, { allowEmpty: proposal?.opening !== undefined });
+    if (decisions.some(decision => decision.disposition === 'admit'
+      && state.developmentalProposals.get(decision.proposalId)?.kind === 'carrier')
+      && [...state.developmentalTrials.values()].some(trial => trial.binding?.kind === 'carrier'
+        && ['armed', 'presented'].includes(trial.status))) {
+      throw new Error('cannot admit carrier geometry while a later-encounter carrier trial is active');
+    }
     const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
     if (!interpretation || interpretation.length > 4_096) throw new Error('developmental transaction needs a bounded interpretation');
     const opening = proposal?.opening === undefined ? null : validateProposedOpening(proposal.opening, state, this.id, this.clock);
@@ -660,6 +694,7 @@ export class MusicKernel {
     }, 'inference result');
     assertInferencePayloadFits(state, payload, 'inference result');
     this.append('inference_completed', payload);
+    this.settleTerminalDevelopmentalTrials();
     return this.state();
   }
 
@@ -676,6 +711,7 @@ export class MusicKernel {
     }, 'inference failure');
     assertInferencePayloadFits(state, payload, 'inference failure');
     this.append('inference_failed', payload);
+    this.settleTerminalDevelopmentalTrials();
     return this.state();
   }
 
@@ -698,6 +734,44 @@ export class MusicKernel {
       this.append('delivery_projection_abandoned', { projectionId, reason: message });
     }
     return projectionIds;
+  }
+
+  settleTerminalDevelopmentalTrials() {
+    const settled = [];
+    while (true) {
+      const state = this.state();
+      const trial = [...state.developmentalTrials.values()].find(candidate =>
+        candidate.binding?.kind === 'carrier' && candidate.status === 'presented'
+        && state.soundings.get(candidate.encounter)?.terminal);
+      if (!trial) return settled;
+      const sounding = state.soundings.get(trial.encounter);
+      const terminal = sounding.terminal;
+      if (terminal.kind === 'completed') {
+        const output = carrierTrialOutcome(trial, sounding, terminal);
+        this.append('developmental_trial_completed', {
+          trialId: trial.trialId,
+          output,
+          position: developmentalStandingSuccessor(state, {
+            kind: 'proposal-exercised', proposalId: trial.proposalId, trialId: trial.trialId,
+            outcome: 'completed', outputDigest: digest(output),
+          }),
+        });
+      } else {
+        const error = {
+          name: 'CarrierTrialEncounterFailed',
+          message: `The provisional carrier encounter ended with retained inference failure ${terminal.event}.`,
+        };
+        this.append('developmental_trial_failed', {
+          trialId: trial.trialId,
+          error,
+          position: developmentalStandingSuccessor(state, {
+            kind: 'proposal-exercised', proposalId: trial.proposalId, trialId: trial.trialId,
+            outcome: 'failed', error,
+          }),
+        });
+      }
+      settled.push(trial.trialId);
+    }
   }
 
   acquireWriter(label = 'Music writer') {
@@ -812,7 +886,12 @@ export class MusicKernel {
       developmentalProposals: state.developmentalProposals.size,
       provisionalDevelopmentalProposals: [...state.developmentalProposals.values()]
         .filter(proposal => !['admitted', 'rolled-back', 'denied', 'retired'].includes(proposal.status)).length,
-      developmentalTrials: [...state.developmentalTrials.values()].filter(trial => trial.status !== 'started').length,
+      developmentalTrials: [...state.developmentalTrials.values()]
+        .filter(trial => ['completed', 'failed'].includes(trial.status)).length,
+      armedDevelopmentalTrials: [...state.developmentalTrials.values()]
+        .filter(trial => trial.status === 'armed').length,
+      presentedDevelopmentalTrials: [...state.developmentalTrials.values()]
+        .filter(trial => trial.status === 'presented').length,
       uncertainDevelopmentalTrials: [...state.developmentalTrials.values()].filter(trial => trial.status === 'started').length,
       pendingDeltas: state.pendingDeltas.length,
       invocations: state.invocations.length,
@@ -1005,7 +1084,14 @@ function reduceEvents(events) {
         requireSubject(state);
         const sounding = event.payload.sounding;
         if (event.payload.projection !== digest(sounding)) throw new Error('Sounding projection digest mismatch');
-        if (digest(sounding.carrier) !== digest(projectCarrier(state.carrier))) throw new Error('Sounding carrier projection mismatch');
+        const carrierTrial = validateSoundingCarrierTrial(state, sounding.developmentalTrial ?? null);
+        const expectedCarrier = carrierTrial
+          ? projectCarrier(applyCarrierTransition(
+            state.carrier,
+            state.developmentalProposals.get(carrierTrial.proposalId).transition,
+          ))
+          : projectCarrier(state.carrier);
+        if (digest(sounding.carrier) !== digest(expectedCarrier)) throw new Error('Sounding carrier projection mismatch');
         if (event.format === FORMAT) {
           if (!state.position || digest(sounding.position) !== digest(projectDevelopmentalPosition(state.position))) {
             throw new Error('Sounding developmental position projection mismatch');
@@ -1038,6 +1124,7 @@ function reduceEvents(events) {
             carrier: sounding.carrier,
             ...(sounding.position ? { position: sounding.position } : {}),
             ...(sounding.development ? { development: sounding.development } : {}),
+            ...(sounding.developmentalTrial ? { developmentalTrial: sounding.developmentalTrial } : {}),
             wake: sounding.wake ?? null,
           });
           if (digest(sounding.deltas) !== digest(planned.sounding.deltas)
@@ -1059,6 +1146,14 @@ function reduceEvents(events) {
           inferenceId: null,
           presentedOpeningId,
         });
+        if (carrierTrial) {
+          carrierTrial.status = 'presented';
+          carrierTrial.encounter = sounding.id;
+          carrierTrial.encounterProjection = event.payload.projection;
+          const proposal = state.developmentalProposals.get(carrierTrial.proposalId);
+          proposal.status = 'trialing';
+          updateProposalTrial(proposal, carrierTrial.trialId, 'presented');
+        }
         state.openSoundingId = sounding.id;
         state.nextWake = null;
         break;
@@ -1200,10 +1295,42 @@ function reduceEvents(events) {
         });
         break;
       }
+      case 'developmental_trial_armed': {
+        const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        const proposal = state.developmentalProposals.get(event.payload.proposalId);
+        if (!proposal || proposal.kind !== 'carrier') throw new Error('armed developmental trial needs a carrier proposal');
+        if (!['authored', 'exercised', 'deferred', 'contradicted'].includes(proposal.status)) {
+          throw new Error(`carrier proposal ${proposal.proposalId} is ${proposal.status}, not trialable`);
+        }
+        if (state.developmentalTrials.has(event.payload.trialId)) throw new Error('duplicate developmental trial id');
+        if ([...state.developmentalTrials.values()].some(trial => trial.binding?.kind === 'carrier'
+          && ['armed', 'presented'].includes(trial.status))) {
+          throw new Error('ledger arms overlapping carrier trials');
+        }
+        const expectedBinding = {
+          kind: 'carrier', id: proposal.transition.component.id, digest: proposal.transition.successorRoot,
+        };
+        if (digest(event.payload.binding) !== digest(expectedBinding)) throw new Error('armed carrier trial binding mismatch');
+        const expectedPosition = developmentalStandingSuccessor(state, {
+          kind: 'proposal-trial-armed', proposalId: proposal.proposalId, trialId: event.payload.trialId,
+          binding: expectedBinding, inputDigest: digest(event.payload.input),
+        });
+        if (digest(event.payload.position) !== digest(expectedPosition)) throw new Error('armed carrier trial position mismatch');
+        state.developmentalTrials.set(event.payload.trialId, {
+          ...structuredClone(event.payload), encounter: encounter.sounding.id, status: 'armed',
+        });
+        proposal.status = 'armed';
+        proposal.trials.push({ trialId: event.payload.trialId, status: 'armed' });
+        state.position = expectedPosition;
+        break;
+      }
       case 'developmental_trial_completed': {
         const trial = state.developmentalTrials.get(event.payload.trialId);
-        if (!trial || trial.status !== 'started') throw new Error('completed developmental trial is not active');
+        if (!trial || !['started', 'presented'].includes(trial.status)) throw new Error('completed developmental trial is not active');
         const output = jsonValue(event.payload.output, 'developmental trial output');
+        if (trial.binding.kind === 'carrier' && trial.status === 'presented') {
+          validateCarrierTrialOutcome(output, trial, state);
+        }
         const expectedPosition = developmentalStandingSuccessor(state, {
           kind: 'proposal-exercised', proposalId: trial.proposalId, trialId: trial.trialId,
           outcome: 'completed', outputDigest: digest(output),
@@ -1213,13 +1340,13 @@ function reduceEvents(events) {
         trial.output = output;
         const proposal = state.developmentalProposals.get(trial.proposalId);
         proposal.status = 'exercised';
-        proposal.trials.push({ trialId: trial.trialId, status: 'completed' });
+        updateProposalTrial(proposal, trial.trialId, 'completed');
         state.position = expectedPosition;
         break;
       }
       case 'developmental_trial_failed': {
         const trial = state.developmentalTrials.get(event.payload.trialId);
-        if (!trial || trial.status !== 'started') throw new Error('failed developmental trial is not active');
+        if (!trial || !['started', 'armed', 'presented'].includes(trial.status)) throw new Error('failed developmental trial is not active');
         const expectedPosition = developmentalStandingSuccessor(state, {
           kind: 'proposal-exercised', proposalId: trial.proposalId, trialId: trial.trialId,
           outcome: 'failed', error: event.payload.error,
@@ -1229,7 +1356,7 @@ function reduceEvents(events) {
         trial.error = structuredClone(event.payload.error);
         const proposal = state.developmentalProposals.get(trial.proposalId);
         proposal.status = 'contradicted';
-        proposal.trials.push({ trialId: trial.trialId, status: 'failed' });
+        updateProposalTrial(proposal, trial.trialId, 'failed');
         state.position = expectedPosition;
         break;
       }
@@ -1449,6 +1576,10 @@ function reduceEvents(events) {
         }
         state.messages.push(...structuredClone(event.payload.responseMessages));
         state.activeEncounter.status = 'completed';
+        state.activeEncounter.terminal = {
+          kind: 'completed', event: event.hash, inferenceId: event.payload.inferenceId,
+          finishReason: event.payload.finishReason,
+        };
         state.activeInferenceId = null;
         state.activeEncounter = null;
         state.stagedRevisions = [];
@@ -1496,6 +1627,10 @@ function reduceEvents(events) {
           }
         }
         state.activeEncounter.status = 'interrupted';
+        state.activeEncounter.terminal = {
+          kind: 'failed', event: event.hash, inferenceId: event.payload.inferenceId,
+          error: structuredClone(event.payload.error),
+        };
         state.activeInferenceId = null;
         state.activeEncounter = null;
         state.stagedRevisions = [];
@@ -1809,6 +1944,76 @@ function projectDevelopmentalFrontierProposal(proposal) {
         successorRoot: proposal.transition.successorRoot,
       },
     };
+}
+
+function armedCarrierTrial(state) {
+  const armed = [...state.developmentalTrials.values()]
+    .filter(trial => trial.binding?.kind === 'carrier' && trial.status === 'armed');
+  if (armed.length > 1) throw new Error('developmental state contains overlapping armed carrier trials');
+  if ([...state.developmentalTrials.values()].some(trial =>
+    trial.binding?.kind === 'carrier' && trial.status === 'presented')) {
+    throw new Error('a presented carrier trial must reach a retained terminal outcome before another Sounding');
+  }
+  return armed[0] ?? null;
+}
+
+function projectArmedCarrierTrial(trial, carrierRoot) {
+  return {
+    format: 'music-carrier-trial-1',
+    trialId: trial.trialId,
+    proposalId: trial.proposalId,
+    componentId: trial.binding.id,
+    carrierRoot,
+    probe: structuredClone(trial.input),
+  };
+}
+
+function validateSoundingCarrierTrial(state, value) {
+  const trial = armedCarrierTrial(state);
+  if (!trial) {
+    if (value !== null) throw new Error('Sounding cites a carrier trial that is not armed');
+    return null;
+  }
+  const proposal = state.developmentalProposals.get(trial.proposalId);
+  if (!proposal || proposal.kind !== 'carrier') throw new Error('armed carrier trial lost its proposal');
+  const carrier = applyCarrierTransition(state.carrier, proposal.transition);
+  const expected = projectArmedCarrierTrial(trial, projectCarrier(carrier).root);
+  if (digest(value) !== digest(expected)) throw new Error('Sounding carrier trial projection mismatch');
+  return trial;
+}
+
+function carrierTrialOutcome(trial, sounding, terminal) {
+  return {
+    format: 'music-carrier-trial-outcome-1',
+    trialId: trial.trialId,
+    proposalId: trial.proposalId,
+    soundingId: sounding.sounding.id,
+    projection: sounding.projection,
+    carrierRoot: sounding.sounding.carrier.root,
+    terminal: structuredClone(terminal),
+  };
+}
+
+function validateCarrierTrialOutcome(output, trial, state) {
+  const sounding = state.soundings.get(trial.encounter);
+  if (!sounding?.terminal || sounding.terminal.kind !== 'completed') {
+    throw new Error('completed carrier trial lacks a completed later encounter');
+  }
+  if (digest(output) !== digest(carrierTrialOutcome(trial, sounding, sounding.terminal))) {
+    throw new Error('completed carrier trial outcome mismatch');
+  }
+}
+
+function updateProposalTrial(proposal, trialId, status) {
+  const retained = proposal.trials.find(trial => trial.trialId === trialId);
+  if (retained) retained.status = status;
+  else proposal.trials.push({ trialId, status });
+}
+
+function stagedCarrierAdmission(state) {
+  return state.stagedDevelopmentalTransaction?.decisions.some(decision =>
+    decision.disposition === 'admit'
+    && state.developmentalProposals.get(decision.proposalId)?.kind === 'carrier') ?? false;
 }
 
 function verifyChain(events) {
@@ -2281,6 +2486,8 @@ function soundingProjectionInput(sounding) {
       projectionFact('sounding:carrier', sounding.carrier),
       ...(sounding.position ? [projectionFact('sounding:position', sounding.position)] : []),
       ...(sounding.development ? [projectionFact('sounding:development', sounding.development)] : []),
+      ...(sounding.developmentalTrial
+        ? [projectionFact('sounding:developmental-trial', sounding.developmentalTrial)] : []),
       projectionFact('sounding:frontier', sounding.frontier),
       ...(sounding.wake ? [projectionFact('sounding:wake', sounding.wake)] : []),
       ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
@@ -2369,6 +2576,8 @@ function projectionInput(state, encounter, phase, deltaIds) {
           projectionFact('sounding:carrier', sounding.carrier),
           ...(sounding.position ? [projectionFact('sounding:position', sounding.position)] : []),
           ...(sounding.development ? [projectionFact('sounding:development', sounding.development)] : []),
+          ...(sounding.developmentalTrial
+            ? [projectionFact('sounding:developmental-trial', sounding.developmentalTrial)] : []),
           ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
           ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
         ],

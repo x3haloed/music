@@ -899,7 +899,42 @@ test('carrier state remains provisional until exercise and explicit admission', 
   assert.equal(later.carrier.root, authored.transition.successorRoot);
   assert.notEqual(later.position.parentPositionRoot, beforePosition.root);
   assert.equal(later.position.carrierRoot, later.carrier.root);
-  assert.equal(later.position.generation, beforePosition.generation + 3);
+  assert.equal(later.position.generation, beforePosition.generation + 4);
+});
+
+test('a failed later encounter contradicts its provisional carrier without activating it', async () => {
+  const { kernel } = harness();
+  const authoredSounding = kernel.openSounding('manual');
+  const authoredInference = begin(kernel, authoredSounding.id);
+  const proposal = kernel.authorCarrierProposal(authoredInference, authoredSounding.id, {
+    componentId: 'continuity',
+    value: 'This provisional situation must be encountered before it can become active.',
+    interpretation: 'Exercise this account in a later encounter.',
+  });
+  complete(kernel, authoredInference);
+
+  const armingSounding = kernel.openSounding('manual');
+  const armingInference = begin(kernel, armingSounding.id);
+  const armed = await kernel.trialDevelopmentalProposal(
+    armingInference, armingSounding.id, proposal.proposalId, { question: 'Does the account survive contact?' },
+  );
+  complete(kernel, armingInference);
+
+  const trialSounding = kernel.openSounding('manual');
+  assert.equal(trialSounding.developmentalTrial.trialId, armed.trialId);
+  assert.match(
+    trialSounding.carrier.components.find(component => component.id === 'continuity').state.value,
+    /provisional situation/,
+  );
+  const trialInference = begin(kernel, trialSounding.id);
+  kernel.failInference(trialInference, new Error('The later encounter failed under provisional geometry.'));
+
+  assert.equal(kernel.state().developmentalProposals.get(proposal.proposalId).status, 'contradicted');
+  assert.equal(kernel.state().developmentalTrials.get(armed.trialId).status, 'failed');
+  assert.equal(kernel.state().carrier.get('continuity').state.generation, 0);
+  assert.equal(kernel.audit().developmentalTrials, 1);
+  assert.equal(kernel.audit().armedDevelopmentalTrials, 0);
+  assert.equal(kernel.audit().presentedDevelopmentalTrials, 0);
 });
 
 test('only the exact selected input can execute and a selection receipt is single-use', async () => {
@@ -1113,8 +1148,16 @@ function checkpointFromState(state) {
 async function exerciseAndAdmitProposal(kernel, proposalId, input, disposition = 'admit') {
   const trial = kernel.openSounding('manual');
   const trialInference = begin(kernel, trial.id);
-  await kernel.trialDevelopmentalProposal(trialInference, trial.id, proposalId, input);
+  const exercise = await kernel.trialDevelopmentalProposal(trialInference, trial.id, proposalId, input);
   complete(kernel, trialInference);
+  if (exercise.status === 'armed') {
+    const carrierEncounter = kernel.openSounding('manual');
+    assert.equal(carrierEncounter.developmentalTrial.trialId, exercise.trialId);
+    assert.equal(carrierEncounter.carrier.root, kernel.state().developmentalProposals.get(proposalId).transition.successorRoot);
+    const carrierInference = begin(kernel, carrierEncounter.id);
+    complete(kernel, carrierInference);
+    assert.equal(kernel.state().developmentalProposals.get(proposalId).status, 'exercised');
+  }
   const admission = kernel.openSounding('manual');
   const admissionInference = begin(kernel, admission.id);
   kernel.stageDevelopmentalTransaction(admissionInference, admission.id, {
