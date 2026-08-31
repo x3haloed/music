@@ -158,7 +158,10 @@ uncertain operation.
 
 ## Try it
 
-Requires Node.js 22 or newer.
+Requires Node.js 22 or newer. The seed `search_files` tool also expects
+[`rg` (ripgrep)](https://github.com/BurntSushi/ripgrep) on `PATH`; because the
+tool is ordinary retained geometry, the resident may later replace that search
+embodiment without changing the kernel.
 
 ```sh
 npm test
