@@ -451,6 +451,39 @@ test('authored tool machinery remains provisional until exercised and explicitly
   complete(kernel, activeInference);
 });
 
+test('large unresolved development rotates through exact bounded Sounding pages', () => {
+  const { kernel } = harness();
+  const authoredSounding = kernel.openSounding('manual');
+  const authoredInference = begin(kernel, authoredSounding.id);
+  const proposalIds = [];
+  for (let index = 0; index < 33; index += 1) {
+    proposalIds.push(kernel.authorCarrierProposal(authoredInference, authoredSounding.id, {
+      componentId: 'continuity',
+      value: `Provisional continuity candidate ${index}.`,
+      interpretation: `Keep candidate ${index} exact and unresolved until encountered.`,
+    }).proposalId);
+  }
+  complete(kernel, authoredInference);
+
+  const secondPage = kernel.openSounding('manual');
+  assert.deepEqual(
+    { available: secondPage.development.available, included: secondPage.development.included,
+      remaining: secondPage.development.remaining, page: secondPage.development.page },
+    { available: 33, included: 1, remaining: 32, page: { index: 1, count: 2 } },
+  );
+  const secondPageIds = secondPage.development.proposals.map(proposal => proposal.proposalId);
+  const secondInference = begin(kernel, secondPage.id);
+  complete(kernel, secondInference);
+
+  const firstPage = kernel.openSounding('manual');
+  assert.deepEqual(firstPage.development.page, { index: 0, count: 2 });
+  assert.equal(firstPage.development.included, 32);
+  assert.deepEqual(
+    new Set([...firstPage.development.proposals.map(proposal => proposal.proposalId), ...secondPageIds]),
+    new Set(proposalIds),
+  );
+});
+
 test('the subject can invent and execute an unrestricted process-running tool', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding();

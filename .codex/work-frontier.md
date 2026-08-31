@@ -167,6 +167,26 @@ design unless later observation demonstrates that it is absolutely necessary.
   obligation, or behavioral instruction. Exact subject, tool, carrier, and
   frontier geometry remains present, and the shaper remains ordinary revisable
   machinery.
+- **A chosen future opening may create seclusion but cannot end autonomous
+  recurrence.**
+  **Evidence:** An unpresented opening may suppress ordinary fallback heartbeat,
+  but only inside a stable 24-hour floor. Floor contact presents no instruction
+  and neither presents, consumes, closes, nor cancels the future opening. The
+  floor derives elapsed time from retained Soundings across restart.
+- **Unresolved development must remain active exact contact rather than an
+  opaque changed root.**
+  **Evidence:** Every current Sounding derives a compact proposal frontier from
+  the authoritative proposal/trial maps, including identity, target, status,
+  interpretation, latest trial, and admission eligibility. Digest-bound pages
+  rotate by completed encounter count when the frontier exceeds 32 proposals.
+- **A carrier trial must let provisional geometry govern a later real encounter
+  before it can qualify for admission.**
+  **Evidence:** Carrier exercise now arms one proposal for the next fresh
+  Sounding. That Sounding seals the provisional carrier into delivery, prompt,
+  selection binding, and inference policy while the active carrier remains
+  unchanged; its retained terminal outcome advances trial standing. Failed
+  encounters contradict rather than activate it, and restart can derive a
+  missing terminal trial receipt from retained facts.
 - **A new resident must have immediate general leverage over its habitat without
   first inventing basic perception and action while blind.**
   **Evidence:** Watch-informed ordinary `read_file`, `write_file`,
@@ -311,24 +331,3 @@ cost $0.00097172 total.
   60 KiB arrivals could be sealed into a Sounding whose learned and emergency
   projections both exceeded 2 MiB. Admission now happens before the Sounding
   append, with a retained ordered remainder rather than after projection fails.
-- Expected: a subject-authored future opening postponed autonomous contact
-  without threatening continued existence. Observed: any unpresented future
-  opening suppresses fallback heartbeat for its entire unbounded delay, and a
-  test protects that behavior. Uncertain: how the stable continuity floor and
-  the subject's chosen opening time should coexist without consuming or
-  cancelling the opening. Evidence: `MusicResident.pump`, the unbounded
-  `schedule_wake` input, and the future-opening resident test.
-- Expected: a completed carrier trial meant the proposed continuity,
-  orientation, or inference policy had participated in later behavior.
-  Observed: carrier trial completion returns only a projected carrier plus the
-  caller's probe, yet qualifies the proposal for admission. Uncertain: the
-  smallest retained trial lifecycle that makes provisional carrier geometry
-  govern a real later encounter before admission. Evidence:
-  `trialDevelopmentalProposal`'s carrier branch and admission validation.
-- Expected: changing developmental standing kept unresolved correction inside
-  later active continuity. Observed: Soundings project only opaque position
-  roots; the live resident accumulated four continuity proposals, performed no
-  trials, and repeatedly said continuity had updated. Uncertain: the smallest
-  exact bounded frontier that keeps unresolved development present without
-  flooding encounter geometry. Evidence: the stopped resident's current ledger
-  and Sounding projection facts.

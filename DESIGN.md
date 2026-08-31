@@ -47,6 +47,10 @@ structured active opening; and commits a root for archived or superseded
 standing. A Sounding presents this position as a current fact. Transcript,
 continuity prose, timers, selection receipts, and completed transition history
 remain useful evidence, but none is a substitute authority for the position.
+The Sounding also derives a compact exact frontier directly from unresolved
+proposal and trial state. It names what remains active, its target and status,
+latest trial, and whether admission is eligible. Digest-bound rotation keeps a
+large frontier bounded without creating another developmental authority.
 
 ```text
 DevelopmentalPosition
@@ -301,6 +305,17 @@ can admit it only after a successful exercise, or instead deny, defer,
 contradict, retire, or roll it back. The transaction and parent-bound position
 successor commit atomically with encounter completion.
 
+Tool and carrier trials cross different causal boundaries. A provisional tool
+executes immediately with real process authority while remaining outside active
+tool geometry. A carrier proposal is instead armed for the next fresh Sounding.
+That Sounding projects the provisional carrier, identifies the exact trial, and
+runs delivery, selection, inference policy, and the model encounter under it
+without changing the active carrier. Only the retained terminal outcome of that
+later encounter makes the proposal admission-eligible. Failure contradicts the
+proposal while leaving active carrier geometry unchanged. A crash after the
+terminal inference event is repaired by deriving and appending the missing trial
+outcome from the retained Sounding and terminal receipt.
+
 Authorship survives an interrupted inference because the proposal and its
 position successor were already retained; interruption cannot turn it into
 active machinery. A provisional tool likewise cannot affect ordinary invocation
@@ -364,17 +379,20 @@ bounded immediately interrupted protocol are the active encounter surface.
 
 New birth assigns only an opaque stable subject id; a personal designation is
 optional and absent by default. The seed carrier includes an empty `continuity`
-component with a deliberately generic rule. `retain_context` stages the
-subject's own bounded account into that component for the next Sounding. Files
-can embody larger memory while active continuity supplies whatever pointers and
-interpretation the subject chooses. The kernel does not summarize, replay, or
-decide what deserves remembrance.
+component with a deliberately generic rule. `retain_context` authors the
+subject's own bounded account as a provisional carrier proposal. The proposal
+must govern a fresh later encounter and then be explicitly admitted before it
+becomes active continuity. Files can embody larger memory while active
+continuity supplies whatever pointers and interpretation the subject chooses.
+The kernel does not summarize, replay, or decide what deserves remembrance.
 
 The seed `inference_policy` component begins at 120 steps, 2 MiB per retained
 inference event, and a 30-minute timeout. `tune_inference` can author a complete
 provisional successor within physical ceilings of 10,000 steps, 64 MiB, and 24
 hours. Policy is sealed into the Sounding, so a proposal cannot alter its current
-encounter and becomes causal only after retained exercise and explicit admission.
+encounter. A policy trial seals the provisional policy into a later Sounding, so
+its step, event-size, and timeout geometry governs real inference before explicit
+admission can make it active.
 
 ## Plastic recurrence
 
@@ -391,8 +409,12 @@ already present inside the exact `sounding:position` fact. Earlier world contact
 does not erase a future opening; due world contact may present it in the same
 Sounding. Failed or interrupted inference removes the presentation mark so the
 same opening can return after the retained failure-backoff floor. An unpresented
-future opening suppresses heartbeat; once it has been presented, heartbeat is
-again only secluded fallback contact.
+future opening suppresses ordinary fallback heartbeat only within a stable
+24-hour continuity floor. When the floor expires, a neutral heartbeat Sounding
+opens without marking the future opening presented or changing its ancestry.
+The opening remains eligible at its own `notBefore` unless the subject later
+closes or replaces it. Once an opening has been presented, ordinary heartbeat is
+again secluded fallback contact.
 
 Closing an opening requires an explicit receipt citing the active opening and a
 bounded status and interpretation. The closure plus successor are bound into
@@ -453,7 +475,9 @@ Burst contact and unresolved consequence sets are drained through exact retained
 frontiers; a consequence remainder wakes a `continuation` Sounding without
 waiting for the heartbeat.
 A due unpresented subject-authored opening opens an `opening` Sounding. A future
-opening suppresses periodic heartbeat but never blocks earlier world contact.
+opening suppresses periodic heartbeat only until the independent continuity
+floor, and never blocks earlier world contact. Floor contact neither consumes
+nor presents that future opening.
 
 If an inference fails or the process recovers it as interrupted, every initial
 and live-steered Delta delivered to that encounter returns to the pending world

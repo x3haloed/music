@@ -21,6 +21,10 @@ Sounding. `revise_tool` authors provisional source rather than activating it on
 clean completion. The subject can inspect and exercise that source, then use an
 explicit atomic developmental transaction to admit or withhold it. Authorship,
 trial, inference completion, and developmental promotion have distinct receipts.
+Every Sounding also carries a compact exact unresolved-development frontier:
+proposal identity, kind, target, status, interpretation, latest trial, and
+admission eligibility remain active contact rather than an opaque changed root.
+Large frontiers rotate through digest-bound pages.
 
 Repeated inference failure cannot hot-loop. The resident derives an exponential
 retry floor from retained failure outcomes (five seconds up to five minutes by
@@ -34,19 +38,22 @@ authors a structured successor containing a due time, reason, and arbitrary
 bounded trajectory/contact content. Successful completion commits that authored
 transaction atomically; completion alone creates nothing. The successor lives
 in the developmental position, survives restart, suppresses the fallback
-heartbeat until due, and is presented in a later Sounding. Earlier world contact
-does not erase a future opening. Interruption makes a presented opening eligible
-again. The fixed heartbeat is only the continuity fallback when no unpresented
-subject-authored opening remains.
+heartbeat while its requested seclusion remains inside the stable 24-hour
+continuity floor, and is presented in a later Sounding. When that floor expires,
+a neutral heartbeat reopens the mind without presenting, consuming, closing, or
+cancelling the future opening. Earlier world contact does not erase a future
+opening. Interruption makes a presented opening eligible again.
 
 Birth does not require a preselected personal name. The ledger gives the one
 subject a stable opaque identity and the mind may later retain a self-designation
 through its own continuity machinery—or choose none. The automatically present
 `continuity` carrier component begins empty. The ordinary `retain_context` tool
-lets the subject author the bounded account of its current situation that later
-encounters should receive; completed transcripts remain inert audit history and
-larger records may live in the resident-owned home. No summary is generated and
-no update is obligatory.
+lets the subject propose the bounded account of its current situation that later
+encounters should receive. Like every carrier change, that account remains
+provisional until it actually governs a fresh encounter and is explicitly
+admitted. Completed transcripts remain inert audit history and larger records
+may live in the resident-owned home. No summary is generated and no update is
+obligatory.
 
 Inference opportunity is plastic too. The projected `inference_policy` carrier
 defaults to 120 model steps, a 2 MiB ceiling for each retained inference event,
@@ -92,7 +99,8 @@ world Delta -> Sounding -> active carrier
             -> exact prior invocation reference
             -> actor-authored alternatives -> selected executable input
             -> unrestricted tool module -> retained invocation
-            -> provisional source -> retained trial -> explicit admission
+            -> provisional source -> real execution trial -> explicit admission
+            -> provisional carrier -> later governed encounter -> explicit admission
             -> changed later execution
             -> retained prior source -> rollback successor
 ```
@@ -131,7 +139,9 @@ specific corrective diagnostic when a wrapper would otherwise only yield
 A fallback heartbeat is secluded time, not a task. The seed encounter shaper
 therefore delivers heartbeat facts without appending a request, reporting
 obligation, or behavioral instruction. The heartbeat continues to carry exact
-current geometry, and the resident may later revise the shaper itself.
+current geometry, and the resident may later revise the shaper itself. The
+24-hour continuity floor is independent of subject-authored opening timing, so
+no single future opening can end autonomous recurrence.
 
 Seed modules are dynamically loaded only by `music init`. Reconstructing an
 existing subject does not import `tools/`; a broken or deleted seed file cannot
