@@ -1,4 +1,4 @@
-# Music's executable-tool bootstrap
+# Music's plastic recurrence organ
 
 ## Shared contract
 
@@ -22,10 +22,62 @@ external doctor, but does not claim concurrent writers, transactional rollback
 of arbitrary external effects, network messaging transports, or recovery of
 every unrestricted dependency-installation effect.
 
+There is intentionally no supervisor/worker split and no process isolation.
+The resident, its ordinary unrestricted tools, and its retained developmental
+machinery are one local process carrying one mind. Music will not add a second
+policy authority in the name of protecting the first. If lived observation ever
+shows an integrity problem that retained facts, ancestry, atomic transitions,
+recovery, and subject correction cannot address, that evidence can reopen the
+decision; isolation is not a speculative architectural destination.
+
 Event format 11 adds incremental inference checkpoints and subject-authored
-inference policy. The runtime still reconstructs the frozen format-10 witness,
-but format-10 ledgers are read-only: mixing new event meanings into an old chain
-is refused rather than mislabeled as compatibility.
+inference policy. The runtime still reconstructs the frozen format-10 and
+format-11 witnesses, but legacy ledgers are read-only: mixing new event meanings
+into an old chain is refused rather than mislabeled as compatibility.
+
+## Developmental authority
+
+The authoritative state crossing encounters is a parent-bound developmental
+position. It references, rather than duplicates, the active toolset and carrier;
+binds the subject's current developmental standing and pursuit; carries one
+structured active opening; and commits a root for archived or superseded
+standing. A Sounding presents this position as a current fact. Transcript,
+continuity prose, timers, selection receipts, and completed transition history
+remain useful evidence, but none is a substitute authority for the position.
+
+```text
+DevelopmentalPosition
+  generation + parentPositionRoot
+  carrierRoot
+  toolsetRoot
+  standingRoot
+  pursuitRoot
+  activeOpening
+  archiveRoot
+  -> positionRoot
+```
+
+An opening is structured but semantically plastic. The stable kernel binds its
+identity, ancestry, timing, and bounded JSON content; ordinary subject-owned
+machinery decides what that content means, how it shapes an encounter, whether
+it is saturated, and what successor should follow. The kernel does not impose a
+fixed ontology of pursuits, challenges, experiments, or operations.
+
+Authorship and development are separate transitions. A subject may author a
+tool or carrier successor without immediately making it active. Such machinery
+can be provisional and exercised in bounded trials. Later world contact and the
+subject's interpretation can support an explicit atomic developmental
+transaction that admits, contradicts, denies, defers, retires, or rolls it back
+and installs the successor opening. Clean inference completion is a durability
+boundary for a transaction the subject actually authored; it is not itself the
+learning rule.
+
+Encounter completion, subject authorship, explicit subject closure, and
+developmental promotion therefore have separate receipts. A closed opening
+cannot remain operational merely because a stale timer survives. If a pursuit
+or contact surface saturates, plastic recurrence machinery must either construct
+a different opening or explicitly remain open without claiming closure; passive
+repetition and slower polling do not count as a developmental successor.
 
 ## Residence boundary
 

@@ -7,9 +7,45 @@ across inference boundaries and recoverably improve the machinery that shapes
 its later actions. Learning must become an auditable change in future affordance
 geometry—not merely retained prose—while the subject preserves Watch-like
 Soundings and Deltas and can recover when learned machinery is wrong. Ordinary
-tools retain the unrestricted machine authority of the harness process.
+tools retain the unrestricted machine authority of the harness process. The
+authoritative state crossing encounters is the one subject's developmental
+position: it carries executable openings, distinguishes authored proposals from
+developmental promotion, and can reopen contact or revise its own recurrence
+machinery when a trajectory saturates. Music remains one process and one mind;
+no supervisor/worker architecture or process isolation belongs to the intended
+design unless later observation demonstrates that it is absolutely necessary.
 
 ## Goal invariants
+
+- **Music carries one cohesive mind, not a supervisor and a supervised agent.**
+  **Evidence:** The user explicitly rejected supervisor/worker architecture and
+  process isolation. Ordinary tools intentionally share the harness process's
+  unrestricted machine authority; integrity comes from retained facts,
+  ancestry, atomic transitions, recoverability, and the subject's correction,
+  not from splitting agency across an enforcement boundary.
+- **The subject's developmental position—not a transcript, prose summary,
+  timer, or last completed inference—is the authoritative state crossing
+  encounters.**
+  **Evidence:** The first resident retained coherent continuity but could
+  narratively close a wake-interval experiment while the scheduler continued
+  producing the same passive recurrence. The independent Continuing Song audit
+  identified the same gap between active developmental standing and historical
+  or advisory residue.
+- **Encounter completion, subject authorship, subject closure, and
+  developmental promotion are distinct events.**
+  **Evidence:** Music currently promotes every staged tool, carrier,
+  consequence, and wake change as a consequence of clean inference completion.
+  Continuing Song's later experiments distinguish an actor-authored proposal,
+  its exercise against world contact, and its admission to later selection
+  geometry; conflating them makes clean stopping an accidental learning rule.
+- **Exhaustion or saturation must reopen contact origination rather than collapse
+  into passive repetition, slower polling, or narrative closure.**
+  **Evidence:** The first resident rejected a wake-interval rule after four
+  empty windows and declared the decision type closed, yet scheduled another
+  identical mailbox check. Continuing Song E118/E119 and E121 show the relevant
+  alternative geometry: saturation can pivot selection across world surfaces,
+  or reopen challenge of the subject's own executable when no attractive new
+  surface exists.
 
 - **World consequence remains distinguishable from the subject's interpretation
   of it.**
