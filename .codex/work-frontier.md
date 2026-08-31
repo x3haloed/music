@@ -143,6 +143,15 @@ tools retain the unrestricted machine authority of the harness process.
   dependencies, and configuration outside source. Snapshots exclude the writer
   lock, carry a digest inventory, and cannot race the resident. A frozen
   synthetic event-10 ledger makes backwards reconstruction a build invariant.
+- **The one subject must be able to author a current account of its situation
+  and reliably re-encounter it after completed conversation leaves the active
+  prompt.**
+  **Evidence:** Completed conversation is deliberately retained as inert audit
+  history, while the automatically projected seed carrier currently contains
+  only an empty orientation. Pre-hatch review identified that file tools alone
+  do not make prior conversational context reliably present to a later
+  encounter; the account must remain subject-authored rather than becoming a
+  kernel-authored transcript summary or instruction.
 
 ## Evaluation regime
 
