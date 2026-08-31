@@ -88,6 +88,11 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.has('select_tool_action'));
     assert.ok(tools.has('shape_encounter'));
     assert.ok(tools.has('manage_dependency'));
+    assert.ok(tools.has('read_file'));
+    assert.ok(tools.has('write_file'));
+    assert.ok(tools.has('search_files'));
+    assert.ok(tools.has('shell'));
+    assert.ok(tools.has('web_fetch'));
     assert.ok(tools.has('inspect_tool'));
     assert.ok(tools.has('revise_tool'));
     assert.ok(tools.has('rollback_tool'));
