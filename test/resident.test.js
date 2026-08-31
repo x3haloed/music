@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -223,6 +223,44 @@ test('deterministic inference failure enters retained exponential backoff instea
   const secondDelay = await resident.pump();
   assert.equal(secondDelay.backoff.consecutiveFailures, 2);
   assert.equal(secondDelay.backoff.remainingMs, 2_000);
+});
+
+test('graceful shutdown waits for an active encounter instead of requeueing completed effects', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'music-resident-shutdown-test-'));
+  const ledger = join(root, 'events.jsonl');
+  const ingress = join(root, 'ingress');
+  const kernel = new MusicKernel(ledger);
+  kernel.initialize('Aster', initialTools());
+  let releaseEncounter;
+  let markStarted;
+  const started = new Promise(resolve => { markStarted = resolve; });
+  const release = new Promise(resolve => { releaseEncounter = resolve; });
+  const controlledMind = {
+    async receive(soundingId) {
+      const inferenceId = begin(kernel, soundingId);
+      markStarted();
+      await release;
+      complete(kernel, inferenceId);
+    },
+  };
+  const resident = new MusicResident(kernel, controlledMind, { ingress, pollMs: 10 });
+  submitWorldDelta(ingress, worldDelta('graceful-contact'), { id: () => 'graceful-file' });
+  const shutdown = new AbortController();
+  let stopped = false;
+  const running = resident.run({ signal: shutdown.signal }).then(() => { stopped = true; });
+  await started;
+
+  shutdown.abort();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(stopped, false, 'first shutdown signal waits for the active encounter');
+  assert.equal(kernel.state().activeInferenceId !== null, true);
+
+  releaseEncounter();
+  await running;
+  assert.equal(kernel.audit().completedInferences, 1);
+  assert.equal(kernel.audit().failedInferences, 0);
+  assert.equal(kernel.audit().pendingDeltas, 0);
+  assert.equal(existsSync(`${ledger}.writer-lock`), false);
 });
 
 function mind(kernel, model) {

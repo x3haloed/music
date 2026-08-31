@@ -22,6 +22,12 @@ default), so restart does not erase it. Ingress remains live and durable during
 the delay. This is an emergency continuity floor beneath revisable scheduling,
 not a claim that fixed kernel policy should decide when the subject wants contact.
 
+The first SIGINT or SIGTERM requests graceful shutdown: Music stops opening new
+encounters and waits for the active one to retain completion. A second signal is
+the explicit force-abort path. This prevents receiving an outbound effect and
+then accidentally requeueing its contact merely because the process was stopped
+before the model's final step finished.
+
 A resident runtime watches a durable filesystem ingress. External adapters
 atomically submit world-authored Delta files without writing the subject ledger;
 the one resident runtime admits them, wakes an encounter, and archives each

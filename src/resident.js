@@ -107,10 +107,10 @@ export class MusicResident {
     }
   }
 
-  async run({ signal } = {}) {
+  async run({ signal, encounterSignal } = {}) {
     const releaseWriter = this.kernel.acquireWriter('resident');
     try {
-      this.abortSignal = signal;
+      this.abortSignal = encounterSignal;
       await this.recover();
       while (!signal?.aborted) {
         await this.pump();

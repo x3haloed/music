@@ -90,7 +90,17 @@ try {
       const configured = createConfiguredModel(readJsonFile(args[0]));
       await configured.preflight();
       const controller = new AbortController();
-      const stop = () => controller.abort();
+      const encounterController = new AbortController();
+      let stopping = false;
+      const stop = () => {
+        if (!stopping) {
+          stopping = true;
+          controller.abort();
+          process.stderr.write('music resident: graceful shutdown requested; waiting for the active encounter (signal again to force abort)\n');
+        } else {
+          encounterController.abort();
+        }
+      };
       process.once('SIGINT', stop);
       process.once('SIGTERM', stop);
       const resident = new MusicResident(
@@ -103,7 +113,7 @@ try {
           onError: error => process.stderr.write(`music resident: ${error instanceof Error ? error.message : String(error)}\n`),
         },
       );
-      await resident.run({ signal: controller.signal });
+      await resident.run({ signal: controller.signal, encounterSignal: encounterController.signal });
       result = kernel.audit();
       break;
     }

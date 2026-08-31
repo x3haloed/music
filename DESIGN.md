@@ -314,6 +314,13 @@ provider, configuration, or learned runtime from consuming the same contact in a
 tight loop. It does not prescribe ordinary encounter timing, priority, or
 attention policy; those remain candidates for revisable scheduler geometry.
 
+Shutdown observes the same effect boundary. The first process signal stops the
+resident loop but does not abort an active inference; it waits for that encounter
+to complete and release its writer lease. A second signal explicitly aborts the
+encounter. This matters because a mailbox delivery may become externally visible
+one model step before `inference_completed`; aborting in that interval correctly
+requeues contact, but may duplicate the already-visible effect on retry.
+
 ## External bootstrap doctor
 
 The resident cannot be its own final repair authority if the code required to
@@ -369,6 +376,8 @@ Automated evidence currently proves that:
 - deterministic inference rejection requeues contact once, survives restart,
   and remains at one attempt across 100 resident polls until its retained retry
   floor expires; the next failure doubles that floor;
+- graceful shutdown waits across an active inference, retains its completion,
+  leaves no requeued contact, and releases the lifetime writer lease;
 - a fresh Node process reconstructs an existing subject from the isolated
   continuity modules with no ordinary seed-tool files present;
 - the external doctor detects a corrupted stable-core file, preserves the bad

@@ -89,6 +89,11 @@ tools retain the unrestricted machine authority of the harness process.
   **Evidence:** The resident derives exponential backoff from retained inference
   failures. Exact contact remains pending; 100 polls and reconstruction produce
   no extra attempt before eligibility, and a second failure doubles the floor.
+- **Process shutdown must respect the boundary between visible effect and
+  retained encounter completion.**
+  **Evidence:** First-signal shutdown now waits for an active encounter; the
+  causal test retains completion, no failure, no requeued Delta, and releases
+  the writer. A second signal remains the explicit force-abort path.
 - **Delivery geometry may learn, but authoritative contact cannot disappear
   inside that geometry.**
   **Evidence:** Music now gives a retained ordinary `shape_encounter` module
@@ -123,3 +128,7 @@ is ordinary revisable machinery with an in-resident failure/rollback path.
   hot-loop: 86 failed encounters were retained in about 45 seconds. Hatch is
   no longer exposed to that immediate storm: retained exponential backoff now
   contains repeated failure across polling and restart.
+- The first successful live mailbox delivery was followed by immediate SIGINT;
+  because the final model step was still active, the old shutdown path aborted
+  and correctly requeued the already-effectful contact. Shutdown now separates
+  graceful loop stop from explicit second-signal encounter abort.
