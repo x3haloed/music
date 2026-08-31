@@ -2,44 +2,42 @@
 
 **This is the song that never ends.**
 
-Music is an experimental harness for one continuing agent identity. It retains
-Watch-like Soundings and Deltas while allowing the agent's learning to become a
-bounded, executable change in the tools and action geometry it encounters later.
+Music is an experimental harness for one continuing agent identity. Its ordinary
+tools are versioned executable JavaScript modules with the normal authority of
+the Music Node.js process. File access, child processes, network access, native
+modules, and arbitrary code are not sandboxed by the harness.
 
-The current repository contains the first provider-connected vertical skeleton.
-It proves this causal path:
+The stable bootstrap retains the subject and encounter loop, loads tool modules,
+binds invocations to exact Soundings and module digests, and stages, activates,
+or rolls back executable revisions. Recoverability comes from append-only
+ancestry and deferred activation—not from limiting what ordinary tools can do.
+
+The current causal path is:
 
 ```text
-world Delta -> Sounding -> bounded active carrier
-            -> actor-authored alternatives -> selected-only executable action
-            -> staged carrier/tool change -> changed later selection
+world Delta -> Sounding -> active carrier
+            -> actor-authored alternatives -> selected executable input
+            -> unrestricted tool module -> retained invocation
+            -> staged source revision -> changed later execution
+            -> retained prior source -> rollback successor
 ```
 
-State has one authority: a hash-linked append-only event ledger. The kernel
-preserves subject identity, authority provenance, exact Sounding lifecycle,
-projection and tool bindings, ancestry, activation bounds, and invocation
-receipts. The agent—not a tool-local learner—decides what a consequence means
-and what should change.
+Initial ordinary modules live in [`tools/`](./tools). `file_patch` performs a
+real atomic textual replacement on any path visible to the process. `message`
+and even `select_tool_action` are ordinary revisable modules. Their source is
+seed material for a new subject; afterward, the ledger-retained active version
+is authoritative.
 
-Inference uses AI SDK 7. OpenRouter uses its dedicated AI SDK provider in
-explicit strict-compatibility mode; generic and local OpenAI-compatible servers
-use `@ai-sdk/openai-compatible` separately. Complete response messages remain
-in the audit ledger, but normal completed conversation is not replayed as active
-identity. A bounded interrupted-step tail preserves tool-call/result recovery.
-OpenRouter runs also verify the
-selected model currently declares tool support before opening a Sounding;
-generic compatible servers require an explicit `capabilities.tools` claim.
+`revise_tool` and `rollback_tool` are bootstrap meta-tools. A revision carries a
+complete replacement description, JSON Schema, optional selection geometry, and
+JavaScript function body. It remains unavailable in the current Sounding and
+becomes active only when the inference completes successfully. Rollback does not
+erase history: it copies a retained earlier executable body into a new child of
+the current version.
 
-Opening a Sounding reserves its Deltas but does not consume them. Beginning an
-inference durably accepts that exact projection. Tool calls execute the manifest
-digest projected into that Sounding, and revisions remain staged until successful
-inference completion makes them available to a later Sounding.
-
-The active carrier contains generic subject-authored components with separate
-stable-rule and evolving-state identities. Selection policy belongs to revisable
-tool geometry: the message tool requires the subject to author one candidate per
-available action, select one, and present the single-use receipt before only that
-exact candidate can emit.
+Inference uses AI SDK 7. OpenRouter has a separate dedicated provider path in
+strict compatibility mode, with tool-capability preflight and explicit spend
+guards. The example remains locked to `z-ai/glm-5.3-flash`.
 
 ## Try it
 
@@ -52,7 +50,7 @@ node src/cli.js sound /tmp/music-events.jsonl manual
 node src/cli.js audit /tmp/music-events.jsonl
 ```
 
-To run a real inference through OpenRouter:
+To run a deliberately capped OpenRouter connectivity probe:
 
 ```sh
 set -a
@@ -61,14 +59,7 @@ set +a
 node src/cli.js run /tmp/music-events.jsonl examples/openrouter.model.json manual
 ```
 
-The example is deliberately locked down for inexpensive smoke testing: it uses
-`z-ai/glm-5.3-flash`, permits one model step, caps generation at 32 tokens, and
-disables retries. Those three inference limits are explicit configuration, and
-the completed inference receipt records the actual model request and token use.
-Its one-step limit is for connectivity only; a selection-gated action needs
-multiple model steps.
-The CLI accepts `delta`, `sound`, `run`, and `audit` after initialization.
-Invocation and revision are agent-authority behavior and exist only inside an
-active inference; the CLI cannot self-assert them. See
-[`DESIGN.md`](./DESIGN.md) for the explicit capability envelope, causal map,
-deliberate exclusions, and next risk frontier.
+The example permits one model step, 32 output tokens, and no retries. It is not
+long enough for a multi-step selection and invocation sequence. See
+[`DESIGN.md`](./DESIGN.md) for the exact stable boundary, causal evidence, and
+remaining failure frontier.

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/*.js && node --test"
+    "check": "node --check src/*.js tools/*.js && node --test"
   },
   "engines": {
     "node": ">=22"

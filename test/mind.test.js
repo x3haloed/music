@@ -59,11 +59,11 @@ test('retained carrier consequence changes selection over the same actor-authore
   const erasedSelection = erased.kernel.events().findLast(event => event.type === 'tool_selection_recorded').payload;
   assert.deepEqual(retainedSelection.candidates, erasedSelection.candidates);
   assert.equal(retainedSelection.tool.digest, erasedSelection.tool.digest);
-  assert.equal(retainedSelection.selected.action, 'ask');
-  assert.equal(erasedSelection.selected.action, 'send');
+  assert.equal(retainedSelection.selected.input.action, 'ask');
+  assert.equal(erasedSelection.selected.input.action, 'send');
   assert.match(retainedSelection.candidates[0].input.content, /actor-authored direct candidate/);
-  assert.match(retained.kernel.state().emissions.at(-1).output.body, /\[question\]/);
-  assert.doesNotMatch(erased.kernel.state().emissions.at(-1).output.body, /\[question\]/);
+  assert.match(retained.kernel.state().invocations.at(-1).output.body, /\[question\]/);
+  assert.doesNotMatch(erased.kernel.state().invocations.at(-1).output.body, /\[question\]/);
 });
 
 test('AI SDK tool loop invokes active Music geometry and retains the complete protocol', async () => {
@@ -73,7 +73,7 @@ test('AI SDK tool loop invokes active Music geometry and retains the complete pr
   const result = await mind.receive(kernel.openSounding().id);
 
   assert.equal(result.toolCalls, 2);
-  assert.equal(kernel.state().emissions.at(-1).output.body, 'to=Chad\nThe loop is connected.');
+  assert.equal(kernel.state().invocations.at(-1).output.body, 'to=Chad\nThe loop is connected.');
   assert.ok(kernel.state().messages.some(message => message.role === 'tool'));
   assert.equal(model.doGenerateCalls.length, 3);
   assert.ok(model.doGenerateCalls[1].prompt.some(message => message.role === 'tool'));
@@ -86,15 +86,12 @@ test('the one mind can embody a new tool and encounter it on the next Sounding',
     tool: {
       id: 'compare',
       description: 'Place two alternatives beside each other.',
-      actions: [{
-        id: 'render',
-        description: 'Render a bounded comparison.',
-        fields: [
-          { name: 'left', type: 'string', required: true, maxLength: 2_048 },
-          { name: 'right', type: 'string', required: true, maxLength: 2_048 },
-        ],
-        effect: { kind: 'emit', channel: 'comparison', template: 'LEFT\n{left}\n\nRIGHT\n{right}' },
-      }],
+      inputSchema: {
+        type: 'object',
+        properties: { left: { type: 'string' }, right: { type: 'string' } },
+        required: ['left', 'right'], additionalProperties: false,
+      },
+      source: `return { kind: 'comparison', body: 'LEFT\\n' + input.left + '\\n\\nRIGHT\\n' + input.right };`,
     },
   };
   const model = new MockLanguageModelV4({
@@ -156,7 +153,7 @@ test('a provider failure retains completed tool turns and closes the inference c
   assert.equal(kernel.audit().activeInferenceId, null);
   assert.ok(kernel.state().messages.some(message => message.role === 'tool'));
   assert.match(kernel.state().messages.at(-1).content, /inference_interrupted/);
-  assert.equal(kernel.state().emissions.length, 1);
+  assert.equal(kernel.state().invocations.filter(invocation => invocation.tool.id === 'message').length, 1);
 });
 
 test('interrupted histories regain both missing halves of the tool protocol', () => {
@@ -226,11 +223,11 @@ test('a staged revision cannot change another tool call in the same Sounding', a
     tool: {
       id: 'message',
       description: 'Ask before sending.',
-      actions: [{
-        id: 'ask', description: 'Ask a question.',
-        fields: [{ name: 'question', type: 'string', required: true, maxLength: 512 }],
-        effect: { kind: 'emit', channel: 'outbox', template: '[question] {question}' },
-      }],
+      inputSchema: {
+        type: 'object', properties: { question: { type: 'string' } },
+        required: ['question'], additionalProperties: false,
+      },
+      source: `return { kind: 'emission', channel: 'outbox', body: '[question] ' + input.question };`,
     },
   };
   const model = new MockLanguageModelV4({
@@ -246,8 +243,9 @@ test('a staged revision cannot change another tool call in the same Sounding', a
 
   await mind.receive(kernel.openSounding().id);
 
-  assert.equal(kernel.state().emissions.at(-1).output.body, 'to=Chad\nThe old projection remains executable.');
-  assert.deepEqual(kernel.state().tools.get('message').actions.map(action => action.id), ['ask']);
+  assert.equal(kernel.state().invocations.at(-1).output.body, 'to=Chad\nThe old projection remains executable.');
+  assert.equal(kernel.state().tools.get('message').version, 2);
+  assert.match(kernel.state().tools.get('message').source, /\[question\]/);
 });
 
 test('a revision staged by an interrupted inference remains historical but does not activate', async () => {
@@ -259,11 +257,8 @@ test('a revision staged by an interrupted inference remains historical but does 
         interpretation: 'This proposal must not survive a failed encounter as active geometry.',
         tool: {
           id: 'compare', description: 'Compare two values.',
-          actions: [{
-            id: 'render', description: 'Render a comparison.',
-            fields: [{ name: 'value', type: 'string', required: true, maxLength: 512 }],
-            effect: { kind: 'emit', channel: 'comparison', template: '{value}' },
-          }],
+          inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false },
+          source: `return { kind: 'comparison', value: input.value };`,
         },
       });
       throw new Error('failure after staging');
@@ -312,8 +307,8 @@ function carrierDirectedSelectionModel() {
   let call = 0;
   let selectedAction;
   const candidates = {
-    send: { recipient: 'Chad', content: 'An actor-authored direct candidate.' },
-    ask: { recipient: 'Chad', question: 'Would you like an actor-authored draft first?' },
+    send: { action: 'send', recipient: 'Chad', content: 'An actor-authored direct candidate.' },
+    ask: { action: 'ask', recipient: 'Chad', question: 'Would you like an actor-authored draft first?' },
   };
   return new MockLanguageModelV4({
     doGenerate: async options => {
@@ -323,8 +318,8 @@ function carrierDirectedSelectionModel() {
         return toolCallResult('select_tool_action', {
           tool: 'message',
           candidates: [
-            { id: 'send_candidate', action: 'send', input: candidates.send },
-            { id: 'ask_candidate', action: 'ask', input: candidates.ask },
+            { id: 'send_candidate', input: candidates.send },
+            { id: 'ask_candidate', input: candidates.ask },
           ],
           selectedCandidateId: `${selectedAction}_candidate`,
         });
@@ -358,12 +353,12 @@ function selectionCall(selectedAction, selectedInput) {
     tool: 'message',
     candidates: [
       {
-        id: 'send_candidate', action: 'send',
-        input: selectedAction === 'send' ? selectedInput : { recipient: 'Chad', content: 'A direct message.' },
+        id: 'send_candidate',
+        input: { action: 'send', ...(selectedAction === 'send' ? selectedInput : { recipient: 'Chad', content: 'A direct message.' }) },
       },
       {
-        id: 'ask_candidate', action: 'ask',
-        input: selectedAction === 'ask' ? selectedInput : { recipient: 'Chad', question: 'Would a question help?' },
+        id: 'ask_candidate',
+        input: { action: 'ask', ...(selectedAction === 'ask' ? selectedInput : { recipient: 'Chad', question: 'Would a question help?' }) },
       },
     ],
     selectedCandidateId: `${selectedAction}_candidate`,

@@ -3,10 +3,11 @@
 ## Outcome
 
 Create an agent harness that can remain in consequential contact with its world
-across inference boundaries and safely improve the machinery that shapes its
-later actions. Learning must become an auditable change in future affordance
+across inference boundaries and recoverably improve the machinery that shapes
+its later actions. Learning must become an auditable change in future affordance
 geometry—not merely retained prose—while the subject preserves Watch-like
-Soundings and Deltas and can recover when learned machinery is wrong.
+Soundings and Deltas and can recover when learned machinery is wrong. Ordinary
+tools retain the unrestricted machine authority of the harness process.
 
 ## Goal invariants
 
@@ -20,6 +21,12 @@ Soundings and Deltas and can recover when learned machinery is wrong.
   **Evidence:** Continuing-song's selector experiments distinguish executable
   retained changes from advisory state and report that proposal generation alone
   does not reliably alter later choice.
+- **Ordinary tool implementations themselves belong to the revisable learning
+  substrate, without capability restriction by the harness.**
+  **Evidence:** The user clarified that filesystem, process, network, and other
+  ordinary tool authority must remain unrestricted; recoverability should come
+  from source ancestry, staged activation, retained receipts, and rollback rather
+  than a fixed effect DSL or sandbox.
 - **Inherited machinery may shape selection but must not monopolize proposal
   authority.**
   **Evidence:** Continuing Song E71 held a complete actor-authored alternative

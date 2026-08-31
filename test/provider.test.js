@@ -81,10 +81,15 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.equal(request.model, 'z-ai/glm-5.3-flash');
     const tools = new Map(request.tools.map(candidate => [candidate.function.name, candidate.function.parameters]));
     assert.ok(tools.has('message'));
+    assert.ok(tools.has('file_patch'));
     assert.ok(tools.has('select_tool_action'));
+    assert.ok(tools.has('inspect_tool'));
+    assert.ok(tools.has('revise_tool'));
+    assert.ok(tools.has('rollback_tool'));
     assert.ok(tools.has('revise_carrier'));
     assert.ok(tools.get('message').required.includes('selectionReceipt'));
     assert.equal(tools.get('select_tool_action').properties.candidates.items.properties.input.type, 'object');
+    assert.equal(tools.get('revise_tool').properties.tool.properties.source.type, 'string');
   } finally {
     if (previous === undefined) delete process.env.MUSIC_TEST_OPENROUTER_KEY;
     else process.env.MUSIC_TEST_OPENROUTER_KEY = previous;

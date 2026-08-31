@@ -1,129 +1,153 @@
-# Music's first executable bones
+# Music's executable-tool bootstrap
 
 ## Shared contract
 
-Music carries one durable subject across runtime encounters. A world Delta can
-reach that subject through a Sounding; the subject can author a bounded change
-to executable tool geometry; and a later Sounding and invocation must use the
-changed geometry.
+Music carries one durable subject across model encounters. World contact reaches
+that subject through Watch-like Deltas and Soundings. The subject can inspect,
+replace, invent, select, invoke, and roll back ordinary executable tools; a
+successful retained change must alter what code a later encounter can run.
 
-The current envelope is one trusted local Node.js process, one writer, one
-ledger, AI SDK 7 text/tool inference, OpenRouter or a generic OpenAI-compatible
-endpoint, and bounded `emit` effects. It does not yet claim concurrent writers,
-real messaging or filesystem effects, autonomous scheduling, multimodal
-provider equivalence, evaluator independence, or safe native-code/tool
-installation.
+Ordinary tools are unrestricted JavaScript function bodies executed with the
+normal authority of the Music Node.js process. This is intentional. Music does
+not sandbox filesystem, process, network, native-module, environment, or other
+machine authority. “Recoverable” means that tool identities and source ancestry
+are retained, activation is deferred, failed inference does not promote staged
+source, and an earlier body can become a new rollback successor. It does not
+mean that arbitrary external effects can always be undone.
 
-The event chain, subject identity, admitted world Deltas, exact Sounding
-projections, projected tool bindings, staged and activated tool versions, and
-invocation receipts are preserved exactly. Tool descriptions, actions, fields,
-and bounded effects are intentionally revisable. Event format 3 intentionally
-does not replay earlier ledgers because delivery, carrier, and activation changed
-meaning.
+The current envelope is one trusted local Node.js process, one ledger writer,
+AI SDK 7 inference, and OpenRouter or a generic OpenAI-compatible provider. It
+does not yet claim concurrent writers, transactional rollback of arbitrary
+external effects, autonomous scheduling, live messaging transport, dependency
+installation recovery, or survival when the bootstrap itself is corrupted.
 
-The authorized embodiment depth is Node.js and local append-only files. No
-database, service boundary, plugin process, or platform-specific native code is
-introduced.
+Event format 4 intentionally rejects earlier ledgers because the former bounded
+manifest/effect language has been removed. Tool source and invocation now have
+different meaning.
+
+## Stable boundary
+
+The bootstrap currently owns only the irreducible continuity and mutation path:
+
+- one subject, event chain, and exact Sounding lifecycle;
+- inference-provider connection and interrupted-turn recovery;
+- loading and invoking a retained JavaScript tool body;
+- exact projection/digest binding plus durable invocation start, completion, and
+  failure boundaries;
+- `inspect_tool`, `revise_tool`, and `rollback_tool`;
+- carrier mutation and parent-bound activation mechanics;
+- the receipt primitive used by selection modules.
+
+The JavaScript loader is not a capability filter. A tool body receives `input`
+and an encounter context, but it can also use normal globals and dynamically
+import any Node or installed package available to the process.
+
+Everything projected as an ordinary tool is revisable. The initial modules live
+under [`tools/`](./tools):
+
+- `file_patch` performs a real atomic exact-text replacement on any visible
+  path;
+- `message` currently produces a local outbound record;
+- `select_tool_action` invokes the stable receipt primitive, but its interface,
+  sequencing, and executable source are themselves ordinary revisable geometry.
+
+These files seed a new subject only. Once initialized, the ledger-retained tool
+version is authoritative. The bootstrap does not re-read seed source to replace
+an active learned version.
 
 ## Causal map
 
 ```text
 world-authored Delta
-  -> kernel admission and durable event
-  -> durable Sounding offer (Delta remains pending)
-  -> inference accepts the exact projection and acknowledges its Deltas
-  -> active carrier supplies bounded current selection state
-  -> subject authors a complete tool-owned candidate frontier
-  -> selection receipt authorizes only the exact selected candidate
-  -> invocation executes the manifest digest bound to that Sounding
-  -> agent-authored tool revision is staged inside that inference
-  -> agent-authored carrier transition preserves rule identity and evolves state
-  -> successful inference completion atomically activates staged successors
-  -> later Sounding projects the changed actions and carrier root
-  -> durable observable emission receipt
-  -> complete AI SDK messages remain audit history, not active context
+  -> durable Sounding offer
+  -> inference accepts its exact projection and acknowledges its Deltas
+  -> subject encounters current carrier and ordinary-tool digests/interfaces
+  -> inspect_tool retrieves exact projected source when needed
+  -> ordinary module executes with unrestricted Node authority
+  -> invocation input, output, tool digest, and encounter binding are retained
+  -> revise_tool stages a complete replacement interface and source body
+  -> successful inference completion atomically promotes the staged successor
+  -> later Sounding projects the successor digest and interface
+  -> later invocation runs the changed source
+  -> rollback_tool can copy retained prior source into a new parent-bound version
 ```
 
-The ledger is the only state authority. Current subject state, pending Deltas,
-Sounding lifecycle, active carrier components, tool geometry, selections, and
-emissions are replayed from it.
-The kernel decides admission, acknowledgement, projection binding, ancestry,
-activation, and bounded execution; it does not decide what a consequence means
-or what the subject should learn.
+Tool source is omitted from the default Sounding projection to avoid replaying
+every implementation into every prompt. `inspect_tool` returns the exact source
+bound to that encounter, so modification is informed rather than blind.
 
-## Why this shape
+## Tool identity and activation
 
-A process per tool would introduce identity, synchronization, deployment, and
-failure boundaries before any demonstrated need. A central learned-policy layer
-over fixed tools would preserve two behavior authorities and allow a lesson to
-remain advisory. Here, the ledger retains the full executable manifest
-corresponding to each projected digest. An invocation uses that exact binding
-even if the subject has staged later geometry; only a completed encounter can
-activate the staged successor for a later Sounding.
+An ordinary tool version contains:
 
-Opening a Sounding constructs an offer; it is not delivery. The kernel permits
-only one offered or active Sounding at a time. `inference_started` binds the
-stored projection digest, acknowledges exactly its Delta IDs, and supplies the
-only context in which agent tool invocation or revision is authorized. The CLI
-cannot label standalone actions as agent-authored.
+```text
+id + version + parent digest
++ description + JSON Schema
++ optional selection geometry
++ unrestricted JavaScript source body
+```
 
-The active carrier is a bounded set of generic components, not a fixed ontology
-of motif, pursuit, or personhood. Each component separates stable rule identity
-from evolving state identity; the carrier root composes their current digests.
-The subject may stage a state transition or invent another bounded component.
-Only successful inference completion merges it, and only the successor appears
-in later Soundings. Older states remain in ledger history without appearing in
-the active projection.
+The digest covers the complete record. A Sounding projects the interface,
+selection geometry, version, and digest, but not source. Invocation always loads
+the full ledger-retained module corresponding to that projection. A revision is
+a new child: the bootstrap supplies version and parent, checks that its source
+compiles, and keeps it staged until successful inference completion. Staged code
+cannot affect another invocation in the same Sounding.
 
-Selection geometry belongs to a tool manifest. The initial message tool requires
-one actor-authored candidate per available action. `select_tool_action` records
-the exact frontier, active carrier root, projected tool digest, and selected ID.
-Its receipt is single-use and authorizes only that selected action and input.
-The selector does not generate candidates or decide which candidate wins.
+Rollback is append-only. It does not reactivate an old node or erase descendants;
+it creates a new child of the current version whose executable body and interface
+exactly match a cited retained digest. Replay verifies both current ancestry and
+the restored body.
 
-Tool invention is present in a deliberately narrow form: the subject may add a
-new named tool and actions using the existing bounded `emit` primitive. This
-proves that the action vocabulary can grow without claiming that arbitrary new
-machine authority is safe.
+## Selection and continuing identity
 
-Provider compatibility is not collapsed into one nominally OpenAI-shaped path.
-OpenRouter uses `@openrouter/ai-sdk-provider` 3 in explicit `strict` mode. Local
-or otherwise generic OpenAI-compatible servers use
-`@ai-sdk/openai-compatible`. The request boundary records bodies and non-secret
-header names for diagnosis, while never retaining authorization values. Tests
-exercise the dedicated provider's two-request tool-call protocol rather than
-assuming API-shape compatibility from package names.
+The initial message module owns a revisable discriminator and complete-frontier
+contract. The subject authors candidate contents and the winning candidate. The
+selection module records the active carrier root, tool digest, frontier, and
+selected input; a single-use receipt permits only that exact input to execute.
 
-OpenRouter model metadata must declare the `tools` supported parameter before a
-run begins. Generic OpenAI-compatible endpoints do not share a reliable metadata
-contract, so their configuration must explicitly claim `capabilities.tools`;
-unknown capability is treated as unavailable rather than optimistic support.
+`select_tool_action` is no longer a hard-coded AI SDK tool. It is an ordinary
+module whose seed source calls the bootstrap receipt primitive. Its delivery
+shape can therefore change like file patching or messaging while receipt
+retention remains available beneath it.
 
-Normal completed conversation is not replayed to later inference. The ledger
-retains it for audit; only the current Sounding and bounded recovery protocol
-from an immediately interrupted inference enter the next active prompt.
+Normal completed conversation remains audit history and is not replayed as the
+active self. The current Sounding, current carrier, current tool geometry, and a
+bounded immediately interrupted protocol are the active encounter surface.
 
-An `inference_started` event is durable before the provider call begins. If a
-process disappears, the next runtime explicitly closes that orphan as a failed
-inference, adds an interruption observation to retained history, and only then
-opens another Sounding. It never silently rewinds a tool effect or leaves the
-subject permanently locked in an inference that no longer exists.
+## Provider boundary
 
-## Next risk frontier
+OpenRouter uses `@openrouter/ai-sdk-provider` in explicit strict mode. Generic
+OpenAI-compatible endpoints use `@ai-sdk/openai-compatible` separately.
+OpenRouter preflight requires declared tool support. Request receipts retain the
+model, body, and non-secret header names without authorization values. Tests run
+Music's full current tool schemas through the dedicated serializer.
 
-The provider loop, multi-step tool protocol, exact encounter lifecycle,
-projection-bound invocation, deferred activation, active-carrier identity,
-selected-only effect authorization, tool invention, and interrupted-step
-recovery are exercised against AI SDK's real loop and provider serializers. A
-paired fixture holds the tool geometry and actor-authored candidates exact while
-carrier retention changes selection from `send` to `ask`; unselected and reused
-receipts cannot emit. One earlier capped live OpenRouter request verified
-authentication, exact model selection, request retention, and usage accounting;
-live remote selection and carrier revision remain outside the evidence horizon.
+## Evidence and next risk frontier
 
-The next structural frontier is correction lineage. Carrier and tool changes are
-still promoted by successful inference completion rather than later world
-consequence. A Delta must bind an exact selection/invocation receipt, make the
-result active without replaying conversation, and support a later correction or
-rollback whose changed selection can be tested against erasure. Real external
-effect commit and scheduling remain downstream of that consequence boundary.
+Automated evidence currently proves that:
+
+- a retained ordinary module dynamically imports `node:child_process`, starts a
+  real child Node process, and returns its output;
+- the initial `file_patch` changes a real disposable file and retains before/after
+  digests;
+- a replacement executable body remains inert in the current Sounding, activates
+  later, and survives reconstruction from the ledger;
+- rollback after restart restores the cited earlier file-patch implementation as
+  a new successor and that successor patches a real file;
+- selection sequencing itself can be revised as an ordinary module;
+- retained versus erased carrier state changes selection over byte-identical
+  actor-authored candidates;
+- failed inference retains staged history but does not activate it;
+- a tool receipt is consumed by a durable start event before executable code
+  runs; restart recovery preserves a start without completion as uncertain;
+- OpenRouter strict serialization accepts the complete executable-tool surface.
+
+The next risk frontier is consequence lineage and reconciliation of uncertain
+effects. Music now durably consumes authorization before code runs and records
+completion or failure afterward, but a process death can still leave a started
+effect whose world outcome is unknown. A later Delta must cite that exact
+invocation, reconcile what actually happened, and let the subject revise or
+roll back machinery without pretending it can transactionally undo the world.
+Beyond that, ordinary tools still need a learned dependency and module-installation
+story capable of recovering when newly installed code breaks the next encounter.
