@@ -44,6 +44,7 @@ subject beginning in seclusion, send an observation from another process:
 
 ```sh
 /Users/chad/.local/share/music/releases/0.0.3/src/cli.js observe /absolute/run '{"request":"..."}' operator Chad
+/Users/chad/.local/share/music/releases/0.0.3/src/cli.js outbox /absolute/run
 ```
 
 Transient inference or contact failures are retained and retried with the

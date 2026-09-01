@@ -90,6 +90,7 @@ OPENROUTER_API_KEY=... node src/cli.js reside /absolute/run-directory
 
 # Deliver new experience, alter machine-owner authority, and snapshot evidence
 node src/cli.js observe /absolute/run-directory '{"request":"..."}' operator machine-owner
+node src/cli.js outbox /absolute/run-directory
 node src/cli.js revoke /absolute/run-directory network.fetch 'maintenance window'
 node src/cli.js grant /absolute/run-directory network.fetch 'maintenance complete'
 node src/cli.js snapshot /absolute/run-directory /absolute/snapshot-directory

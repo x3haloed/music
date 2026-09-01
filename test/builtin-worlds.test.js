@@ -4,7 +4,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
-import { builtinWorlds } from '../src/builtin-worlds.js';
+import { builtinWorlds, readOperatorOutbox } from '../src/builtin-worlds.js';
 
 test('operator outbox turns a retried contact into one durable delivery', async t => {
   const root = mkdtempSync(join(tmpdir(), 'music-v3-outbox-'));
@@ -20,6 +20,7 @@ test('operator outbox turns a retried contact into one durable delivery', async 
   const record = JSON.parse(readFileSync(join(root, 'outbox', files[0]), 'utf8'));
   assert.deepEqual(record.message, input.message);
   assert.equal(record.deliveryId, first.deliveryId);
+  assert.deepEqual(readOperatorOutbox(root), [record]);
 });
 
 test('HTTP world rejects a response larger than its sealed bound', async t => {

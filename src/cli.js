@@ -4,7 +4,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
 import { CodexExecActor, OpenRouterActor } from './actor.js';
-import { builtinWorlds } from './builtin-worlds.js';
+import { builtinWorlds, readOperatorOutbox } from './builtin-worlds.js';
 import { DevelopmentalKernel } from './kernel.js';
 import { RunSpecSchema } from './protocol.js';
 import { runRehearsal } from './rehearsal.js';
@@ -19,6 +19,7 @@ try {
   else if (command === 'reside') await reside(args);
   else if (command === 'step') await step(args);
   else if (command === 'audit') audit(args);
+  else if (command === 'outbox') outbox(args);
   else if (command === 'snapshot') snapshot(args);
   else if (command === 'observe') observe(args);
   else if (command === 'grant') grant(args, true);
@@ -110,6 +111,13 @@ function audit([rootArg]) {
   const root = absolute(rootArg);
   if (!existsSync(root)) throw new Error(`run does not exist: ${root}`);
   output(new DevelopmentalKernel(root).audit());
+}
+
+function outbox([rootArg]) {
+  requireArgs(rootArg);
+  const root = absolute(rootArg);
+  if (!existsSync(root)) throw new Error(`run does not exist: ${root}`);
+  output({ format: 'music-v3-operator-outbox-1', run: root, messages: readOperatorOutbox(root) });
 }
 
 function snapshot([rootArg, destinationArg]) {
@@ -233,5 +241,5 @@ function parseJsonArgument(value) {
 }
 
 function help() {
-  process.stdout.write(`Music v3\n\nCommands:\n  init RUN SPEC [CONDITION]\n  hatch RUN SPEC [CONDITION]\n  continue RUN SPEC PREDECESSOR_RUN [CONDITION]\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  template [WORLD_ADAPTER] [openrouter|codex-exec]\n  rehearse [OUTPUT]\n`);
+  process.stdout.write(`Music v3\n\nCommands:\n  init RUN SPEC [CONDITION]\n  hatch RUN SPEC [CONDITION]\n  continue RUN SPEC PREDECESSOR_RUN [CONDITION]\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  outbox RUN\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  template [WORLD_ADAPTER] [openrouter|codex-exec]\n  rehearse [OUTPUT]\n`);
 }

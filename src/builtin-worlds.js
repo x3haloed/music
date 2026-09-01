@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { canonical, digest } from './canonical.js';
 import { defineWorld, WorldRegistry } from './world.js';
@@ -138,6 +138,13 @@ export function builtinWorlds() {
       },
     }),
   ]);
+}
+
+export function readOperatorOutbox(root) {
+  const path = join(root, 'outbox');
+  if (!existsSync(path)) return [];
+  return readdirSync(path).filter(name => name.endsWith('.json')).sort()
+    .map(name => JSON.parse(readFileSync(join(path, name), 'utf8')));
 }
 
 function atomicWrite(path, bytes) {
