@@ -1,5 +1,5 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { generateText, Output } from 'ai';
+import { generateText } from 'ai';
 import { execFile, execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -60,7 +60,7 @@ export class OpenRouterActor {
     this.identity = digest({
       format: 'music-v3-actor-adapter-1',
       kind: 'openrouter',
-      implementation: 'music-v3-openrouter-json-envelope-1',
+      implementation: 'music-v3-openrouter-validated-json-text-1',
       model,
       settings: { maxOutputTokens, temperature },
     });
@@ -90,12 +90,11 @@ export class OpenRouterActor {
         'Return one JSON value conforming to the supplied schema and nothing else.',
         'Do not claim contact, authority, or consequence absent from the projection.',
       ].join('\n'),
-      output: Output.object({ schema: JsonEnvelopeSchema }),
-      prompt: `${task}\n\nReturn an object whose json field contains one serialized JSON value conforming to TARGET_SCHEMA.\n\nTARGET_SCHEMA:\n${JSON.stringify(z.toJSONSchema(schema))}\n\nRETAINED_PROJECTION:\n${JSON.stringify(projection)}`,
+      prompt: `${task}\n\nReturn one raw JSON value conforming to TARGET_SCHEMA. Do not wrap it in markdown or in another envelope.\n\nTARGET_SCHEMA:\n${JSON.stringify(z.toJSONSchema(schema))}\n\nRETAINED_PROJECTION:\n${JSON.stringify(projection)}`,
     });
     let output;
-    try { output = schema.parse(JSON.parse(result.output.json)); }
-    catch (error) { error.rawOutput = result.output?.json ?? JSON.stringify(result.output); throw error; }
+    try { output = schema.parse(JSON.parse(result.text)); }
+    catch (error) { error.rawOutput = result.text; throw error; }
     return {
       output,
       model: result.response?.modelId ?? this.model,

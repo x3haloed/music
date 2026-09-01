@@ -13,7 +13,7 @@ test('OpenRouter actor uses one structured fresh request and returns provider re
     doGenerate: async options => {
       request = options;
       return {
-        content: [{ type: 'text', text: JSON.stringify({ json: JSON.stringify({ summary: 'Remain exact.', liveStakes: ['continuity'], recommendedNext: 'Contact the world.' }) }) }],
+        content: [{ type: 'text', text: JSON.stringify({ summary: 'Remain exact.', liveStakes: ['continuity'], recommendedNext: 'Contact the world.' }) }],
         finishReason: { unified: 'stop', raw: 'stop' },
         usage: {
           inputTokens: { total: 30, noCache: 30, cacheRead: undefined, cacheWrite: undefined },
@@ -34,7 +34,7 @@ test('OpenRouter actor uses one structured fresh request and returns provider re
   assert.equal(result.output.summary, 'Remain exact.');
   assert.equal(result.model, 'provider/model-v1');
   assert.equal(result.responseId, 'response-1');
-  assert.equal(request.responseFormat.type, 'json');
+  assert.equal(request.responseFormat, undefined);
   assert.match(request.prompt[1].content[0].text, /"retained":"exact"/);
 });
 

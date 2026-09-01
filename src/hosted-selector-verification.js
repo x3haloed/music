@@ -78,6 +78,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
   kernel.initialize(spec);
   const state = await kernel.reside({ maximumSleepMs: 10 });
   const selections = state.cycles.filter(cycle => cycle.frontier).map(cycle => kernel.store.get(cycle.frontier).selection);
+  const evidence = kernel.store.verifyObjectGraph();
   const checks = {
     exactContacts: JSON.stringify(contacts) === JSON.stringify(['install', 'high', 'low']),
     threePromotions: state.subject.generation === 3,
@@ -88,7 +89,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
     hostedHatch: Boolean(state.hatched),
     freshContexts: new Set(state.invocations.filter(value => value.status === 'completed').map(value => value.contextId)).size
       === state.invocations.filter(value => value.status === 'completed').length,
-    evidenceGraph: kernel.audit().evidence.ok,
+    evidenceGraph: evidence.head === state.head,
   };
   return {
     format: 'music-v3-hosted-selector-verification-1',
