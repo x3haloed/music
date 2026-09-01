@@ -16,7 +16,7 @@ export function builtinWorlds() {
       identityMaterial: { implementation: 'music-v3-operator-outbox-1', storage: 'run-local-idempotent-json' },
       publicContract: {
         input: { audience: 'short string', message: 'JSON value' },
-        output: { delivered: 'boolean', deliveryId: 'sha256 digest', audience: 'short string' },
+        output: { delivered: 'boolean', deliveryId: 'exactly 64 lowercase hexadecimal characters', audience: 'short string' },
         idempotency: 'One immutable outbox record is retained per Music contact key.',
       },
       conform(input) {
@@ -28,7 +28,7 @@ export function builtinWorlds() {
       },
       conformOutput(output) {
         return output && typeof output.delivered === 'boolean' && /^[a-f0-9]{64}$/.test(output.deliveryId) && typeof output.audience === 'string'
-          ? [] : ['output must contain delivered, deliveryId, and audience'];
+          ? [] : ['output must contain Boolean delivered, exactly 64 lowercase hexadecimal deliveryId characters, and string audience'];
       },
       async execute(input, context) {
         const record = {
