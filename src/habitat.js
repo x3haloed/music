@@ -5,6 +5,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { MusicKernel } from './kernel.js';
+import { acquireResidentLease, releaseResidentLease } from './resident-lease.js';
 
 export const HABITAT_FORMAT = 'music-v2-habitat-1';
 const MARKER = 'habitat.json';
@@ -49,12 +50,14 @@ export function snapshotHabitat(rootArgument, backupRootArgument) {
   mkdirSync(targetParent, { recursive: true, mode: 0o700 });
   const target = join(targetParent, safeTimestamp());
   const kernel = new MusicKernel(habitat.root);
-  const lock = kernel.ledger.acquire();
+  const residentLease = acquireResidentLease(habitat.root, 'snapshot');
+  let lock;
   try {
+    lock = kernel.ledger.acquire();
     cpSync(habitat.root, target, {
       recursive: true,
       mode: constants.COPYFILE_FICLONE,
-      filter: source => source !== kernel.ledger.lockPath,
+      filter: source => source !== kernel.ledger.lockPath && source !== residentLease.path,
     });
     const files = inventory(target);
     writeExclusiveJson(join(target, 'snapshot.json'), {
@@ -65,8 +68,11 @@ export function snapshotHabitat(rootArgument, backupRootArgument) {
     });
     return { habitat: habitat.root, snapshot: target, files: files.length };
   } finally {
-    closeSync(lock);
-    unlinkSync(kernel.ledger.lockPath);
+    if (lock !== undefined) {
+      closeSync(lock);
+      unlinkSync(kernel.ledger.lockPath);
+    }
+    releaseResidentLease(residentLease);
   }
 }
 

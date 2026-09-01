@@ -9,6 +9,7 @@ import { nextEncounterAt, retainedFailureBackoff } from './recurrence.js';
 import { readHabitat } from './habitat.js';
 import { runtimeProvenance } from './runtime-provenance.js';
 import { archiveOutboundMessage, drainInboundMessages, pendingOutboundMessages, submitInboundMessage } from './mailbox.js';
+import { acquireResidentLease, releaseResidentLease } from './resident-lease.js';
 
 const { command, options, positionals } = parse(process.argv.slice(2));
 
@@ -61,11 +62,21 @@ try {
     if (!selected) throw new Error(`unknown pending outbound message: ${messageId}`);
     print({ messageId, archived: archiveOutboundMessage(habitat, selected.path) });
   } else if (command === 'step') {
-    kernel.receiveObservation(runtimeProvenance(habitat, 'single-opening'));
-    print(await step(kernel, options));
+    const lease = preparedHabitat ? acquireResidentLease(habitat, 'single-opening') : null;
+    try {
+      kernel.receiveObservation(runtimeProvenance(habitat, 'single-opening'));
+      print(await step(kernel, options));
+    } finally {
+      if (lease) releaseResidentLease(lease);
+    }
   } else if (command === 'run') {
-    kernel.receiveObservation(runtimeProvenance(habitat, 'resident'));
-    await run(kernel, options);
+    const lease = preparedHabitat ? acquireResidentLease(habitat, 'resident') : null;
+    try {
+      kernel.receiveObservation(runtimeProvenance(habitat, 'resident'));
+      await run(kernel, options);
+    } finally {
+      if (lease) releaseResidentLease(lease);
+    }
   } else {
     usage(command ? `unknown command: ${command}` : null);
   }

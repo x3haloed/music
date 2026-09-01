@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { createHabitat, readHabitat, snapshotHabitat } from '../src/habitat.js';
 import { MusicKernel } from '../src/kernel.js';
+import { acquireResidentLease, releaseResidentLease } from '../src/resident-lease.js';
 
 test('habitat creation prepares private resident state without hatching or naming anyone', t => {
   const parent = mkdtempSync(join(tmpdir(), 'music-v2-habitat-'));
@@ -46,4 +47,20 @@ test('snapshot refuses recursive containment in either direction', t => {
   const habitat = createHabitat(join(parent, 'resident'));
   assert.throws(() => snapshotHabitat(habitat.root, join(habitat.root, 'backups')), /must not contain/);
   assert.throws(() => snapshotHabitat(habitat.root, parent), /must not contain/);
+});
+
+test('a live resident lease excludes snapshots and a dead lease is reclaimable', t => {
+  const parent = mkdtempSync(join(tmpdir(), 'music-v2-resident-lease-'));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const habitat = createHabitat(join(parent, 'resident'));
+  new MusicKernel(habitat.root).initialize();
+  const lease = acquireResidentLease(habitat.root, 'resident');
+  assert.throws(() => snapshotHabitat(habitat.root, join(parent, 'backups')), /resident lease is already active/);
+  assert.equal(releaseResidentLease(lease), true);
+  writeFileSync(join(habitat.state, 'resident.lock'), `${JSON.stringify({
+    format: 'music-v2-resident-lease-1', token: 'dead', pid: 2_147_483_647, purpose: 'resident',
+  })}\n`);
+  const reclaimed = acquireResidentLease(habitat.root, 'resident');
+  assert.notEqual(reclaimed.owner.token, 'dead');
+  releaseResidentLease(reclaimed);
 });
