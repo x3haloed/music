@@ -542,6 +542,9 @@ export class MusicKernel {
     if (decisions.length === 0 && opening === null) throw new Error('developmental transaction needs decisions or a successor opening');
     const prior = state.stagedDevelopmentalTransaction;
     if (prior?.opening && opening) throw new Error('developmental transaction already has a successor opening');
+    if (prior && prior.positionRoot !== (state.position?.root ?? null)) {
+      throw new Error('cannot amend a developmental transaction after the developmental position changes');
+    }
     const combinedDecisions = validateDevelopmentalDecisions(
       [...(prior?.decisions ?? []), ...decisions], state, { allowEmpty: (prior?.opening ?? opening) !== null },
     );
@@ -1274,6 +1277,9 @@ export class MusicKernel {
         payload,
       };
       const event = { ...unsigned, hash: digest(unsigned) };
+      // An append is the durable commit boundary. Prove that the candidate event
+      // reconstructs with the entire retained history before any bytes reach disk.
+      reduceEvents([...events, event]);
       const descriptor = openSync(this.ledgerPath, 'a', 0o600);
       try {
         writeAll(descriptor, `${canonical(event)}\n`);

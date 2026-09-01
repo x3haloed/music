@@ -290,6 +290,56 @@ test('developmental admission and trajectory maintenance compose into one atomic
   assert.equal(reconstructed.audit().activeOpening.id, scheduled.opening.successor.id);
 });
 
+test('a position change rejects a staged transaction amendment without poisoning the ledger', async () => {
+  const { kernel } = harness();
+  const authored = kernel.openSounding('manual');
+  const authoredInference = begin(kernel, authored.id);
+  const deferred = kernel.authorToolProposal(authoredInference, authored.id, {
+    interpretation: 'Retain one proposal that can be deferred in the reproduction encounter.',
+    tool: {
+      id: 'deferred_probe',
+      description: 'Return a deferred probe.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      source: 'return { deferred: true };',
+    },
+  });
+  complete(kernel, authoredInference);
+
+  const encounter = kernel.openSounding('manual');
+  const inferenceId = begin(kernel, encounter.id);
+  kernel.stageDevelopmentalTransaction(inferenceId, encounter.id, {
+    interpretation: 'Defer the earlier proposal while preserving its standing.',
+    decisions: [{
+      proposalId: deferred.proposalId,
+      disposition: 'defer',
+      interpretation: 'A later encounter can exercise it.',
+    }],
+  });
+  kernel.authorToolProposal(inferenceId, encounter.id, {
+    interpretation: 'Authoring this proposal advances the developmental position.',
+    tool: {
+      id: 'intervening_probe',
+      description: 'Return an intervening probe.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      source: 'return { intervening: true };',
+    },
+  });
+  const before = kernel.events().length;
+
+  await assert.rejects(() => kernel.invokeTool(inferenceId, encounter.id, 'schedule_wake', {
+    afterMs: 60_000,
+    reason: 'This amendment is now bound to an obsolete position.',
+  }), /cannot amend a developmental transaction after the developmental position changes/);
+
+  const appended = kernel.events().slice(before);
+  assert.deepEqual(appended.map(event => event.type), [
+    'tool_invocation_started',
+    'tool_invocation_failed',
+  ]);
+  assert.doesNotThrow(() => new MusicKernel(kernel.ledgerPath, { toolEnvironment: kernel.toolEnvironment }).state());
+  kernel.failInference(inferenceId, new Error('test encounter ends after the rejected amendment'));
+});
+
 test('ordinary carrier-authoring output receives an authoritative provisional lifecycle receipt', async () => {
   const legacyCarrierTool = {
     id: 'legacy_context',
