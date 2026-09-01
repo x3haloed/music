@@ -132,6 +132,62 @@ test('subject identity rejects malformed selector machinery at creation', () => 
   assert.throws(() => createSubject({ mechanisms: { pursuitSelector: { format: 'invented' } } }, new Date().toISOString()), /invalid pursuitSelector/);
 });
 
+test('independent contradiction can surrender the selector and reopen actor election', async t => {
+  const parent = mkdtempSync(join(tmpdir(), 'music-v3-selector-surrender-'));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const contacts = [];
+  const world = defineWorld({
+    id: 'surrender-world', version: '1', description: 'Contradict the selected pursuit, then retain later contact.', effects: [],
+    identityMaterial: { implementation: 'surrender-world-v1' },
+    publicContract: { input: { pursuit: 'string' }, output: { passed: 'boolean' } },
+    conform: input => input && ['selected', 'free-a', 'free-b'].includes(input.pursuit) ? [] : ['known pursuit required'],
+    conformOutput: output => output && typeof output.passed === 'boolean' ? [] : ['passed required'],
+    async execute(input) { contacts.push(input.pursuit); return { passed: input.pursuit !== 'selected' }; },
+  });
+  const worlds = new WorldRegistry([world]);
+  const make = (id, measurement, continuation) => ({
+    id, stake: { id: 'selector-surrender', question: `What follows from ${id}?` },
+    contact: { world: 'surrender', input: { pursuit: id } },
+    predicates: { support: { op: 'eq', path: '/output/passed', value: true }, contradiction: { op: 'eq', path: '/output/passed', value: false } },
+    witnesses: { support: { passed: true }, contradiction: { passed: false } },
+    continuations: continuation,
+    revisionScope: id === 'selected' ? ['/mechanisms/pursuitSelector'] : ['/memory'], retainedFloorIds: [], effectRequirements: [],
+    selection: { measurements: { 'decision-ready-signal': measurement } },
+  });
+  const surrender = make('selected', 9, {
+    contradiction: { set: {}, remove: ['/mechanisms/pursuitSelector'], continuation: { kind: 'continue', focus: 'Test the next frontier without the surrendered selector.', notBefore: null } },
+  });
+  const plans = {
+    '0:orient': { summary: 'Test retained selector.', liveStakes: ['selector-surrender'], recommendedNext: 'Bind selected pursuit.' },
+    '0:challenge': { wagers: [make('free-a', 1, {}), surrender] },
+    '0:elect': { wagerId: 'selected', rationale: 'Selector chose it.' },
+    '1:orient': { summary: 'Selector was surrendered.', liveStakes: ['selector-surrender'], recommendedNext: 'Exercise actor election.' },
+    '1:challenge': { wagers: [
+      make('free-a', 1, { support: { set: { '/memory/afterSurrender': 'a' }, remove: [], continuation: { kind: 'stop', focus: 'Observed.', notBefore: null } } }),
+      make('free-b', 9, { support: { set: { '/memory/afterSurrender': 'b' }, remove: [], continuation: { kind: 'stop', focus: 'Observed.', notBefore: null } } }),
+    ] },
+    '1:elect': { wagerId: 'free-a', rationale: 'Actor election is open again.' },
+  };
+  const actor = new ScriptActor(plans, { id: 'selector-surrender-actor' });
+  const spec = {
+    format: 'music-v3-run-spec-1', id: 'selector-surrender', title: 'Selector surrender',
+    hypothesis: 'Independent contradiction can surrender selector machinery.', cheapestFalsifier: 'The next frontier remains selector-constrained.',
+    actor: actor.describe(), worlds: [{ id: 'surrender', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, description: world.description, publicContract: world.publicContract }],
+    grants: [], initialSubject: { mechanisms: { pursuitSelector: selector('maximize') } }, conditions: [{ id: 'active', interventions: [] }],
+    limits: { maxCycles: 2, maxActorCalls: 8 }, stoppingRule: 'Stop after actor election reopens.',
+  };
+  const kernel = new DevelopmentalKernel(join(parent, 'run'), { actor, worlds });
+  kernel.initialize(spec);
+  const state = await kernel.run();
+  assert.deepEqual(contacts, ['selected', 'free-a']);
+  assert.equal(state.subject.mechanisms.pursuitSelector, undefined);
+  assert.equal(state.subject.memory.afterSurrender, 'a');
+  assert.equal(kernel.store.get(state.cycles[1].frontier).selection.mode, 'actor-election');
+  assert.deepEqual(kernel.store.get(state.cycles[1].frontier).selection.selectedIds, ['free-a', 'free-b']);
+  const secondProjection = state.invocations.find(value => value.role === 'challenge' && value.cycleId === state.cycles[1].id && value.status === 'completed');
+  assert.equal(kernel.store.get(secondProjection.projection).developmentalInterfaces.pursuitSelector.subjectPath, '/mechanisms/pursuitSelector');
+});
+
 test('a matched projection erasure removes selector influence without rewriting either subject', async t => {
   const parent = mkdtempSync(join(tmpdir(), 'music-v3-selector-control-'));
   t.after(() => rmSync(parent, { recursive: true, force: true }));

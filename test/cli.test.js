@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 
@@ -13,4 +15,17 @@ test('doctor and template expose an executable sealed envelope', () => {
   const template = JSON.parse(execFileSync(process.execPath, ['src/cli.js', 'template', 'http-json'], { cwd: root, encoding: 'utf8' }));
   assert.equal(template.format, 'music-v3-run-spec-1');
   assert.equal(template.worlds[0].adapterIdentity, worlds.find(value => value.id === 'http-json').identity);
+});
+
+test('CLI refuses an unapproved OpenRouter model before inference', t => {
+  const parent = mkdtempSync(join(tmpdir(), 'music-v3-model-policy-'));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const spec = JSON.parse(execFileSync(process.execPath, ['src/cli.js', 'template', 'operator-outbox'], { cwd: root, encoding: 'utf8' }));
+  spec.actor.model = 'expensive/provider-model';
+  const specPath = join(parent, 'spec.json');
+  writeFileSync(specPath, JSON.stringify(spec));
+  assert.throws(
+    () => execFileSync(process.execPath, ['src/cli.js', 'init', join(parent, 'run'), specPath], { cwd: root, encoding: 'utf8', stdio: 'pipe' }),
+    error => /outside MUSIC_ALLOWED_OPENROUTER_MODELS/.test(String(error.stderr)),
+  );
 });

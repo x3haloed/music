@@ -154,9 +154,20 @@ function runtime(root) {
 }
 
 function actorFor(spec) {
-  if (spec.actor.adapter === 'openrouter') return new OpenRouterActor({ model: spec.actor.model, ...spec.actor.settings });
+  if (spec.actor.adapter === 'openrouter') {
+    const approved = approvedOpenRouterModels();
+    if (!approved.includes(spec.actor.model)) {
+      throw new Error(`OpenRouter model is outside MUSIC_ALLOWED_OPENROUTER_MODELS: ${spec.actor.model}`);
+    }
+    return new OpenRouterActor({ model: spec.actor.model, ...spec.actor.settings });
+  }
   if (spec.actor.adapter === 'codex-exec') return new CodexExecActor({ model: spec.actor.model, reasoningEffort: spec.actor.settings.reasoningEffort });
   throw new Error(`CLI cannot construct actor adapter: ${spec.actor.adapter}`);
+}
+
+function approvedOpenRouterModels() {
+  return (process.env.MUSIC_ALLOWED_OPENROUTER_MODELS ?? 'z-ai/glm-5.3-flash')
+    .split(',').map(value => value.trim()).filter(Boolean);
 }
 
 function worlds() {

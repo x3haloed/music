@@ -136,3 +136,9 @@ the selector after independent contradiction, and have the corrected machinery
 select different later contact. A matched projection-erased condition changes
 selection without rewriting either subject. Hosted-model use of this organ and
 useful correction outside its purpose-built rehearsal remain unproven.
+
+The selector's writable contract travels in every fresh projection as a
+developmental interface. Installation, correction, and surrender all use the
+ordinary wager/receipt/transition path. Surrender removes the mechanism from
+subject state; the following frontier is explicitly recorded as
+`actor-election`, never silently given a replacement selector.

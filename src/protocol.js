@@ -121,6 +121,8 @@ export const RoleTasks = {
     'Every continuation mutation must stay within revisionScope.',
     'Omit contact.mechanism unless deliberately binding an existing exact subject value into an otherwise absent contact input key.',
     'Do not include optional inconclusive predicates or continuations unless they are needed.',
+    'developmentalInterfaces.pursuitSelector is the exact writable contract for the standard selector organ.',
+    'A wager may install, replace, or surrender that organ only through a prospectively bound continuation mutation at /mechanisms/pursuitSelector with revisionScope covering that path.',
     'If subject.mechanisms.pursuitSelector exists, every unblocked wager must publish a finite selection.measurements value for its named dimension. Blocked wagers set selection.blocked true. The kernel applies that retained selector deterministically before election.',
   ].join(' '),
   elect: 'Select exactly one wager whose id appears in frontier.selection.selectedIds. The retained selector has already transformed the frontier; you may break a preserved tie but may not override or rewrite the selection.',

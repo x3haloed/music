@@ -39,7 +39,8 @@ machine-owner governance without a researcher-authored transition bridge.
   independent contradiction, and have the corrected selector change later
   contact. A matched erasure must change selection without changing lineage.
 - **Observed result:** satisfied in deterministic end-to-end and matched-control
-  tests. Hosted-model selector authorship and correction remain untested.
+  tests, including consequence-bound correction and surrender back to actor
+  election. Hosted-model selector authorship and correction remain untested.
 - **Real-v3 criterion:** the selector path must survive hosted inference and the
   completed operational release must earn a new hatch/readiness receipt.
 
@@ -57,6 +58,7 @@ machine-owner governance without a researcher-authored transition bridge.
 
 ## Current frontier
 
-Run the selector recurrence through fresh hosted perspectives, preserve any
+Run the exact projected selector-development interface through fresh hosted
+perspectives using only the machine-owner-approved low-cost model, preserve any
 prediction errors, then harden the evidenced system into an installable and
 operable resident release without importing v2's topology by default.

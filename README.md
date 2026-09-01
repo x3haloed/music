@@ -32,11 +32,19 @@ The standard selector organ lives at `subject.mechanisms.pursuitSelector`.
 When present, every unblocked wager publishes the selector's scalar measurement;
 the kernel excludes blocked candidates, rejects missing measurements, preserves
 tied extrema, and permits election only from the resulting subset. The selector
-itself remains ordinary consequence-addressable subject state.
+itself remains ordinary consequence-addressable subject state. Every fresh
+perspective receives its exact writable contract in
+`developmentalInterfaces.pursuitSelector`; a consequence-bound transition may
+install, replace, or remove it. Removal restores ordinary actor election on the
+next frontier.
 
 The supported hosted actors are OpenRouter and an ephemeral `codex exec`
 adapter. Both open a fresh provider context for every role and validate a JSON
 envelope against the exact role schema before the kernel can use it.
+The CLI defaults its machine-owner provider policy to the single approved
+OpenRouter model `z-ai/glm-5.3-flash`. Set comma-separated
+`MUSIC_ALLOWED_OPENROUTER_MODELS` explicitly to change that spending boundary;
+a sealed run naming any other model fails before inference.
 
 ## CLI
 

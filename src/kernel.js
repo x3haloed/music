@@ -7,7 +7,7 @@ import { RunStore } from './store.js';
 import { ResidentLease } from './residency.js';
 import { IdentifierSchema } from './subject.js';
 import { runtimeProvenance } from './runtime-provenance.js';
-import { selectWagers } from './selector.js';
+import { PURSUIT_SELECTOR_INTERFACE, selectWagers } from './selector.js';
 
 export class DevelopmentalKernel {
   constructor(root, { actor, worlds, clock = () => new Date(), id = identifier, provenance = runtimeProvenance } = {}) {
@@ -494,6 +494,7 @@ export class DevelopmentalKernel {
       subject: this.subjectForCondition(state),
       worlds: state.spec.worlds.map(({ id, description, publicContract }) => ({ id, description, publicContract })),
       capabilities: { effectiveGrants: state.effectiveGrants },
+      developmentalInterfaces: { pursuitSelector: clone(PURSUIT_SELECTOR_INTERFACE) },
       observations: this.observationsFor(state),
       history,
       ...additions,

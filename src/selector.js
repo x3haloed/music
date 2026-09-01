@@ -5,6 +5,21 @@ const Identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]
 
 export const PURSUIT_SELECTOR_KEY = 'pursuitSelector';
 
+export const PURSUIT_SELECTOR_INTERFACE = Object.freeze({
+  format: 'music-v3-developmental-interface-1',
+  subjectPath: '/mechanisms/pursuitSelector',
+  purpose: 'Subject-authored executable machinery that deterministically restricts later wager frontiers before election.',
+  selectorFormat: 'music-v3-scalar-pursuit-selector-1',
+  selectorShape: {
+    format: 'music-v3-scalar-pursuit-selector-1',
+    id: 'stable identifier',
+    dimension: { id: 'measurement identifier', meaning: 'what the bounded scalar bears on', direction: 'maximize | minimize' },
+    policies: { missing: 'reject-frontier', blocked: 'exclude', tie: 'preserve' },
+  },
+  wagerSignalShape: { blocked: 'optional boolean', measurements: { 'dimension.id': 'finite number from -1000000 through 1000000' } },
+  revision: 'Install, replace, or remove only through a prospectively bound wager continuation whose revisionScope includes /mechanisms/pursuitSelector.',
+});
+
 export const PursuitSelectorSchema = z.object({
   format: z.literal('music-v3-scalar-pursuit-selector-1'),
   id: Identifier,
