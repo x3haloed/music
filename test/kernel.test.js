@@ -1584,6 +1584,7 @@ async function reviewAndElect(kernel, inferenceId, soundingId, candidates) {
       ...candidate, addressesFindingIds: ['whole_position'],
     })),
   });
+  kernel.deliverDevelopmentalReviewContext(inferenceId);
   return kernel.invokeTool(inferenceId, soundingId, 'elect_trajectory', {
     reviewId: reviewed.reviewId,
     assessments: candidates.map(candidate => ({ candidateId: candidate.id, ...candidate.geometry })),

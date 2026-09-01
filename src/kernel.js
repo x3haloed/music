@@ -761,6 +761,25 @@ export class MusicKernel {
     return structuredClone(message);
   }
 
+  deliverDevelopmentalReviewContext(inferenceId) {
+    const state = this.state();
+    if (state.activeInferenceId !== inferenceId || !state.activeEncounter) {
+      throw new Error(`inference is not active: ${inferenceId}`);
+    }
+    const reviews = [...state.developmentalReviews.values()].filter(review => review.inferenceId === inferenceId);
+    if (reviews.length !== 1) throw new Error('developmental review context requires exactly one review in this inference');
+    const review = reviews[0];
+    const message = developmentalReviewContextMessage(review);
+    this.append('developmental_review_context_delivered', {
+      inferenceId,
+      soundingId: state.activeEncounter.sounding.id,
+      projection: state.activeEncounter.projection,
+      reviewId: review.reviewId,
+      message,
+    });
+    return structuredClone(message);
+  }
+
   async executeTrajectoryElection(inferenceId, soundingId, invocationId, frontier) {
     const election = this.recordTrajectoryElection(inferenceId, soundingId, invocationId, frontier);
     const action = election.selected?.action;
@@ -1314,6 +1333,7 @@ function reduceEvents(events) {
     trajectoryElectionInvocationIds: new Set(),
     usedTrajectoryElectionIds: new Set(),
     deliveredTrajectoryContextIds: new Set(),
+    deliveredDevelopmentalReviewContextIds: new Set(),
     inferenceIds: new Set(),
     completedInferences: 0,
     failedInferences: 0,
@@ -2005,6 +2025,27 @@ function reduceEvents(events) {
         state.activeTurnMessages.push(structuredClone(expected));
         state.messages.push(structuredClone(expected));
         state.deliveredTrajectoryContextIds.add(event.payload.electionId);
+        break;
+      }
+      case 'developmental_review_context_delivered': {
+        const encounter = requireActiveEncounter(
+          state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection,
+        );
+        const review = state.developmentalReviews.get(event.payload.reviewId);
+        if (!review || review.inferenceId !== event.payload.inferenceId
+          || review.soundingId !== encounter.sounding.id) {
+          throw new Error('developmental review context is not bound to its active review');
+        }
+        if (state.deliveredDevelopmentalReviewContextIds.has(event.payload.reviewId)) {
+          throw new Error('developmental review context was delivered more than once');
+        }
+        const expected = developmentalReviewContextMessage(review);
+        if (digest(event.payload.message) !== digest(expected)) {
+          throw new Error('developmental review context message mismatch');
+        }
+        state.activeTurnMessages.push(structuredClone(expected));
+        state.messages.push(structuredClone(expected));
+        state.deliveredDevelopmentalReviewContextIds.add(event.payload.reviewId);
         break;
       }
       case 'inference_steered': {
@@ -3811,6 +3852,9 @@ function validateTrajectoryElectionFrontier(frontier, state = null) {
       || review.projection !== state.activeEncounter?.projection) {
       throw new Error('trajectory election review is not bound to the active encounter');
     }
+    if (!state.deliveredDevelopmentalReviewContextIds.has(review.reviewId)) {
+      throw new Error('trajectory election review was not delivered as structured context');
+    }
     if (!Array.isArray(frontier.assessments) || frontier.assessments.length !== review.candidates.length) {
       throw new Error('trajectory election must assess every frozen review candidate exactly once');
     }
@@ -3907,6 +3951,21 @@ function trajectoryContextMessage(election) {
   return {
     role: 'user',
     content: `<music_trajectory_context>${canonical(envelope)}</music_trajectory_context>`,
+  };
+}
+
+function developmentalReviewContextMessage(review) {
+  const envelope = {
+    format: 'music-developmental-review-envelope-1',
+    authority: 'resident-developmental-reviewer',
+    reviewId: review.reviewId,
+    digest: digest({ findings: review.findings, candidates: review.candidates }),
+    findings: structuredClone(review.findings),
+    candidates: structuredClone(review.candidates),
+  };
+  return {
+    role: 'user',
+    content: `<music_developmental_review_context>${canonical(envelope)}</music_developmental_review_context>`,
   };
 }
 

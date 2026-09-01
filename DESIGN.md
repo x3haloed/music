@@ -169,7 +169,9 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - exact required entry into a resident-owned, non-acting typed developmental
   review and then resident-owned trajectory election on recurrence without
   competing world contact; only the elector can set the retained trajectory;
-  the kernel delivers that exact record as a distinct context envelope before
+  AI SDK schema-constrained output supplies each ordinary organ's validated
+  input without making provider tool calling part of the organ boundary; the
+  kernel delivers each exact record as a distinct context envelope before
   unrestricted action, while both organ phases reject prose output. Generic
   review, election, and action-binding receipts remain stable facts; finding
   ontology, ratings, candidate construction, ranking, and election implementation
@@ -256,14 +258,14 @@ world-authored Delta
   -> inference accepts its exact projection and acknowledges its Deltas
   -> waking world contact may append inside the same inference at a step boundary
   -> subject encounters current carrier and ordinary-tool digests/interfaces
-  -> recurrence without competing world contact exposes exact required entry
-     into resident-owned election; action remains non-obligatory
-  -> the first inference step exposes only elect_trajectory
-  -> elect_trajectory computes over a subject-authored contact-or-quiet frontier
-     containing at least one executable alternative
-  -> the same invocation records the election and executes its exact selected
-     concrete action; quiet executes nothing; a selection-gated elected tool
-     receives a nested frontier derived from the same trajectory candidates
+  -> recurrence without competing world contact requires a schema-constrained
+     developmental review, then a schema-constrained election input
+  -> Music invokes each retained ordinary organ with its validated object and
+     delivers the exact review and trajectory as distinct context envelopes
+  -> elect_trajectory alone records the trajectory over the review's frozen
+     contact-or-quiet frontier containing at least one executable alternative
+  -> unrestricted action follows in a later phase; the election does not execute
+     its winner, and a selection-gated elected tool still needs its own receipt
   -> every ordinary invocation retains an elected, ad-hoc, or selector basis
   -> inspect_tool retrieves exact projected source when needed
   -> ordinary module executes with unrestricted Node authority

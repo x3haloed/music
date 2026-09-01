@@ -326,20 +326,20 @@ test('a saturated passive opening can carry contact origination into later actio
         const prompt = JSON.stringify(options.prompt);
         assert.match(prompt, /quiet-mailbox-observation/);
         assert.match(prompt, /originate-contact/);
-        return toolCallResult('review_developmental_position', reviewInput(candidates));
+        return textResult(JSON.stringify(reviewInput(candidates)));
       }
       if (call === 4) {
-        const review = findToolResult(options.prompt, 'review_developmental_position');
-        return toolCallResult('elect_trajectory', electionInput(review.reviewId, candidates));
+        const review = findReviewContext(options.prompt);
+        return textResult(JSON.stringify(electionInput(review.reviewId, candidates)));
       }
       if (call === 5) return selectionCall('ask', contact);
       if (call === 6) {
         const selection = findToolResult(options.prompt, 'select_tool_action');
-        const election = findToolResult(options.prompt, 'elect_trajectory');
+        const election = findTrajectoryContext(options.prompt);
         return toolCallResult('message', {
           action: 'ask', ...contact,
           selectionReceipt: selection.selectionReceipt,
-          trajectoryElectionReceipt: election.trajectoryElectionReceipt,
+          trajectoryElectionReceipt: election.trajectoryId,
         });
       }
       if (call === 7) return toolCallResult('schedule_wake', {
@@ -569,10 +569,10 @@ test('a heartbeat arrives as exact contact without an incoming task or behaviora
   const model = new MockLanguageModelV4({
     doGenerate: async options => {
       call += 1;
-      if (call === 1) return toolCallResult('review_developmental_position', reviewInput(candidates));
+      if (call === 1) return textResult(JSON.stringify(reviewInput(candidates)));
       if (call === 2) {
-        const review = findToolResult(options.prompt, 'review_developmental_position');
-        return toolCallResult('elect_trajectory', electionInput(review.reviewId, candidates));
+        const review = findReviewContext(options.prompt);
+        return textResult(JSON.stringify(electionInput(review.reviewId, candidates)));
       }
       return textResult('');
     },
@@ -588,10 +588,12 @@ test('a heartbeat arrives as exact contact without an incoming task or behaviora
   assert.doesNotMatch(prompt, /Use current tools/);
   assert.doesNotMatch(prompt, /A quiet final response is valid/);
   assert.doesNotMatch(prompt, /Incorporate them/);
-  assert.deepEqual(model.doGenerateCalls[0].toolChoice, { type: 'tool', toolName: 'review_developmental_position' });
-  assert.deepEqual(model.doGenerateCalls[0].tools.map(tool => tool.name), ['review_developmental_position']);
-  assert.deepEqual(model.doGenerateCalls[1].toolChoice, { type: 'tool', toolName: 'elect_trajectory' });
-  assert.deepEqual(model.doGenerateCalls[1].tools.map(tool => tool.name), ['elect_trajectory']);
+  assert.equal(model.doGenerateCalls[0].tools, undefined);
+  assert.equal(model.doGenerateCalls[0].responseFormat.type, 'json');
+  assert.equal(model.doGenerateCalls[0].responseFormat.name, 'review_developmental_position');
+  assert.equal(model.doGenerateCalls[1].tools, undefined);
+  assert.equal(model.doGenerateCalls[1].responseFormat.type, 'json');
+  assert.equal(model.doGenerateCalls[1].responseFormat.name, 'elect_trajectory');
   assert.match(JSON.stringify(model.doGenerateCalls[2].prompt), /music_trajectory_context/);
   assert.equal(model.doGenerateCalls[2].tools.some(tool => tool.name === 'elect_trajectory'), false);
   assert.equal(kernel.audit().developmentalReviews, 1);
@@ -599,29 +601,18 @@ test('a heartbeat arrives as exact contact without an incoming task or behaviora
   assert.equal(kernel.audit().electedActions, 0);
 });
 
-test('a recurrence organ cannot smuggle assistant prose beside its structured record', async () => {
-  const candidates = recurrenceCandidates();
+test('a recurrence organ cannot substitute prose for its schema-constrained record', async () => {
   const model = new MockLanguageModelV4({
-    doGenerate: {
-      content: [
-        { type: 'text', text: 'We may want to consider this.' },
-        {
-          type: 'tool-call', toolCallId: 'call-review-with-prose',
-          toolName: 'review_developmental_position', input: JSON.stringify(reviewInput(candidates)),
-        },
-      ],
-      finishReason: { unified: 'tool-calls', raw: 'tool_calls' },
-      usage: usage(), warnings: [],
-    },
+    doGenerate: textResult('We may want to consider this.'),
   });
   const { kernel, mind } = harness(model);
 
   await assert.rejects(
     () => mind.receive(kernel.openSounding('heartbeat').id),
-    /must produce exactly one structured tool call and no prose/,
+    /No object generated/,
   );
 
-  assert.equal(kernel.audit().developmentalReviews, 1);
+  assert.equal(kernel.audit().developmentalReviews, 0);
   assert.equal(kernel.audit().trajectoryElections, 0);
   assert.equal(kernel.audit().failedInferences, 1);
 });
@@ -662,14 +653,14 @@ test('instruction-free recurrence lets resident-owned election geometry select a
             },
           },
         ];
-      if (call === 1) return toolCallResult('review_developmental_position', reviewInput(candidates));
+      if (call === 1) return textResult(JSON.stringify(reviewInput(candidates)));
       if (call === 2) {
-        const review = findToolResult(options.prompt, 'review_developmental_position');
-        return toolCallResult('elect_trajectory', electionInput(review.reviewId, candidates));
+        const review = findReviewContext(options.prompt);
+        return textResult(JSON.stringify(electionInput(review.reviewId, candidates)));
       }
       if (call === 3) {
-        const election = findToolResult(options.prompt, 'elect_trajectory');
-        electionReceipt = election.trajectoryElectionReceipt;
+        const election = findTrajectoryContext(options.prompt);
+        electionReceipt = election.trajectoryId;
         assert.equal(election.selectedCandidateId, 'compose');
         assert.equal(election.selected.action.kind, 'tool');
         assert.equal(election.selected.action.tool, 'schedule_wake');
@@ -1047,6 +1038,31 @@ function findToolResult(prompt, toolName) {
       if (part.output?.type === 'json') return part.output.value;
       return part.output;
     }
+  }
+  return null;
+}
+
+function findReviewContext(prompt) {
+  return findContextEnvelope(prompt, 'music_developmental_review_context');
+}
+
+function findTrajectoryContext(prompt) {
+  return findContextEnvelope(prompt, 'music_trajectory_context');
+}
+
+function findContextEnvelope(prompt, tag) {
+  const prefix = `<${tag}>`;
+  const suffix = `</${tag}>`;
+  for (const message of prompt) {
+    if (message.role !== 'user') continue;
+    const content = typeof message.content === 'string'
+      ? message.content
+      : Array.isArray(message.content)
+        ? message.content.filter(part => part?.type === 'text').map(part => part.text).join('')
+        : '';
+    const start = content.indexOf(prefix);
+    const end = content.indexOf(suffix);
+    if (start >= 0 && end > start) return JSON.parse(content.slice(start + prefix.length, end));
   }
   return null;
 }

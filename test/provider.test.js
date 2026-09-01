@@ -162,24 +162,13 @@ test('OpenRouter receives named structured review and election phases before unr
       return jsonResponse({ data: { id: 'z-ai/glm-5.3-flash', supported_parameters: ['tools', 'tool_choice'] } });
     }
     generation += 1;
-    if (generation === 1) return jsonResponse(completion({
-          content: null,
-          tool_calls: [{
-            id: 'review-call', type: 'function',
-            function: { name: 'review_developmental_position', arguments: JSON.stringify(review) },
-          }],
-        }, 'tool_calls'));
+    if (generation === 1) return jsonResponse(completion({ content: JSON.stringify(review) }, 'stop'));
     if (generation === 2) {
       const body = JSON.parse(init.body);
       const match = JSON.stringify(body.messages).match(/\\?"reviewId\\?":\\?"([^"\\]+)/);
       assert.ok(match, 'review result should be present in the election request');
       return jsonResponse(completion({
-        content: null,
-        tool_calls: [{
-          id: 'election-call', type: 'function',
-          function: {
-            name: 'elect_trajectory',
-            arguments: JSON.stringify({
+        content: JSON.stringify({
               reviewId: match[1],
               assessments: candidates.map(candidate => ({ candidateId: candidate.id, ...candidate.geometry })),
               trajectory: {
@@ -190,9 +179,7 @@ test('OpenRouter receives named structured review and election phases before unr
                 reconsiderWhen: ['World contact changes the current developmental position.'],
               },
             }),
-          },
-        }],
-      }, 'tool_calls'));
+      }, 'stop'));
     }
     return jsonResponse(completion({ content: 'Quiet was selected through the retained organ.' }, 'stop'));
   };
@@ -210,14 +197,12 @@ test('OpenRouter receives named structured review and election phases before unr
 
     const requests = configured.requests();
     assert.equal(requests.length, 3);
-    assert.deepEqual(requests[0].body.tool_choice, {
-      type: 'function', function: { name: 'review_developmental_position' },
-    });
-    assert.deepEqual(requests[0].body.tools.map(tool => tool.function.name), ['review_developmental_position']);
-    assert.deepEqual(requests[1].body.tool_choice, {
-      type: 'function', function: { name: 'elect_trajectory' },
-    });
-    assert.deepEqual(requests[1].body.tools.map(tool => tool.function.name), ['elect_trajectory']);
+    assert.equal(requests[0].body.tools, undefined);
+    assert.equal(requests[0].body.response_format.type, 'json_schema');
+    assert.equal(requests[0].body.response_format.json_schema.name, 'review_developmental_position');
+    assert.equal(requests[1].body.tools, undefined);
+    assert.equal(requests[1].body.response_format.type, 'json_schema');
+    assert.equal(requests[1].body.response_format.json_schema.name, 'elect_trajectory');
     assert.equal(requests[2].body.tool_choice, 'auto');
     assert.equal(requests[2].body.tools.length > 1, true);
     assert.equal(requests[2].body.tools.some(tool => tool.function.name === 'elect_trajectory'), false);

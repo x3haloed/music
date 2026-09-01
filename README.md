@@ -146,15 +146,20 @@ tool path.
 organ. On an instruction-free
 heartbeat, scheduled recurrence, or due subject opening with no competing world
 contact or unresolved consequence, the Sounding carries an exact opportunity
-bound to both active tool digests. The provider first exposes only the review
-tool. It must retain a bounded typed record: findings classified as harm,
+bound to both active tool digests. Music first requests an AI SDK
+schema-constrained object using the active review tool's exact input schema,
+then invokes that retained ordinary module with the validated object. It must
+retain a bounded typed record: findings classified as harm,
 constraint, unresolved stake, opportunity, or maintenance; explicit severity,
 urgency, and cost-of-delay ratings; evidence; and quiet or concrete tool-contact
-candidates. It cannot act or set a trajectory. The provider then exposes only
-the elector. It must assess every frozen candidate and is the sole authority
-that may create or replace the trajectory record.
+candidates. It cannot act or set a trajectory. Music delivers that exact review
+as a structured context envelope, requests a second schema-constrained object
+using the elector's retained interface, and invokes the elector. It must assess
+every frozen candidate and is the sole authority that may create or replace the
+trajectory record.
 
-Neither organ phase accepts assistant prose as its result. After election,
+Neither organ phase accepts assistant prose or provider tool-call emulation as
+its result. After election,
 Music injects the exact retained trajectory as a distinct user-role
 `music_trajectory_context` envelope, analogous to a durable goal envelope, and
 removes both organs from the action surface. The same resident mind then regains
