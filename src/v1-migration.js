@@ -7,7 +7,7 @@ import {
 import { basename, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { canonical, digest } from './canonical.js';
-import { createHabitat } from './habitat.js';
+import { createHabitat, readHabitat } from './habitat.js';
 import { MusicKernel } from './kernel.js';
 
 const PORTABLE_TOOLS = new Set(['discord_api', 'discord_send', 'discord_read']);
@@ -189,6 +189,47 @@ export function buildV1Successor(plan, snapshotArgument, targetArgument) {
   return { habitat, state, planDigest: plan.planDigest, ledgerHead: state.head };
 }
 
+export function verifyV1Successor(plan, snapshotArgument, targetArgument) {
+  const snapshot = realpathSync(resolve(snapshotArgument));
+  const habitat = readHabitat(targetArgument);
+  const state = new MusicKernel(habitat.root).state();
+  if (canonical(state.subject) !== canonical({ id: plan.subject.id, designation: plan.subject.name ?? null, bornAt: plan.subject.bornAt })) {
+    throw new Error('successor subject does not match the frozen plan');
+  }
+  if (canonical(state.succession) !== canonical(plan.succession)) throw new Error('successor ancestry does not match the frozen plan');
+  if (state.perspectives.size !== 0 || state.resources.completedPerspectives !== 0 || state.resources.toolRealizations !== 0) {
+    throw new Error('successor candidate has already begun lived v2 activity');
+  }
+  compareTrees(join(snapshot, 'home'), habitat.home, 'resident home');
+  compareTrees(join(snapshot, 'dependencies'), habitat.dependencies, 'dependency habitat');
+  const lineage = join(habitat.state, 'lineage', 'v1-snapshot');
+  for (const name of ['state', 'mailbox', 'config']) compareTrees(join(snapshot, name), join(lineage, name), `lineage ${name}`);
+  for (const name of ['habitat.json', 'snapshot.json']) compareFiles(join(snapshot, name), join(lineage, name), `lineage ${name}`);
+  const retainedPlan = JSON.parse(readFileSync(join(lineage, 'succession-plan.json'), 'utf8'));
+  if (canonical(retainedPlan) !== canonical(plan)) throw new Error('retained succession plan differs from the frozen plan');
+  for (const entry of plan.successor.tools) {
+    const mechanism = state.position.mechanisms[entry.tool.manifest.id];
+    if (!mechanism) throw new Error(`successor lacks planned tool: ${entry.tool.manifest.id}`);
+    if (canonical(new MusicKernel(habitat.root).artifacts.readJson(mechanism.artifact)) !== canonical(entry.tool)) {
+      throw new Error(`successor tool differs from plan: ${entry.tool.manifest.id}`);
+    }
+    if (canonical(mechanism.provenance) !== canonical(entry.provenance)) throw new Error(`successor tool provenance differs: ${entry.tool.manifest.id}`);
+  }
+  return {
+    ok: true,
+    habitat: habitat.root,
+    planDigest: plan.planDigest,
+    ledgerHead: state.head,
+    position: state.position.id,
+    subject: state.subject,
+    observations: state.observations.length,
+    tools: Object.keys(state.position.mechanisms).sort(),
+    homeFiles: inventoryAll(habitat.home).length,
+    lineageFiles: inventoryAll(lineage).length,
+    unopened: true,
+  };
+}
+
 function verifyQuiescent(state, snapshot) {
   const failures = [];
   if (state.activeInferenceId !== null) failures.push(`active inference ${state.activeInferenceId}`);
@@ -225,6 +266,27 @@ function inventory(root) {
   const visit = directory => {
     for (const name of readdirSync(directory).sort()) {
       if (name === 'snapshot.json') continue;
+      const path = join(directory, name);
+      const rel = relative(root, path);
+      const metadata = lstatSync(path);
+      if (metadata.isDirectory()) visit(path);
+      else if (metadata.isSymbolicLink()) {
+        const target = readlinkSync(path);
+        entries.push({ path: rel, kind: 'symlink', target, sha256: sha256(target) });
+      } else if (metadata.isFile()) {
+        const bytes = readFileSync(path);
+        entries.push({ path: rel, kind: 'file', bytes: bytes.length, sha256: sha256(bytes) });
+      }
+    }
+  };
+  visit(root);
+  return entries;
+}
+
+function inventoryAll(root) {
+  const entries = [];
+  const visit = directory => {
+    for (const name of readdirSync(directory).sort()) {
       const path = join(directory, name);
       const rel = relative(root, path);
       const metadata = lstatSync(path);
@@ -342,6 +404,14 @@ function mailboxPending(snapshot) {
 
 function copyDirectoryContents(source, target) {
   for (const name of readdirSync(source)) cpSync(join(source, name), join(target, name), { recursive: true, mode: constants.COPYFILE_FICLONE });
+}
+
+function compareTrees(expected, actual, label) {
+  if (canonical(inventoryAll(expected)) !== canonical(inventoryAll(actual))) throw new Error(`${label} differs from v1 snapshot`);
+}
+
+function compareFiles(expected, actual, label) {
+  if (!existsSync(actual) || sha256(readFileSync(expected)) !== sha256(readFileSync(actual))) throw new Error(`${label} differs from v1 snapshot`);
 }
 
 function countBy(values, key) {

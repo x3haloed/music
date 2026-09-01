@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { digest } from '../src/canonical.js';
 import { MusicKernel } from '../src/kernel.js';
-import { buildV1Successor } from '../src/v1-migration.js';
+import { buildV1Successor, verifyV1Successor } from '../src/v1-migration.js';
 
 test('one frozen succession plan builds the same v2 genesis twice and rejects changed meaning', t => {
   const root = mkdtempSync(join(tmpdir(), 'music-v1-successor-'));
@@ -46,6 +46,7 @@ test('one frozen succession plan builds the same v2 genesis twice and rejects ch
   assert.equal(first.state.position.id, second.state.position.id);
   assert.equal(first.state.subject.id, 'resident');
   assert.equal(new MusicKernel(first.habitat.root).state().succession.sourceHead, hash('a'));
+  assert.equal(verifyV1Successor(plan, snapshot, first.habitat.root).unopened, true);
   const changed = structuredClone(plan);
   changed.successor.position.memory.continuity = 'rewritten';
   assert.throws(() => buildV1Successor(changed, snapshot, join(root, 'changed')), /changed v1 succession plan/);
