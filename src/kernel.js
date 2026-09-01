@@ -23,6 +23,7 @@ export class DevelopmentalKernel {
   initialize(specValue, { condition = 'active', inheritedSubject = null, predecessor = null } = {}) {
     if (this.store.readEvents().length > 0) throw new Error('run store is already initialized');
     const spec = RunSpecSchema.parse(specValue);
+    if (spec.worlds.some(world => world.attestationTypes.length === 0)) throw new Error('new runs require at least one attestation type for every world');
     const selected = spec.conditions.find(value => value.id === condition);
     if (!selected) throw new Error(`unknown sealed condition: ${condition}`);
     this.requireRuntime(spec);

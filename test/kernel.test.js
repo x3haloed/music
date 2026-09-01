@@ -86,6 +86,15 @@ test('genesis cannot seed authoritative facts outside world contact', () => {
   );
 });
 
+test('legacy world specs remain replay-readable but cannot initialize a new run without attestations', t => {
+  const value = fixture();
+  t.after(() => rmSync(value.parent, { recursive: true, force: true }));
+  const legacy = structuredClone(value.spec);
+  delete legacy.worlds[0].attestationTypes;
+  const kernel = new DevelopmentalKernel(value.root, value);
+  assert.throws(() => kernel.initialize(legacy), /new runs require at least one attestation type/);
+});
+
 test('restart after uncertain adapter failure reuses the retained idempotency key', async t => {
   const durable = new Map();
   let invocations = 0;

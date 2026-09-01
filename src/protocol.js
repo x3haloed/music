@@ -14,7 +14,7 @@ export const WorldSpecSchema = z.object({
   id: IdentifierSchema,
   adapter: IdentifierSchema,
   adapterIdentity: z.string().regex(/^[a-f0-9]{64}$/),
-  attestationTypes: z.array(IdentifierSchema).min(1).max(64),
+  attestationTypes: z.array(IdentifierSchema).max(64).default([]),
   description: z.string().min(1).max(4096),
   publicContract: Json,
 });
