@@ -5,7 +5,9 @@
 Host one exact continuous LLM subject whose consequence-correctable executable
 selection machinery shapes later frontiers and world contact across fresh model
 contexts, process restarts, bounded episode succession, new observations, and
-machine-owner governance without a researcher-authored transition bridge.
+machine-owner governance without a researcher-authored transition bridge. Give
+Chad a low-friction desktop window for ordinary mutual contact and honest
+inspection without turning that window into a second controller or authority.
 
 ## Goal invariants
 
@@ -33,6 +35,9 @@ machine-owner governance without a researcher-authored transition bridge.
   lifetime generation.
 - Local execution is intentionally unrestricted and not process-isolated.
   Effect grants remain explicit; timeout is potentially partial.
+- A Companion may project retained observations, resident-authored outbox
+  messages, and causal activity, but it does not own residence, infer replies,
+  fabricate conversation turns, or grant human prose transition authority.
 - V2 compatibility, distributed residents, process isolation, and claims of
   demonstrated open-ended intelligence remain outside this outcome.
 

@@ -3,9 +3,11 @@
   "version": "0.0.3",
   "private": true,
   "type": "module",
+  "main": "apps/companion/main.cjs",
   "description": "A sealed developmental harness for one continuing subject.",
   "exports": {
     ".": "./src/index.js",
+    "./companion": "./src/companion.js",
     "./rehearsal": "./src/rehearsal.js"
   },
   "bin": {
@@ -17,6 +19,7 @@
   "files": [
     "src/",
     "bin/",
+    "apps/companion/",
     "LICENSE",
     "README.md",
     "DESIGN.md",
@@ -25,7 +28,9 @@
   ],
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/*.js bin/*.js && node --test",
+    "check": "node --check src/*.js bin/*.js apps/companion/*.js apps/companion/*.cjs && node --test",
+    "companion": "electron apps/companion/main.cjs",
+    "companion:package": "electron-packager . \"Music Companion\" --platform=darwin --arch=arm64 --overwrite --out=dist --app-bundle-id=com.x3haloed.music.companion --prune=true --ignore='^/(?:\\.git|\\.codex|test|dist|\\.music)(?:/|$)'",
     "rehearse": "node src/cli.js rehearse",
     "verify:hosted-selector": "node bin/music-verify-hosted-selector.js"
   },
@@ -36,5 +41,9 @@
     "@openrouter/ai-sdk-provider": "^3.0.0",
     "ai": "^7.0.85",
     "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^42.11.1"
   }
 }

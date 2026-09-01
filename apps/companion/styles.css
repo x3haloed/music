@@ -1,0 +1,59 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  --background: #f5f3ef;
+  --surface: #fffdfa;
+  --ink: #24211d;
+  --muted: #746d63;
+  --line: #d9d2c7;
+  --human: #e6efff;
+  --resident: #f1ede5;
+  --accent: #3c5f8a;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; overflow: hidden; background: var(--background); color: var(--ink); }
+main { height: 100vh; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 10px; padding: 14px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+h1 { margin: 0; font-family: Georgia, serif; font-size: 19px; font-weight: 500; letter-spacing: .02em; }
+#generation { margin-top: 2px; color: var(--muted); font-size: 11px; }
+#status { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; font-weight: 650; white-space: nowrap; }
+#status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #9a9388; }
+#status[data-tone="thinking"]::before { background: #d59428; box-shadow: 0 0 0 3px #d5942824; }
+#status[data-tone="tool"]::before { background: #2d7da0; }
+#status[data-tone="ok"]::before { background: #48845b; }
+#status[data-tone="quiet"]::before { background: #7665a8; }
+#status[data-tone="error"] { color: #a83b35; }
+#status[data-tone="error"]::before { background: #c94c43; }
+details { border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb, var(--surface) 82%, transparent); padding: 8px 10px; }
+summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 650; }
+#focus { margin: 9px 0; line-height: 1.35; font-size: 12px; }
+dl { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; margin: 0; }
+dl div { min-width: 0; }
+dt { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+dd { margin: 1px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.messages { min-height: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); padding: 12px; }
+.empty { color: var(--muted); text-align: center; margin: 30px 0; font-style: italic; }
+.message { display: grid; gap: 3px; max-width: 88%; margin: 0 0 13px; }
+.message.human { margin-left: auto; }
+.message-meta { color: var(--muted); font-size: 10px; }
+.message.human .message-meta { text-align: right; }
+.message-bubble { padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--resident); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
+.message.human .message-bubble { background: var(--human); border-color: #bfd0eb; }
+.message-payload { padding: 6px 8px; background: transparent; font-size: 11px; }
+.message-payload summary { font-size: 10px; }
+.message-payload pre { margin: 7px 0 1px; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.composer { display: grid; gap: 7px; }
+textarea { width: 100%; min-height: 82px; max-height: 180px; resize: vertical; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+textarea:focus { outline: 2px solid #8aa8cc66; border-color: var(--accent); }
+.composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#delivery-note { color: var(--muted); font-size: 10px; line-height: 1.25; }
+#delivery-note[data-error="true"] { color: #a83b35; }
+button { min-width: 82px; min-height: 34px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: white; font: inherit; font-weight: 650; cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+
+@media (prefers-color-scheme: dark) {
+  :root { --background: #171715; --surface: #211f1c; --ink: #eee9df; --muted: #aaa298; --line: #45413b; --human: #263a55; --resident: #302d28; --accent: #6d8fb6; }
+  .message.human .message-bubble { border-color: #405b7b; }
+}

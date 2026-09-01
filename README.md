@@ -111,6 +111,33 @@ node src/cli.js audit /absolute/run-directory
 node src/cli.js rehearse /absolute/output-directory
 ```
 
+## Music Companion
+
+The optional macOS Companion is an external conversation and observation
+window. It does not own the resident loop or alter its authority. Human
+messages are submitted through the exact sealed CLI of the running resident as
+ordinary `operator` observations from `Chad`; resident messages appear only
+after a real `operator-outbox` contact. The activity disclosure is a projection
+of retained ledger facts, not another inference layer.
+
+For the default durable resident:
+
+```sh
+npm run companion
+```
+
+Set `MUSIC_RUN_DIR` to attach to another run. If that run is not currently
+resident, set `MUSIC_RESIDENT_CLI` to the absolute `src/cli.js` inside its sealed
+release before sending. Build a standalone Apple Silicon application with:
+
+```sh
+npm run companion:package
+```
+
+The application is written to `dist/Music Companion-darwin-arm64/`. Closing its
+window leaves its menu-bar item available; quitting Companion never stops the
+resident.
+
 A normal run specification names an OpenRouter or ephemeral Codex actor and
 built-in world adapters. Additional adapters can be registered by embedding the
 library; their stable identity and effect requirements must match the sealed

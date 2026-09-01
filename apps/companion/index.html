@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Music Companion</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Music</h1>
+        <div id="generation">Connecting to the resident</div>
+      </div>
+      <div id="status" aria-live="polite" data-tone="pending">Connecting</div>
+    </header>
+    <details id="activity-panel">
+      <summary>Current movement</summary>
+      <p id="focus"></p>
+      <dl>
+        <div><dt>Cycle</dt><dd id="cycle">—</dd></div>
+        <div><dt>Contact</dt><dd id="contact">—</dd></div>
+        <div><dt>Consequence</dt><dd id="consequence">—</dd></div>
+        <div><dt>Calls / retries</dt><dd id="calls">—</dd></div>
+      </dl>
+    </details>
+    <section id="messages" class="messages" aria-label="Conversation history">
+      <p class="empty">No messages yet.</p>
+    </section>
+    <section class="composer" aria-label="Message composer">
+      <textarea id="message" maxlength="65536" placeholder="Message the resident as Chad"></textarea>
+      <div class="composer-footer">
+        <span id="delivery-note">Messages arrive as ordinary world data.</span>
+        <button id="send" type="button">Send</button>
+      </div>
+    </section>
+  </main>
+  <script src="./renderer.js"></script>
+</body>
+</html>

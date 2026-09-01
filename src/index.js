@@ -2,6 +2,7 @@ export { CodexExecActor, FunctionActor, OpenRouterActor, ScriptActor } from './a
 export { runHostedSelectorVerification } from './hosted-selector-verification.js';
 export { builtinWorlds } from './builtin-worlds.js';
 export { readOperatorOutbox } from './builtin-worlds.js';
+export { companionSnapshot, deriveCompanionPhase, discoverResidentCli, projectConversation, sendCompanionMessage } from './companion.js';
 export { admitWager, validateAssimilation } from './constitution.js';
 export { runExperiment } from './experiment.js';
 export { DevelopmentalKernel } from './kernel.js';
