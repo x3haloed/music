@@ -156,6 +156,7 @@ function shell() {
     },
     conformOutput: output => output?.kind === 'shell-command' && typeof output.ok === 'boolean' && ['timeout', 'exited'].includes(output.status) ? [] : ['shell output is malformed'],
     async execute(input, context) {
+      await mkdir(workspaceRoot(context), { recursive: true, mode: 0o700 });
       const cwd = resolveContactPath(context, input.workdir ?? '.');
       const timeoutMs = input.timeoutMs ?? 120_000;
       const maxOutputChars = input.maxOutputChars ?? 20_000;

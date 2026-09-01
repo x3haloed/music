@@ -43,7 +43,6 @@ test('file worlds retain pagination, refusal, exact patching, and bounded search
 
 test('shell retains separate bounded output, idempotency context, and timeout uncertainty', async t => {
   const { contact } = harness(t);
-  await contact('file-write', { path: '.keep', content: '' });
   const result = await contact('shell', { command: "printf \"$MUSIC_IDEMPOTENCY_KEY\"; printf 'err' >&2" });
   assert.equal(result.ok, true);
   assert.equal(result.stdout, 'key-shell');
