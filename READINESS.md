@@ -61,6 +61,10 @@ Live work exposed several defects without advancing the affected subjects:
   content-addressed evidence references absent from the successor store.
   Succession now verifies and imports the entire reachable inherited object
   graph before genesis, and its test asserts graph completeness.
+- A fresh Terra hatch repeatedly missed one required `file-read` failure-witness
+  field while receiving only “output is malformed.” The adapter now publishes
+  its exact minimum success/failure witness shape and reports the offending
+  field, allowing bounded fresh perspectives to repair the proposal.
 - Actor-local wager names once contaminated the external selector evaluator.
   Verification now scores sealed measurements and contact facts instead.
 

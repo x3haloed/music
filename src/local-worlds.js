@@ -13,14 +13,20 @@ export function localWorlds() {
 
 function fileRead() {
   return defineWorld({
-    id: 'file-read', version: '3', description: 'Read a bounded-size UTF-8 text file with line numbers and bounded pagination. Relative paths resolve from the run workspace; absolute paths are accepted.', effects: ['local.read'], attestationTypes: ['filesystem.read.result'],
-    identityMaterial: { implementation: 'music-v3-file-read-2', maximumSourceBytes: MAX_FILE_READ_BYTES, defaultLines: 500, defaultCharacters: 131_072 },
+    id: 'file-read', version: '4', description: 'Read a bounded-size UTF-8 text file with line numbers and bounded pagination. Relative paths resolve from the run workspace; absolute paths are accepted.', effects: ['local.read'], attestationTypes: ['filesystem.read.result'],
+    identityMaterial: { implementation: 'music-v3-file-read-3', maximumSourceBytes: MAX_FILE_READ_BYTES, defaultLines: 500, defaultCharacters: 131_072 },
     publicContract: {
       input: { path: 'nonempty string', offset: 'optional positive line number', limit: 'optional 1..1000', maxChars: 'optional 1024..262144' },
       output: { ok: 'boolean', kind: 'file-read', resolvedPath: 'string', maximumSourceBytes: MAX_FILE_READ_BYTES, content: 'numbered UTF-8 text when ok', hasMore: 'boolean when ok', error: 'string when not ok' },
+      witnessOutput: {
+        required: { kind: 'literal file-read', ok: 'boolean', resolvedPath: 'string' },
+        supportExample: { kind: 'file-read', ok: true, resolvedPath: '/absolute/example.txt' },
+        contradictionExample: { kind: 'file-read', ok: false, resolvedPath: '/absolute/missing.txt', error: 'ENOENT' },
+        note: 'Both success and failure witnesses require kind, ok, and resolvedPath. Additional real output fields are optional in a witness.',
+      },
     },
     conform: input => objectInput(input, ['path']).concat(typeof input?.path === 'string' && input.path.length > 0 ? [] : ['path must be nonempty'], integerRange(input?.offset, 1, Number.MAX_SAFE_INTEGER, 'offset'), integerRange(input?.limit, 1, 1_000, 'limit'), integerRange(input?.maxChars, 1_024, 262_144, 'maxChars')),
-    conformOutput: output => output?.kind === 'file-read' && typeof output.ok === 'boolean' && typeof output.resolvedPath === 'string' ? [] : ['file-read output is malformed'],
+    conformOutput: output => requiredOutputFields(output, 'file-read', { ok: 'boolean', resolvedPath: 'string' }),
     attest: (input, output) => [{ type: 'filesystem.read.result', value: { requestedPath: input.path, resolvedPath: output.resolvedPath, ok: output.ok, bytes: output.bytes ?? null, error: output.error ?? null } }],
     async execute(input, context) {
       const file = resolveContactPath(context, input.path);
@@ -253,6 +259,16 @@ function objectInput(value, required = []) {
 function integerRange(value, minimum, maximum, name) {
   if (value === undefined) return [];
   return Number.isInteger(value) && value >= minimum && value <= maximum ? [] : [`${name} must be an integer from ${minimum} through ${maximum}`];
+}
+
+function requiredOutputFields(output, kind, fields) {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return ['output must be an object'];
+  const reasons = [];
+  if (output.kind !== kind) reasons.push(`output.kind must equal ${kind}`);
+  for (const [field, type] of Object.entries(fields)) {
+    if (typeof output[field] !== type) reasons.push(`output.${field} must be a ${type}`);
+  }
+  return reasons;
 }
 
 function executeFile(file, args, { cwd, maxBuffer, allowNoMatch = false }) {

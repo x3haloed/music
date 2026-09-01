@@ -41,6 +41,19 @@ test('file worlds retain pagination, refusal, exact patching, and bounded search
   assert.equal(searched.count, 1);
 });
 
+test('file-read publishes and enforces the exact minimum witness shape with actionable correction', t => {
+  const { worlds } = harness(t);
+  const adapter = worlds.get('file-read');
+  assert.deepEqual(adapter.publicContract.witnessOutput.required, {
+    kind: 'literal file-read', ok: 'boolean', resolvedPath: 'string',
+  });
+  assert.deepEqual(
+    adapter.conformOutput({ kind: 'file-read', ok: false, error: 'not found' }),
+    ['output.resolvedPath must be a string'],
+  );
+  assert.deepEqual(adapter.conformOutput(adapter.publicContract.witnessOutput.contradictionExample), []);
+});
+
 test('shell retains separate bounded output, idempotency context, and timeout uncertainty', async t => {
   const { contact } = harness(t);
   const result = await contact('shell', { command: "printf \"$MUSIC_IDEMPOTENCY_KEY\"; printf 'err' >&2" });

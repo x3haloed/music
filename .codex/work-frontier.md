@@ -17,6 +17,9 @@ inspection without turning that window into a second controller or authority.
   transitions; they never duplicate cumulative predecessor subjects as history.
 - Exact succession imports and verifies every content-addressed object reachable
   from the inherited subject before successor genesis.
+- World contracts expose exact minimum witness shapes wherever generic JSON
+  must carry adapter-specific hypothetical output; adapter validation returns
+  field-specific repair evidence from the same authority.
 - Genesis binds one explicit inference provider/model/settings block, the
   causal runtime, worlds, grants, limits,
   conditions, and stopping rule. The kernel alone selects, contacts, classifies,
@@ -53,7 +56,7 @@ inspection without turning that window into a second controller or authority.
 ## Evaluation regime
 
 - **Epoch:** V3-HATCH-READY-1
-- **Engineering anchors:** 61 deterministic tests; active/control rehearsal;
+- **Engineering anchors:** 62 deterministic tests; active/control rehearsal;
   hosted selector recurrence in `.music/hosted-selector-20260901-7`; installed
   GLM Flash hatch and replayable snapshot in
   `/Users/chad/.local/share/music/evidence/v3-final-live-311e5a8`.

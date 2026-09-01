@@ -95,7 +95,10 @@ generation.
 - **World adapters:** validate contact inputs, cause independently owned
   outputs, and derive typed attestations under identities binding their
   implementation, attestation procedure, public contract, and declared
-  hidden-configuration material.
+  hidden-configuration material. When generic JSON must carry an
+  adapter-specific hypothetical witness, the public contract states the exact
+  minimum witness shape and the same adapter validator returns field-specific
+  correction; validation remains the single admission authority.
 - **Observer:** freezes the specification, supplies adapters and optional
   projection-only controls, inspects evidence, and owns the stopping rule.
 - **Machine owner:** may deliver observations and revoke or restore only grants
