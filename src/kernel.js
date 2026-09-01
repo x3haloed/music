@@ -22,6 +22,9 @@ export class DevelopmentalKernel {
 
   initialize(specValue, { condition = 'active', inheritedSubject = null, predecessor = null } = {}) {
     if (this.store.readEvents().length > 0) throw new Error('run store is already initialized');
+    if (!specValue?.inference || specValue?.actor) {
+      throw new Error('new runs require an explicit inference block');
+    }
     const spec = RunSpecSchema.parse(specValue);
     if (spec.worlds.some(world => world.attestationTypes.length === 0)) throw new Error('new runs require at least one attestation type for every world');
     const selected = spec.conditions.find(value => value.id === condition);
@@ -42,7 +45,7 @@ export class DevelopmentalKernel {
       spec: specRef,
       condition,
       subject: subjectRef,
-      actor: this.actor.describe(),
+      inference: this.actor.describe(),
       runtime: this.provenance(),
       predecessor: predecessor === null ? null : clone(predecessor),
     });
@@ -487,6 +490,7 @@ export class DevelopmentalKernel {
         rejectedFrontiers: cycle.frontierRejections?.length ?? 0,
         selection: cycle.frontier ? this.store.get(cycle.frontier).selection : null,
       })),
+      inference: clone(state.spec.inference),
       actorInvocations: state.invocations.filter(value => value.invocationId).map(value => ({
         invocationId: value.invocationId,
         role: value.role,
@@ -509,8 +513,8 @@ export class DevelopmentalKernel {
   requireRuntime(spec, expectedProvenance = null) {
     if (!this.actor || !this.worlds) throw new Error('actor and world registry are required');
     const actual = this.actor.describe();
-    if (digest(actual) !== digest(spec.actor)) {
-      throw new Error(`actor condition mismatch: expected ${JSON.stringify(spec.actor)}, got ${JSON.stringify(actual)}`);
+    if (digest(actual) !== digest(spec.inference)) {
+      throw new Error(`inference condition mismatch: expected ${JSON.stringify(spec.inference)}, got ${JSON.stringify(actual)}`);
     }
     if (expectedProvenance && this.provenance().implementationSha256 !== expectedProvenance.implementationSha256) {
       throw new Error('runtime implementation differs from sealed genesis provenance');
@@ -607,12 +611,12 @@ export class DevelopmentalKernel {
   markHatched(state, cycle) {
     if (!cycle?.transition || state.hatched || state.predecessor) return;
     const completed = state.invocations.filter(value => value.cycleId === cycle.id && value.status === 'completed');
-    if (!['openrouter', 'codex-exec'].includes(state.spec.actor.adapter) || completed.length < 3 || completed.some(value => typeof value.model !== 'string' || value.model.length === 0)) return;
+    if (!['openrouter', 'codex'].includes(state.spec.inference.provider) || completed.length < 3 || completed.some(value => typeof value.model !== 'string' || value.model.length === 0)) return;
     this.store.append('subject.hatched', {
       cycleId: cycle.id,
       generation: state.subject.generation,
       subjectId: state.subject.id,
-      actor: clone(state.spec.actor),
+      inference: clone(state.spec.inference),
       criterion: 'first independently completed consequence transition through fresh hosted-model perspectives',
     });
   }

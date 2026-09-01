@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
 import { CodexExecActor, OpenRouterActor } from './actor.js';
 import { builtinWorlds, readOperatorOutbox } from './builtin-worlds.js';
+import { digest } from './canonical.js';
 import { DevelopmentalKernel } from './kernel.js';
 import { RunSpecSchema } from './protocol.js';
 import { runRehearsal } from './rehearsal.js';
@@ -14,6 +15,7 @@ const [command = 'help', ...args] = process.argv.slice(2);
 try {
   if (command === 'init') await initialize(args);
   else if (command === 'continue') await continueRun(args);
+  else if (command === 'successor-template') successorTemplate(args);
   else if (command === 'hatch') await hatch(args);
   else if (command === 'run') await run(args);
   else if (command === 'reside') await reside(args);
@@ -26,6 +28,7 @@ try {
   else if (command === 'revoke') grant(args, false);
   else if (command === 'rehearse') await rehearse(args);
   else if (command === 'worlds') worlds();
+  else if (command === 'preflight') preflight(args);
   else if (command === 'template') template(args);
   else if (command === 'help' || command === '--help' || command === '-h') help();
   else throw new Error(`unknown command: ${command}`);
@@ -66,7 +69,7 @@ async function hatch([rootArg, specArg, condition = 'active']) {
   requireArgs(rootArg, specArg);
   const root = absolute(rootArg);
   const spec = RunSpecSchema.parse(JSON.parse(readFileSync(absolute(specArg), 'utf8')));
-  if (!['openrouter', 'codex-exec'].includes(spec.actor.adapter)) throw new Error('a hatch requires a hosted LLM actor');
+  if (!['openrouter', 'codex'].includes(spec.inference.provider)) throw new Error('a hatch requires a hosted inference provider');
   const kernel = new DevelopmentalKernel(root, { actor: actorFor(spec), worlds: builtinWorlds() });
   kernel.initialize(spec, { condition });
   const controller = residentController();
@@ -162,15 +165,19 @@ function runtime(root) {
 }
 
 function actorFor(spec) {
-  if (spec.actor.adapter === 'openrouter') {
+  if (spec.inference.provider === 'openrouter') {
     const approved = approvedOpenRouterModels();
-    if (!approved.includes(spec.actor.model)) {
-      throw new Error(`OpenRouter model is outside MUSIC_ALLOWED_OPENROUTER_MODELS: ${spec.actor.model}`);
+    if (!approved.includes(spec.inference.model)) {
+      throw new Error(`OpenRouter model is outside MUSIC_ALLOWED_OPENROUTER_MODELS: ${spec.inference.model}`);
     }
-    return new OpenRouterActor({ model: spec.actor.model, ...spec.actor.settings });
+    return new OpenRouterActor({ model: spec.inference.model, ...spec.inference.settings });
   }
-  if (spec.actor.adapter === 'codex-exec') return new CodexExecActor({ model: spec.actor.model, reasoningEffort: spec.actor.settings.reasoningEffort });
-  throw new Error(`CLI cannot construct actor adapter: ${spec.actor.adapter}`);
+  if (spec.inference.provider === 'codex') return new CodexExecActor({
+    model: spec.inference.model,
+    binary: process.env.MUSIC_CODEX_BINARY ?? 'codex',
+    ...spec.inference.settings,
+  });
+  throw new Error(`CLI cannot construct inference provider: ${spec.inference.provider}`);
 }
 
 function approvedOpenRouterModels() {
@@ -191,21 +198,78 @@ function worlds() {
   })));
 }
 
-function template([adapterId = 'http-json', actorId = 'openrouter']) {
+function preflight([specArg]) {
+  requireArgs(specArg);
+  const spec = RunSpecSchema.parse(JSON.parse(readFileSync(absolute(specArg), 'utf8')));
+  const actor = actorFor(spec);
+  if (digest(actor.describe()) !== digest(spec.inference)) throw new Error('inference binding does not match the installed provider');
+  const result = actor.preflight();
+  output({ format: 'music-v3-inference-preflight-1', ...result, inference: actor.describe() });
+}
+
+function successorTemplate([priorRootArg, provider = 'codex', modelArg = null]) {
+  requireArgs(priorRootArg);
+  const priorRoot = absolute(priorRootArg);
+  if (residentIsRunning(priorRoot)) throw new Error('predecessor resident must be stopped before sealing a successor');
+  const prior = new DevelopmentalKernel(priorRoot).state();
+  if (!prior.initialized) throw new Error('predecessor run is not initialized');
+  if (prior.subject.continuation.kind === 'stop') throw new Error('predecessor subject chose closure');
+  const registry = builtinWorlds();
+  const worlds = prior.spec.worlds.map(world => {
+    const adapter = registry.get(world.adapter);
+    if (!adapter) throw new Error(`successor release has no world adapter: ${world.adapter}`);
+    return {
+      id: world.id,
+      adapter: adapter.id,
+      adapterIdentity: adapter.identity,
+      attestationTypes: adapter.attestationTypes,
+      description: adapter.description,
+      publicContract: adapter.publicContract,
+    };
+  });
+  const actor = actorForChoice(provider, modelArg);
+  output({
+    format: 'music-v3-run-spec-1',
+    id: 'replace-with-stable-successor-id',
+    title: `Successor of ${prior.spec.title}`,
+    hypothesis: prior.spec.hypothesis,
+    cheapestFalsifier: prior.spec.cheapestFalsifier,
+    inference: actor.describe(),
+    worlds,
+    grants: prior.spec.grants,
+    initialSubject: {},
+    inheritedSubjectId: prior.subject.id,
+    conditions: prior.spec.conditions,
+    limits: prior.spec.limits,
+    stoppingRule: prior.spec.stoppingRule,
+  });
+}
+
+function residentIsRunning(root) {
+  const leasePath = resolve(root, 'resident.lock');
+  if (!existsSync(leasePath)) return false;
+  try {
+    const lease = JSON.parse(readFileSync(leasePath, 'utf8'));
+    if (!Number.isInteger(lease.pid) || lease.pid <= 0) return false;
+    process.kill(lease.pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function template([adapterId = 'http-json', provider = 'openrouter', modelArg = null]) {
   const registry = builtinWorlds();
   const adapter = registry.get(adapterId);
   if (!adapter) throw new Error(`unknown built-in world: ${adapterId}`);
-  if (!['openrouter', 'codex-exec'].includes(actorId)) throw new Error(`unknown built-in actor: ${actorId}`);
-  const actor = actorId === 'codex-exec'
-    ? new CodexExecActor({ model: 'gpt-5.4-mini', reasoningEffort: 'low' })
-    : new OpenRouterActor({ model: 'z-ai/glm-5.3-flash', apiKey: null });
+  const actor = actorForChoice(provider, modelArg);
   output({
     format: 'music-v3-run-spec-1',
     id: 'replace-with-stable-observation-id',
     title: 'Replace with the bounded developmental observation',
     hypothesis: 'State the prospectively frozen causal hypothesis.',
     cheapestFalsifier: 'State the cheapest result that ends this observation.',
-    actor: actor.describe(),
+    inference: actor.describe(),
     worlds: [{
       id: 'primary-world',
       adapter: adapter.id,
@@ -223,6 +287,14 @@ function template([adapterId = 'http-json', actorId = 'openrouter']) {
     limits: { maxCycles: 20, maxActorCalls: 80, maxChallengeAttempts: 3, maxContactAttempts: 8, residentRetryDelayMs: 5000, continuityPulseMs: 300_000, projectionHistoryEntries: 16 },
     stoppingRule: 'Stop after twenty promoted cycles, subject-authored closure, or the first invalid transition.',
   });
+}
+
+function actorForChoice(provider, modelArg) {
+  if (provider === 'codex-exec') provider = 'codex';
+  if (!['openrouter', 'codex'].includes(provider)) throw new Error(`unknown inference provider: ${provider}`);
+  return provider === 'codex'
+    ? new CodexExecActor({ model: modelArg ?? 'gpt-5.6-luna', binary: process.env.MUSIC_CODEX_BINARY ?? 'codex', reasoningEffort: 'low' })
+    : new OpenRouterActor({ model: modelArg ?? 'z-ai/glm-5.3-flash', apiKey: null });
 }
 
 function absolute(value) {
@@ -243,5 +315,5 @@ function parseJsonArgument(value) {
 }
 
 function help() {
-  process.stdout.write(`Music v3\n\nCommands:\n  init RUN SPEC [CONDITION]\n  hatch RUN SPEC [CONDITION]\n  continue RUN SPEC PREDECESSOR_RUN [CONDITION]\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  outbox RUN\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  template [WORLD_ADAPTER] [openrouter|codex-exec]\n  rehearse [OUTPUT]\n`);
+  process.stdout.write(`Music v3\n\nCommands:\n  init RUN SPEC [CONDITION]\n  hatch RUN SPEC [CONDITION]\n  continue RUN SPEC PREDECESSOR_RUN [CONDITION]\n  successor-template PREDECESSOR_RUN [openrouter|codex] [MODEL]\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  outbox RUN\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  preflight SPEC\n  template [WORLD_ADAPTER] [openrouter|codex] [MODEL]\n  rehearse [OUTPUT]\n`);
 }

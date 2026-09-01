@@ -15,7 +15,8 @@ inspection without turning that window into a second controller or authority.
   workspaces are never continuity substrates.
 - Fresh projections carry the exact current subject plus bounded historical
   transitions; they never duplicate cumulative predecessor subjects as history.
-- Genesis binds the causal runtime, actor settings, worlds, grants, limits,
+- Genesis binds one explicit inference provider/model/settings block, the
+  causal runtime, worlds, grants, limits,
   conditions, and stopping rule. The kernel alone selects, contacts, classifies,
   and applies transitions; actors propose and worlds alone issue receipts.
 - Origination supplies disclosed, revisable Pareto selection geometry rather
@@ -50,7 +51,7 @@ inspection without turning that window into a second controller or authority.
 ## Evaluation regime
 
 - **Epoch:** V3-HATCH-READY-1
-- **Engineering anchors:** 59 deterministic tests; active/control rehearsal;
+- **Engineering anchors:** 61 deterministic tests; active/control rehearsal;
   hosted selector recurrence in `.music/hosted-selector-20260901-7`; installed
   GLM Flash hatch and replayable snapshot in
   `/Users/chad/.local/share/music/evidence/v3-final-live-311e5a8`.

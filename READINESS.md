@@ -54,7 +54,7 @@ Live work exposed several defects without advancing the affected subjects:
   prose.
 - The outbox described a `sha256 digest` while enforcing 64 lowercase
   hexadecimal characters. Public and enforcing contracts are now exact.
-- Provider reasoning effort, canonical actor comparison, witness document
+- Provider/model configuration, reasoning effort, canonical inference comparison, witness document
   shape, resident permanent-failure reporting, and runtime provenance each
   failed during hosted bring-up and were repaired at their owning boundaries.
 - Actor-local wager names once contaminated the external selector evaluator.
@@ -67,7 +67,7 @@ world contact or advanced its subject.
 
 ## Operational boundary
 
-Genesis seals runtime, actor, world identities, grants, budgets, conditions,
+Genesis seals runtime, inference provider/model/settings, world identities, grants, budgets, conditions,
 and stopping rule. Runs live outside both checkout and immutable release.
 Exactly one resident lease owns advancement; restart preserves uncertain
 contact keys and abandons unterminated inference explicitly. Seclusion and

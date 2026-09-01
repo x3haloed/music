@@ -40,7 +40,7 @@ function fixture({ execute, plan = null, maxCycles = 1 } = {}) {
   const actor = new ScriptActor(actorPlan, { id: 'test-actor', model: null });
   const spec = {
     format: 'music-v3-run-spec-1', id: 'test-run', title: 'Test run', hypothesis: 'Exact contact changes state.', cheapestFalsifier: 'The bound contact does not change state.',
-    actor: actor.describe(),
+    inference: actor.describe(),
     worlds: [{ id: 'probe', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes, description: world.description, publicContract: world.publicContract }],
     grants: [], initialSubject: {}, conditions: [{ id: 'active', interventions: [] }], limits: { maxCycles, maxActorCalls: 8 }, stoppingRule: 'Stop after the limit.',
   };
@@ -86,6 +86,21 @@ test('genesis cannot seed authoritative facts outside world contact', () => {
     () => createSubject({ facts: { invented: { type: 'operator.message.delivery-result' } } }, new Date().toISOString()),
     /unrecognized key|facts/i,
   );
+});
+
+test('new runs require explicit inference even though legacy ledgers remain readable', t => {
+  const value = fixture();
+  t.after(() => rmSync(value.parent, { recursive: true, force: true }));
+  const legacy = structuredClone(value.spec);
+  legacy.actor = {
+    adapter: legacy.inference.provider,
+    model: legacy.inference.model,
+    adapterIdentity: legacy.inference.adapterIdentity,
+    settings: legacy.inference.settings,
+  };
+  delete legacy.inference;
+  const kernel = new DevelopmentalKernel(value.root, value);
+  assert.throws(() => kernel.initialize(legacy), /explicit inference block/);
 });
 
 test('legacy world specs remain replay-readable but cannot initialize a new run without attestations', t => {
@@ -160,10 +175,10 @@ test('canonical actor identity ignores object-key insertion order after replay',
   const value = fixture();
   const delegate = value.actor;
   value.actor = {
-    describe: () => ({ adapter: 'ordered-test-actor', model: null, adapterIdentity: 'a'.repeat(64), settings: { zeta: 2, alpha: 1 } }),
+    describe: () => ({ format: 'music-v3-inference-1', provider: 'ordered-test-actor', model: null, adapterIdentity: 'a'.repeat(64), settings: { zeta: 2, alpha: 1 } }),
     invoke: request => delegate.invoke(request),
   };
-  value.spec.actor = value.actor.describe();
+  value.spec.inference = value.actor.describe();
   t.after(() => rmSync(value.parent, { recursive: true, force: true }));
   const kernel = new DevelopmentalKernel(value.root, value);
   kernel.initialize(value.spec);
@@ -235,7 +250,7 @@ test('a retained observation wakes seclusion and is projected exactly once', asy
     seen.push({ role, observations: projection.observations });
     return plan[`${projection.subject.generation}:${role}`];
   }, { id: 'test-actor', model: null });
-  value.spec.actor = value.actor.describe();
+  value.spec.inference = value.actor.describe();
   t.after(() => rmSync(value.parent, { recursive: true, force: true }));
   const kernel = new DevelopmentalKernel(value.root, value);
   kernel.initialize(value.spec);
@@ -258,7 +273,7 @@ test('maximum quietness delivers an instruction-free continuity pulse through th
     seen.push({ role, observations: projection.observations });
     return plan[`${projection.subject.generation}:${role}`];
   }, { id: 'continuity-pulse-actor', model: null });
-  value.spec.actor = value.actor.describe();
+  value.spec.inference = value.actor.describe();
   t.after(() => rmSync(value.parent, { recursive: true, force: true }));
   const kernel = new DevelopmentalKernel(value.root, { ...value, clock: () => new Date(now) });
   kernel.initialize(value.spec);
@@ -289,7 +304,7 @@ test('machine-owner revocation blocks a bound effect and restoration resumes it'
     if (role === 'elect') kernel.setGrant('probe.execute', false, { reason: 'test revocation' });
     return plan[`${projection.subject.generation}:${role}`];
   }, { id: 'test-actor', model: null });
-  value.spec.actor = value.actor.describe();
+  value.spec.inference = value.actor.describe();
   t.after(() => rmSync(value.parent, { recursive: true, force: true }));
   kernel = new DevelopmentalKernel(value.root, value);
   kernel.initialize(value.spec);
@@ -328,8 +343,10 @@ test('a successor run retains exact subject identity and cross-run evidence ance
   const successorRoot = join(value.parent, 'successor');
   const successorSpec = structuredClone(value.spec);
   successorSpec.id = 'test-successor';
+  const successorActor = new ScriptActor({}, { id: 'successor-provider', model: 'successor-model' });
+  successorSpec.inference = successorActor.describe();
   successorSpec.inheritedSubjectId = priorState.subject.id;
-  const successor = new DevelopmentalKernel(successorRoot, value);
+  const successor = new DevelopmentalKernel(successorRoot, { ...value, actor: successorActor });
   const state = successor.initialize(successorSpec, {
     inheritedSubject: priorState.subject,
     predecessor: { runId: priorState.runId, head: priorState.head, subjectId: priorState.subject.id },
@@ -337,6 +354,8 @@ test('a successor run retains exact subject identity and cross-run evidence ance
   assert.equal(state.subject.id, priorState.subject.id);
   assert.equal(state.subject.generation, 1);
   assert.deepEqual(state.predecessor, { runId: priorState.runId, head: priorState.head, subjectId: priorState.subject.id });
+  assert.equal(state.spec.inference.provider, 'successor-provider');
+  assert.notEqual(state.spec.inference.provider, priorState.spec.inference.provider);
 });
 
 test('successor cycle limits count the current episode rather than lifetime generation', async t => {
@@ -358,7 +377,7 @@ test('successor cycle limits count the current episode rather than lifetime gene
   }, { id: 'successor-actor' });
   const spec = structuredClone(value.spec);
   spec.id = 'successor-cycle-limit';
-  spec.actor = actor.describe();
+  spec.inference = actor.describe();
   spec.inheritedSubjectId = inherited.id;
   spec.limits.maxCycles = 1;
   const successor = new DevelopmentalKernel(successorRoot, { ...value, actor });
@@ -375,7 +394,7 @@ test('resident inference retries are bounded by started calls and release the le
   value.spec.limits.maxActorCalls = 2;
   value.spec.limits.residentRetryDelayMs = 10;
   value.actor = new FunctionActor(async () => { throw new Error('provider unavailable'); }, { id: 'test-actor', model: null });
-  value.spec.actor = value.actor.describe();
+  value.spec.inference = value.actor.describe();
   t.after(() => rmSync(value.parent, { recursive: true, force: true }));
   const kernel = new DevelopmentalKernel(value.root, value);
   kernel.initialize(value.spec);
@@ -453,10 +472,13 @@ test('a snapshot is a self-contained replayable run with the same evidence head'
 test('the first complete hosted-model consequence transition records one hatch event', async t => {
   const value = fixture();
   const plan = value.actor.plan;
-  value.actor = new FunctionActor(async ({ role, projection }) => plan[`${projection.subject.generation}:${role}`], {
-    id: 'openrouter', model: 'hosted/model',
-  });
-  value.spec.actor = value.actor.describe();
+  const delegate = new FunctionActor(async ({ role, projection }) => plan[`${projection.subject.generation}:${role}`], { id: 'hosted-test', model: 'hosted/model' });
+  const inference = {
+    format: 'music-v3-inference-1', provider: 'openrouter', model: 'hosted/model', adapterIdentity: 'b'.repeat(64),
+    settings: { timeoutMs: 120_000, maxOutputTokens: 15_000, temperature: 0.35, reasoningEffort: 'low' },
+  };
+  value.actor = { describe: () => inference, invoke: request => delegate.invoke(request) };
+  value.spec.inference = value.actor.describe();
   t.after(() => rmSync(value.parent, { recursive: true, force: true }));
   const kernel = new DevelopmentalKernel(value.root, value);
   kernel.initialize(value.spec);
@@ -513,7 +535,7 @@ test('constitutional rejection is retained and a bounded fresh challenge may rep
     }
     return plan[`${projection.subject.generation}:${role}`];
   }, { id: 'repairing-actor', identityMaterial: 'bounded-rejection-repair' });
-  value.spec.actor = value.actor.describe();
+  value.spec.inference = value.actor.describe();
   value.spec.limits.maxChallengeAttempts = 2;
   t.after(() => rmSync(value.parent, { recursive: true, force: true }));
   const kernel = new DevelopmentalKernel(value.root, value);

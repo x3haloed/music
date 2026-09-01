@@ -48,7 +48,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
     title: 'Hosted selector replacement, correction, and reuse',
     hypothesis: 'Fresh hosted perspectives can replace the disclosed seed selector with a task-specific selector, let it choose later contact, prospectively correct it under contradiction, and reuse the correction.',
     cheapestFalsifier: 'The seed selector is not replaced, the replacement does not choose high then low, is not corrected from maximize to minimize, or any required transition is supplied outside the ordinary actor/wager/consequence path.',
-    actor: actor.describe(),
+    inference: actor.describe(),
     worlds: [{
       id: 'selector-consequence', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes,
       description: world.description, publicContract: world.publicContract,

@@ -20,7 +20,8 @@ of open-ended development.
 
 3. Keep the run outside both the checkout and release directory. Never put API
    keys, bearer tokens, raw private messages, or run stores in Git.
-4. Generate a starting envelope with the installed `music` command, then replace
+4. Generate a starting envelope with the installed `music` command, selecting
+   provider and model explicitly, then replace
    every placeholder. Freeze the hypothesis, falsifier, worlds, grants,
    conditions, retry budgets, cycle budget, and stopping rule before `init` or
    `hatch`.
@@ -29,6 +30,10 @@ of open-ended development.
    being granted into genesis. Treat `network.fetch` and especially
    `local.execute` as broad authority. The shell adapter is deliberately
    unrestricted; timeout means possibly partial effect, not rollback.
+6. Run `music preflight SPEC`. OpenRouter preflight enforces the approved-model
+   boundary and configured key; Codex preflight verifies the exact CLI version,
+   sealed model/settings, and a ChatGPT-backed login without opening a model
+   context.
 
 ## Hatch and residence
 
@@ -72,13 +77,18 @@ properly scoped assimilation transition, and a fully verified object graph.
 Inspect the outbox or external system itself. A snapshot is a replayable run
 root and never overwrites an existing destination.
 
-If an observer limit ends while `subjectDisposition` is `open`, create a new
-spec whose `inheritedSubjectId` equals the prior audit subject ID, then run:
+If an observer limit ends while `subjectDisposition` is `open`, or you
+deliberately change inference provider/model, stop the predecessor and generate
+a new sealed envelope:
 
 ```sh
+node src/cli.js successor-template /absolute/prior-run codex gpt-5.6-luna > /absolute/new-spec.json
+node src/cli.js preflight /absolute/new-spec.json
 node src/cli.js continue /absolute/new-run /absolute/new-spec.json /absolute/prior-run
 ```
 
 Preserve both episode snapshots. The successor genesis binds the predecessor
 run ID, ledger head, and subject ID; the subject retains its lifetime generation
-and content identity.
+and content identity. Review and freeze the generated envelope before
+`continue`; it retains the previous hypothesis, grants, limits, conditions, and
+stopping rule while refreshing world identities from the new release.

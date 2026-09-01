@@ -138,7 +138,7 @@ test('one subject installs, uses, corrects, and reuses executable selection mach
     format: 'music-v3-run-spec-1', id: 'selector-recurrence', title: 'Selector recurrence',
     hypothesis: 'Consequence-corrected subject machinery changes later contact.',
     cheapestFalsifier: 'A later election escapes the retained selector or correction does not change contact.',
-    actor: actor.describe(),
+    inference: actor.describe(),
     worlds: [{ id: 'selector-contact', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes, description: world.description, publicContract: world.publicContract }],
     grants: [], initialSubject: {}, conditions: [{ id: 'active', interventions: [] }],
     limits: { maxCycles: 3, maxActorCalls: 12 }, stoppingRule: 'Stop after three complete contacts.',
@@ -206,7 +206,7 @@ test('independent contradiction can surrender the selector and reopen actor elec
   const spec = {
     format: 'music-v3-run-spec-1', id: 'selector-surrender', title: 'Selector surrender',
     hypothesis: 'Independent contradiction can surrender selector machinery.', cheapestFalsifier: 'The next frontier remains selector-constrained.',
-    actor: actor.describe(), worlds: [{ id: 'surrender', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes, description: world.description, publicContract: world.publicContract }],
+    inference: actor.describe(), worlds: [{ id: 'surrender', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes, description: world.description, publicContract: world.publicContract }],
     grants: [], initialSubject: { mechanisms: { pursuitSelector: selector('maximize') } }, conditions: [{ id: 'active', interventions: [] }],
     limits: { maxCycles: 2, maxActorCalls: 8 }, stoppingRule: 'Stop after actor election reopens.',
   };
@@ -258,7 +258,7 @@ test('a matched projection erasure removes selector influence without rewriting 
   const spec = {
     format: 'music-v3-run-spec-1', id: 'selector-erasure-control', title: 'Selector erasure control',
     hypothesis: 'The retained selector changes which same-frontier pursuit reaches contact.',
-    cheapestFalsifier: 'Active and erased decision interfaces bind the same pursuit.', actor: actor.describe(),
+    cheapestFalsifier: 'Active and erased decision interfaces bind the same pursuit.', inference: actor.describe(),
     worlds: [{ id: 'choice', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes, description: world.description, publicContract: world.publicContract }],
     grants: [], initialSubject: { mechanisms: { pursuitSelector: selector('maximize') } },
     conditions: [

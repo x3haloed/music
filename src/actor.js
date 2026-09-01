@@ -1,6 +1,6 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { generateText } from 'ai';
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,7 +17,8 @@ export class ScriptActor {
     this.identity = digest({ format: 'music-v3-actor-adapter-1', kind: 'script', id, model, plan: this.plan });
   }
 
-  describe() { return { adapter: this.id, model: this.model, adapterIdentity: this.identity, settings: {} }; }
+  describe() { return inferenceDescription(this.id, this.model, this.identity, {}); }
+  preflight() { return { ready: true }; }
 
   async invoke({ role, projection }) {
     const key = `${projection.subject.generation}:${role}`;
@@ -34,7 +35,8 @@ export class FunctionActor {
     this.identity = digest({ format: 'music-v3-actor-adapter-1', kind: 'function', id, model, implementation: String(fn), identityMaterial });
   }
 
-  describe() { return { adapter: this.id, model: this.model, adapterIdentity: this.identity, settings: {} }; }
+  describe() { return inferenceDescription(this.id, this.model, this.identity, {}); }
+  preflight() { return { ready: true }; }
 
   async invoke(request) {
     return {
@@ -64,17 +66,22 @@ export class OpenRouterActor {
       kind: 'openrouter',
       implementation: 'music-v3-openrouter-validated-json-text-2',
       model,
-      settings: { maxOutputTokens, temperature, reasoningEffort },
+      settings: { timeoutMs, maxOutputTokens, temperature, reasoningEffort },
     });
   }
 
   describe() {
-    return {
-      adapter: this.id,
-      model: this.model,
-      adapterIdentity: this.identity,
-      settings: { maxOutputTokens: this.maxOutputTokens, temperature: this.temperature, reasoningEffort: this.reasoningEffort },
-    };
+    return inferenceDescription(this.id, this.model, this.identity, {
+      timeoutMs: this.timeoutMs,
+      maxOutputTokens: this.maxOutputTokens,
+      temperature: this.temperature,
+      reasoningEffort: this.reasoningEffort,
+    });
+  }
+
+  preflight() {
+    if (!this.provider && !this.languageModel) throw new Error('OPENROUTER_API_KEY is required for OpenRouter inference');
+    return { ready: true, authentication: 'api-key' };
   }
 
   async invoke({ role, projection, schema, task }) {
@@ -114,32 +121,44 @@ function parseOpenRouterJson(text) {
 }
 
 export class CodexExecActor {
-  constructor({ model, binary = 'codex', timeoutMs = 180_000, maxOutputBytes = 2 * 1024 * 1024, reasoningEffort = 'low', binaryVersion = null } = {}) {
+  constructor({ model, binary = 'codex', timeoutMs = 180_000, maxOutputBytes = 2 * 1024 * 1024, reasoningEffort = 'low', authentication = 'chatgpt-subscription', binaryVersion = null, loginStatus = null } = {}) {
     if (!model) throw new Error('Codex exec actor requires a model');
-    this.id = 'codex-exec';
+    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) throw new Error('Codex timeoutMs must be a positive integer');
+    if (!Number.isInteger(maxOutputBytes) || maxOutputBytes < 1024) throw new Error('Codex maxOutputBytes must be at least 1024');
+    if (authentication !== 'chatgpt-subscription') throw new Error(`unsupported Codex authentication: ${authentication}`);
+    if (!['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(reasoningEffort)) throw new Error(`unsupported Codex reasoning effort: ${reasoningEffort}`);
+    this.id = 'codex';
     this.model = model;
     this.binary = binary;
     this.timeoutMs = timeoutMs;
     this.maxOutputBytes = maxOutputBytes;
     this.reasoningEffort = reasoningEffort;
+    this.authentication = authentication;
     this.binaryVersion = binaryVersion ?? execFileSync(binary, ['--version'], { encoding: 'utf8', timeout: 10_000 }).trim();
+    this.loginStatus = loginStatus ?? readCodexLoginStatus(binary);
+    if (!/Logged in using ChatGPT/i.test(this.loginStatus)) throw new Error('Codex provider requires `codex login` using ChatGPT');
     this.identity = digest({
       format: 'music-v3-actor-adapter-1',
       kind: 'codex-exec',
       implementation: 'music-v3-codex-exec-json-envelope-1',
       binaryVersion: this.binaryVersion,
       model,
-      settings: { reasoningEffort },
+      settings: { authentication, timeoutMs, maxOutputBytes, reasoningEffort },
     });
   }
 
   describe() {
-    return {
-      adapter: this.id,
-      model: this.model,
-      adapterIdentity: this.identity,
-      settings: { binaryVersion: this.binaryVersion, reasoningEffort: this.reasoningEffort },
-    };
+    return inferenceDescription(this.id, this.model, this.identity, {
+      authentication: this.authentication,
+      binaryVersion: this.binaryVersion,
+      timeoutMs: this.timeoutMs,
+      maxOutputBytes: this.maxOutputBytes,
+      reasoningEffort: this.reasoningEffort,
+    });
+  }
+
+  preflight() {
+    return { ready: true, authentication: this.authentication, loginStatus: this.loginStatus };
   }
 
   async invoke({ role, projection, schema, task }) {
@@ -195,6 +214,23 @@ export class CodexExecActor {
       rmSync(root, { recursive: true, force: true });
     }
   }
+}
+
+function inferenceDescription(provider, model, adapterIdentity, settings) {
+  return {
+    format: 'music-v3-inference-1',
+    provider,
+    model,
+    adapterIdentity,
+    settings,
+  };
+}
+
+function readCodexLoginStatus(binary) {
+  const result = spawnSync(binary, ['login', 'status'], { encoding: 'utf8', timeout: 10_000 });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`Codex login status failed: ${`${result.stdout ?? ''}${result.stderr ?? ''}`.trim()}`);
+  return `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
 }
 
 function execute(binary, args, input, { timeoutMs, maxOutputBytes }) {

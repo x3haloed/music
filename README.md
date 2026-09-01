@@ -54,11 +54,16 @@ replace or remove it. Task-specific scalar selectors remain supported. Removal
 is an explicit surrender that restores ordinary actor election on the next
 frontier rather than silently reinstalling the seed.
 
-The supported hosted actors are OpenRouter and an ephemeral `codex exec`
-adapter. Both open a fresh provider context for every role. OpenRouter returns
+The supported inference providers are OpenRouter and subscription-backed,
+ephemeral `codex exec`. Every sealed run specification contains one explicit
+`inference` block naming its provider, model, authentication mode, reasoning
+effort, timeout, output bound, installed adapter identity, and—when applicable—
+Codex CLI version. Both open a fresh provider context for every role. OpenRouter returns
 plain JSON text for broad model compatibility; Music validates it locally
-against the exact role schema before the kernel can use it. The actor condition
-also seals reasoning effort and output budget.
+against the exact role schema before the kernel can use it. Codex runs with
+`--ephemeral`, ignores user configuration and repository rules, receives no
+tool authority, and must be logged in through ChatGPT when the sealed
+authentication mode is `chatgpt-subscription`.
 The CLI defaults its machine-owner provider policy to the single approved
 OpenRouter model `z-ai/glm-5.3-flash`. Set comma-separated
 `MUSIC_ALLOWED_OPENROUTER_MODELS` explicitly to change that spending boundary;
@@ -106,7 +111,8 @@ node src/cli.js template http-json > /absolute/spec.json
 node src/cli.js init /absolute/run-directory /absolute/spec.json
 
 # Or initialize and remain resident until the bounded observation ends
-node src/cli.js template operator-outbox codex-exec > /absolute/hatch.json
+node src/cli.js template operator-outbox codex gpt-5.6-luna > /absolute/hatch.json
+node src/cli.js preflight /absolute/hatch.json
 node src/cli.js hatch /absolute/run-directory /absolute/hatch.json
 
 # Advance until the subject stops or the frozen cycle limit is reached
@@ -123,6 +129,7 @@ node src/cli.js grant /absolute/run-directory network.fetch 'maintenance complet
 node src/cli.js snapshot /absolute/run-directory /absolute/snapshot-directory
 
 # Carry an open subject into a new prospectively sealed episode
+node src/cli.js successor-template /absolute/prior-run codex gpt-5.6-luna > /absolute/new-spec.json
 node src/cli.js continue /absolute/new-run /absolute/new-spec.json /absolute/prior-run
 
 # Inspect exact state without model inference
@@ -159,10 +166,12 @@ The application is written to `dist/Music Companion-darwin-arm64/`. Closing its
 window leaves its menu-bar item available; quitting Companion never stops the
 resident.
 
-A normal run specification names an OpenRouter or ephemeral Codex actor and
-built-in world adapters. Additional adapters can be registered by embedding the
-library; their stable identity and effect requirements must match the sealed
-specification.
+A normal run specification explicitly names an OpenRouter or Codex inference
+provider and model plus built-in world adapters. `successor-template` preserves
+the exact inherited subject while deliberately selecting a new provider/model
+and refreshing adapter identities for the new release. Additional adapters can
+be registered by embedding the library; their stable identity and effect
+requirements must match the sealed specification.
 
 See [HATCH.md](./HATCH.md) for the operating procedure, [DESIGN.md](./DESIGN.md)
 for the claim envelope and authorities, and [READINESS.md](./READINESS.md) for

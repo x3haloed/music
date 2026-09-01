@@ -20,7 +20,8 @@ subject-authored JSON wagers and state transitions, independent adapter-owned
 world receipts and typed attestations, deterministic consequence classification, matched projection
 controls, bounded automatic recurrence, durable external observations,
 machine-owner grant revocation, exact cross-episode succession, snapshots, and
-hosted inference through OpenRouter or ephemeral Codex CLI processes.
+hosted inference through explicitly configured OpenRouter or ephemeral,
+ChatGPT-subscription-backed Codex CLI processes.
 
 It does not claim that JavaScript adapters are a hostile-code sandbox, that a
 rehearsal is scientific evidence, that a hosted model is reproducible, or that
@@ -41,8 +42,9 @@ Three shapes were considered:
    actor cognition and independent worlds.
 
 The third shape is selected. The kernel is the sole transition authority; the
-actor owns semantic proposals; world adapters own observations; the frozen run
-specification owns limits and available authority. No database, service,
+inference perspective owns semantic proposals; world adapters own observations;
+the frozen run specification owns provider, model, inference settings, limits,
+and available authority. No database, service,
 queue, browser, or background worker is required for the local evidence
 horizon.
 
@@ -142,8 +144,11 @@ observation exists; timed continuations wake only at their retained time.
 An observer-limited episode may end with an open subject. A successor episode
 must bind that exact subject ID and the predecessor run/head/subject triple.
 Lifetime generation is not reset, while cycle budgets apply to the new episode.
-The runtime records source, dependency-lock, actor, world, and model-setting
-identities and refuses to advance under changed causal code.
+The runtime records source, dependency-lock, inference-provider, world, and
+model-setting identities and refuses to advance under changed causal code. A
+successor episode may deliberately select a different provider or model while
+binding the exact predecessor subject and evidence ancestry; an active episode
+may not silently switch.
 
 ## Controls
 

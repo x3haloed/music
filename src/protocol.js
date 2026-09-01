@@ -19,7 +19,35 @@ export const WorldSpecSchema = z.object({
   publicContract: Json,
 });
 
-export const ActorConditionSchema = z.object({
+const OpenRouterSettingsSchema = z.object({
+  timeoutMs: z.number().int().positive().max(3_600_000),
+  maxOutputTokens: z.number().int().positive().max(1_000_000),
+  temperature: z.number().min(0).max(2),
+  reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']),
+}).strict();
+
+const CodexSettingsSchema = z.object({
+  authentication: z.literal('chatgpt-subscription'),
+  binaryVersion: z.string().min(1).max(256),
+  timeoutMs: z.number().int().positive().max(3_600_000),
+  maxOutputBytes: z.number().int().min(1024).max(64 * 1024 * 1024),
+  reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']),
+}).strict();
+
+export const InferenceConditionSchema = z.object({
+  format: z.literal('music-v3-inference-1'),
+  provider: IdentifierSchema,
+  model: z.string().min(1).max(256).nullable(),
+  adapterIdentity: z.string().regex(/^[a-f0-9]{64}$/),
+  settings: z.record(z.string(), Json).default({}),
+}).superRefine((value, context) => {
+  const schema = value.provider === 'openrouter' ? OpenRouterSettingsSchema : value.provider === 'codex' ? CodexSettingsSchema : null;
+  if (!schema) return;
+  const result = schema.safeParse(value.settings);
+  if (!result.success) for (const issue of result.error.issues) context.addIssue({ ...issue, path: ['settings', ...issue.path] });
+});
+
+const LegacyActorConditionSchema = z.object({
   adapter: IdentifierSchema,
   model: z.string().min(1).max(256).nullable(),
   adapterIdentity: z.string().regex(/^[a-f0-9]{64}$/),
@@ -43,7 +71,8 @@ export const RunSpecSchema = z.object({
   title: z.string().min(1).max(512),
   hypothesis: z.string().min(1).max(8192),
   cheapestFalsifier: z.string().min(1).max(8192),
-  actor: ActorConditionSchema,
+  inference: InferenceConditionSchema.optional(),
+  actor: LegacyActorConditionSchema.optional(),
   worlds: z.array(WorldSpecSchema).min(1).max(64),
   grants: z.array(IdentifierSchema).max(64).default([]),
   initialSubject: SubjectSeedSchema.default({}),
@@ -59,7 +88,18 @@ export const RunSpecSchema = z.object({
     projectionHistoryEntries: z.number().int().positive().max(256).default(16),
   }),
   stoppingRule: z.string().min(1).max(4096),
-});
+}).superRefine((value, context) => {
+  if (Boolean(value.inference) === Boolean(value.actor)) context.addIssue({ code: 'custom', message: 'run spec must contain exactly one inference block' });
+}).transform(({ actor, ...value }) => ({
+  ...value,
+  inference: value.inference ?? {
+    format: 'music-v3-inference-1',
+    provider: actor.adapter === 'codex-exec' ? 'codex' : actor.adapter,
+    model: actor.model,
+    adapterIdentity: actor.adapterIdentity,
+    settings: actor.settings,
+  },
+}));
 
 export const WagerSchema = z.object({
   id: IdentifierSchema,

@@ -65,7 +65,11 @@ test('Codex exec actor uses an ephemeral schema-bound process without retaining 
   writeFileSync(binary, `#!/usr/bin/env node
 const fs = require('node:fs');
 if (process.argv.includes('--version')) { process.stdout.write('codex-cli test-1\\n'); process.exit(0); }
-const output = process.argv[process.argv.indexOf('--output-last-message') + 1];
+if (process.argv.includes('login') && process.argv.includes('status')) { process.stdout.write('Logged in using ChatGPT\\n'); process.exit(0); }
+if (!process.argv.includes('exec')) { process.stderr.write('unsupported fake-codex command\\n'); process.exit(2); }
+const outputIndex = process.argv.indexOf('--output-last-message');
+if (outputIndex < 0 || !process.argv[outputIndex + 1]) { process.stderr.write('missing output path\\n'); process.exit(2); }
+const output = process.argv[outputIndex + 1];
 process.stdin.resume();
 process.stdin.on('end', () => {
   fs.writeFileSync(output, JSON.stringify({ json: JSON.stringify({ summary: 'Fresh process.', liveStakes: ['continuity'], recommendedNext: 'Proceed.' }) }));
@@ -80,5 +84,6 @@ process.stdin.on('end', () => {
   assert.equal(result.responseId, 'thread-test');
   assert.equal(result.usage.output_tokens, 5);
   assert.equal(actor.describe().settings.binaryVersion, 'codex-cli test-1');
+  assert.equal(actor.describe().settings.authentication, 'chatgpt-subscription');
   assert.equal(JSON.stringify(actor.describe()).includes(root), false);
 });

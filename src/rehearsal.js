@@ -96,7 +96,7 @@ export function rehearsalFixture() {
     title: 'Multi-world developmental recurrence rehearsal',
     hypothesis: 'One unchanged kernel can carry exact subject-selected contact, contradiction repair, cross-world target-language expansion, and later direct use without a researcher-written phase bridge.',
     cheapestFalsifier: 'Either condition fails to complete its prospectively scripted path, any adapter effect is repeated under one key, a fresh invocation inherits a response chain, or an inherited floor is lost.',
-    actor: actor.describe(),
+    inference: actor.describe(),
     worlds: [allocation, setWorld].map(adapter => ({
       id: adapter.id === 'allocation-world' ? 'allocation' : 'set-contact',
       adapter: adapter.id,
