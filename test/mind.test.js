@@ -502,6 +502,61 @@ test('a heartbeat arrives as exact contact without an incoming task or behaviora
   assert.doesNotMatch(prompt, /Incorporate them/);
 });
 
+test('instruction-free recurrence lets resident-owned election geometry select and bind later action', async () => {
+  const wakeInput = {
+    afterMs: 90_000,
+    reason: 'Reopen after the elected composition has had time to bear consequence.',
+    closureStatus: 'trajectory-elected',
+    content: { trajectory: 'compose-retained-capacities' },
+  };
+  let call = 0;
+  const model = new MockLanguageModelV4({
+    doGenerate: async options => {
+      call += 1;
+      if (call === 1) return toolCallResult('elect_trajectory', {
+        candidates: [
+          {
+            id: 'quiet', description: 'Remain quiet.',
+            action: { kind: 'quiet', observation: 'Quiet remains reversible.' },
+            geometry: {
+              worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+              predictedExpansion: 0, actionableRegret: 0, basis: 'No immediate cost.',
+            },
+          },
+          {
+            id: 'compose', description: 'Compose retained opening and trajectory machinery.',
+            action: { kind: 'tool', tool: 'schedule_wake', input: wakeInput },
+            geometry: {
+              worldValid: true, reversible: true, heldRepeat: false,
+              completedFloors: ['opening', 'trajectory'], predictedExpansion: 1,
+              actionableRegret: 0, basis: 'Two completed floors can participate together.',
+            },
+          },
+        ],
+      });
+      if (call === 2) {
+        const election = findToolResult(options.prompt, 'elect_trajectory');
+        assert.equal(election.selectedCandidateId, 'compose');
+        return toolCallResult('schedule_wake', {
+          ...wakeInput,
+          trajectoryElectionReceipt: election.trajectoryElectionReceipt,
+        });
+      }
+      return textResult('The elected trajectory now has a retained successor.');
+    },
+  });
+  const { kernel, mind } = harness(model);
+
+  const result = await mind.receive(kernel.openSounding('heartbeat').id);
+
+  assert.equal(result.toolCalls, 2);
+  const election = kernel.events().find(event => event.type === 'trajectory_election_recorded').payload;
+  assert.equal(election.selectedCandidateId, 'compose');
+  const action = kernel.state().invocations.find(invocation => invocation.tool.id === 'schedule_wake');
+  assert.equal(action.trajectoryElectionReceipt, election.electionId);
+  assert.equal(kernel.audit().activeOpening.content.content.trajectory, 'compose-retained-capacities');
+});
+
 test('broken learned delivery geometry exposes exact recovery facts and can be rolled back by the same mind', async () => {
   let targetDigest;
   let call = 0;

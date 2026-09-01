@@ -17,6 +17,7 @@ const FORMAT = MUSIC_EVENT_FORMAT;
 const READABLE_FORMATS = new Set(['music-event-10', 'music-event-11', FORMAT]);
 const WRITER_FORMAT = 'music-writer-1';
 const ENCOUNTER_SHAPE_TOOL_ID = 'shape_encounter';
+const TRAJECTORY_ELECTION_TOOL_ID = 'elect_trajectory';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
 const MAX_SELECTION_BYTES = 64 * 1_024;
@@ -173,6 +174,7 @@ export class MusicKernel {
       ...(state.position ? { position: projectDevelopmentalPosition(state.position) } : {}),
       development: projectDevelopmentalFrontier(state),
       ...(carrierTrial ? { developmentalTrial: projectArmedCarrierTrial(carrierTrial, soundingCarrier.root) } : {}),
+      ...trajectoryElectionOpportunity(state, trigger),
     };
     if (trigger === 'opening' && !dueUnpresentedOpening(state, Date.parse(base.at))) {
       const notBefore = state.position?.activeOpening?.notBefore;
@@ -300,7 +302,7 @@ export class MusicKernel {
       projection: encounter.projection,
       interpretation,
       evidence: boundedEvidence(proposal.evidence),
-      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter),
+      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter, state),
       previousTool: current ? toolModuleDigest(current) : null,
       tool,
       rollbackOf: proposal.rollbackOf ?? null,
@@ -350,7 +352,7 @@ export class MusicKernel {
       projection: encounter.projection,
       interpretation,
       evidence: boundedEvidence(proposal.evidence),
-      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter),
+      consequences: retainConsequenceEvidence(proposal.consequenceDeltaIds, encounter, state),
       ...transition,
     };
     this.append('developmental_proposal_authored', {
@@ -360,7 +362,7 @@ export class MusicKernel {
       transition: retained,
       position: developmentalStandingSuccessor(state, {
         kind: 'proposal-authored', proposalId, proposalKind: 'carrier',
-        transitionDigest: digest(projectCarrierTransition(retained, encounter)),
+        transitionDigest: digest(projectCarrierTransition(retained, encounter, state)),
       }),
     });
     return { proposalId, kind: 'carrier', status: 'authored', transition: structuredClone(retained) };
@@ -431,6 +433,7 @@ export class MusicKernel {
           ledgerPath: this.ledgerPath,
           environment: structuredClone(this.toolEnvironment),
           selectToolAction: (selectedToolId, frontier) => previewToolSelection(selectedToolId, frontier),
+          recordTrajectoryElection: frontier => previewTrajectoryElection(frontier),
           stageConsequenceTransition: candidate => previewConsequenceTransition(candidate, state, encounter),
           stageCarrierTransition: candidate => createCarrierTransition(state.carrier, candidate),
           stageWakeTransition: candidate => previewOpeningTransition(candidate, this.clock),
@@ -554,6 +557,14 @@ export class MusicKernel {
     };
   }
 
+  inspectTrajectoryElection(inferenceId, soundingId, electionId) {
+    const state = this.state();
+    requireActiveEncounter(state, inferenceId, soundingId);
+    const election = state.trajectoryElections.get(electionId);
+    if (!election) throw new Error(`unknown trajectory election: ${electionId}`);
+    return structuredClone(election);
+  }
+
   stageConsequenceTransition(inferenceId, soundingId, proposal) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
@@ -594,13 +605,44 @@ export class MusicKernel {
     };
   }
 
-  async invokeTool(inferenceId, soundingId, toolId, input, selectionReceipt = null) {
+  recordTrajectoryElection(inferenceId, soundingId, invocationId, frontier) {
+    const state = this.state();
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    const invocation = state.activeToolInvocations.get(invocationId);
+    if (!invocation || invocation.inferenceId !== inferenceId || invocation.soundingId !== soundingId
+      || invocation.tool.id !== TRAJECTORY_ELECTION_TOOL_ID) {
+      throw new Error('trajectory election requires its active ordinary selector invocation');
+    }
+    const election = validateTrajectoryElectionFrontier(frontier);
+    const electionId = this.id();
+    this.append('trajectory_election_recorded', {
+      electionId,
+      inferenceId,
+      soundingId,
+      projection: encounter.projection,
+      carrierRoot: encounter.sounding.carrier.root,
+      selector: structuredClone(invocation.tool),
+      invocationId,
+      ...election,
+    });
+    return {
+      format: 'music-trajectory-election-1',
+      trajectoryElectionReceipt: electionId,
+      selectedCandidateId: election.selectedCandidateId,
+      selected: structuredClone(election.selected),
+    };
+  }
+
+  async invokeTool(inferenceId, soundingId, toolId, input, selectionReceipt = null, trajectoryElectionReceipt = null) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
     const binding = encounter.toolBindings.get(toolId);
     if (!binding) throw new Error(`tool ${toolId} was not projected in Sounding ${soundingId}`);
     const tool = binding.manifest;
     const selection = authorizeSelection(state, encounter, tool, input, selectionReceipt);
+    const trajectoryElection = authorizeTrajectoryElection(
+      state, encounter, tool, input, trajectoryElectionReceipt,
+    );
     const invocationId = this.id();
     this.append('tool_invocation_started', {
       invocationId,
@@ -609,6 +651,7 @@ export class MusicKernel {
       projection: encounter.projection,
       tool: { id: tool.id, version: tool.version, digest: toolModuleDigest(tool) },
       selectionReceipt: selection?.selectionId ?? null,
+      trajectoryElectionReceipt: trajectoryElection?.electionId ?? null,
       input: structuredClone(input),
     });
     const proposalIdsBeforeInvocation = new Set(state.developmentalProposals.keys());
@@ -621,6 +664,9 @@ export class MusicKernel {
         ledgerPath: this.ledgerPath,
         environment: structuredClone(this.toolEnvironment),
         selectToolAction: (selectedToolId, frontier) => this.selectToolAction(inferenceId, soundingId, selectedToolId, frontier),
+        recordTrajectoryElection: frontier => this.recordTrajectoryElection(
+          inferenceId, soundingId, invocationId, frontier,
+        ),
         stageConsequenceTransition: proposal => this.stageConsequenceTransition(inferenceId, soundingId, proposal),
         stageCarrierTransition: proposal => {
           const authored = this.authorCarrierProposal(inferenceId, soundingId, proposal);
@@ -948,6 +994,8 @@ export class MusicKernel {
       uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
         .filter(([invocationId, invocation]) => invocation.status === 'uncertain' && !state.contactedInvocationIds.has(invocationId)).length,
       selections: state.selectionCount,
+      trajectoryElections: state.trajectoryElectionIds.size,
+      electedActions: state.usedTrajectoryElectionIds.size,
       completedInferences: state.completedInferences,
       failedInferences: state.failedInferences,
       activeInferenceId: state.activeInferenceId,
@@ -1011,6 +1059,7 @@ function reduceEvents(events) {
     invocationIds: new Set(),
     invocationHistory: new Map(),
     contactedInvocationIds: new Set(),
+    contactedElectionIds: new Set(),
     consequenceDeltaIds: new Set(),
     consequences: new Map(),
     consequenceSweepActive: false,
@@ -1035,6 +1084,10 @@ function reduceEvents(events) {
     selections: new Map(),
     usedSelectionIds: new Set(),
     selectionCount: 0,
+    trajectoryElections: new Map(),
+    trajectoryElectionIds: new Set(),
+    trajectoryElectionInvocationIds: new Set(),
+    usedTrajectoryElectionIds: new Set(),
     inferenceIds: new Set(),
     completedInferences: 0,
     failedInferences: 0,
@@ -1099,7 +1152,10 @@ function reduceEvents(events) {
           state.consequenceDeltaIds.add(delta.id);
           state.consequences.set(delta.id, { delta: structuredClone(delta), status: 'open', disposition: null });
         }
-        for (const reference of delta.bearsOn ?? []) state.contactedInvocationIds.add(reference.invocationId);
+        for (const reference of delta.bearsOn ?? []) {
+          if (reference.kind === 'tool-invocation') state.contactedInvocationIds.add(reference.invocationId);
+          else state.contactedElectionIds.add(reference.electionId);
+        }
         state.pendingDeltas.push(structuredClone(delta));
         break;
       }
@@ -1123,6 +1179,11 @@ function reduceEvents(events) {
             && digest(sounding.development) !== digest(projectDevelopmentalFrontier(state))) {
             throw new Error('Sounding developmental frontier projection mismatch');
           }
+          if (sounding.trajectoryElection !== undefined
+            && digest({ trajectoryElection: sounding.trajectoryElection })
+              !== digest(trajectoryElectionOpportunity(state, sounding.trigger))) {
+            throw new Error('Sounding trajectory-election opportunity mismatch');
+          }
         }
         if (state.openSoundingId || state.activeInferenceId) throw new Error('ledger opens overlapping Soundings');
         if (state.soundings.has(sounding.id)) throw new Error(`ledger repeats Sounding id: ${sounding.id}`);
@@ -1133,10 +1194,15 @@ function reduceEvents(events) {
         const presentedOpeningId = opening?.id ?? null;
         if (presentedOpeningId) state.presentedOpeningIds.add(presentedOpeningId);
         if (sounding.frontier === undefined) {
-          if (digest(sounding.unresolvedConsequences) !== digest(projectUnresolvedConsequences(state))) {
+          const includeCausalLineage = sounding.unresolvedConsequences
+            .some(consequence => consequence.causalLineage !== undefined);
+          if (digest(sounding.unresolvedConsequences)
+            !== digest(projectUnresolvedConsequences(state, { includeCausalLineage }))) {
             throw new Error('Sounding unresolved consequence projection mismatch');
           }
         } else {
+          const includeCausalLineage = sounding.deltaLineage !== undefined
+            || sounding.unresolvedConsequences.some(consequence => consequence.causalLineage !== undefined);
           const planned = planSoundingSurface(state, {
             id: sounding.id,
             subject: sounding.subject,
@@ -1148,10 +1214,13 @@ function reduceEvents(events) {
             ...(sounding.position ? { position: sounding.position } : {}),
             ...(sounding.development ? { development: sounding.development } : {}),
             ...(sounding.developmentalTrial ? { developmentalTrial: sounding.developmentalTrial } : {}),
+            ...(sounding.trajectoryElection ? { trajectoryElection: sounding.trajectoryElection } : {}),
             wake: sounding.wake ?? null,
-          });
+          }, { includeCausalLineage });
           if (digest(sounding.deltas) !== digest(planned.sounding.deltas)
             || digest(sounding.unresolvedConsequences) !== digest(planned.sounding.unresolvedConsequences)
+            || (sounding.deltaLineage !== undefined
+              && digest(sounding.deltaLineage) !== digest(planned.sounding.deltaLineage))
             || digest(sounding.frontier) !== digest(planned.sounding.frontier)) {
             throw new Error('Sounding active-surface admission mismatch');
           }
@@ -1239,7 +1308,7 @@ function reduceEvents(events) {
         requireSubject(state);
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         if (state.stagedCarrierTransition) throw new Error('ledger stages more than one carrier transition in an encounter');
-        const transition = projectCarrierTransition(event.payload, state.activeEncounter);
+        const transition = projectCarrierTransition(event.payload, state.activeEncounter, state);
         applyCarrierTransition(state.carrier, transition);
         assertProspectiveGeometryFits(state, { carrierTransition: transition });
         state.stagedCarrierTransition = transition;
@@ -1283,7 +1352,7 @@ function reduceEvents(events) {
         if (!['tool', 'carrier'].includes(event.payload.kind)) throw new Error('unsupported developmental proposal kind');
         const revision = event.payload.kind === 'tool' ? validateStagedRevision(event.payload.revision, state) : null;
         const transition = event.payload.kind === 'carrier'
-          ? projectCarrierTransition(event.payload.transition, state.activeEncounter)
+          ? projectCarrierTransition(event.payload.transition, state.activeEncounter, state)
           : null;
         if (transition) applyCarrierTransition(state.carrier, transition);
         const expectedPosition = developmentalStandingSuccessor(state, {
@@ -1441,6 +1510,46 @@ function reduceEvents(events) {
         state.selectionCount += 1;
         break;
       }
+      case 'trajectory_election_recorded': {
+        requireSubject(state);
+        const encounter = requireActiveEncounter(
+          state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection,
+        );
+        if (typeof event.payload.electionId !== 'string' || !event.payload.electionId.trim()
+          || event.payload.electionId.length > 128) {
+          throw new Error('trajectory election needs a bounded id');
+        }
+        if (state.trajectoryElectionIds.has(event.payload.electionId)) {
+          throw new Error('duplicate trajectory election id');
+        }
+        if (state.trajectoryElectionInvocationIds.has(event.payload.invocationId)) {
+          throw new Error('one selector invocation cannot retain multiple trajectory elections');
+        }
+        const invocation = state.activeToolInvocations.get(event.payload.invocationId);
+        if (!invocation || invocation.tool.id !== TRAJECTORY_ELECTION_TOOL_ID
+          || event.payload.selector?.id !== invocation.tool.id
+          || invocation.tool.digest !== event.payload.selector?.digest
+          || invocation.tool.version !== event.payload.selector?.version) {
+          throw new Error('trajectory election is not bound to its active selector invocation');
+        }
+        if (event.payload.carrierRoot !== encounter.sounding.carrier.root) {
+          throw new Error('trajectory election carrier binding mismatch');
+        }
+        const election = validateTrajectoryElectionFrontier(event.payload);
+        state.trajectoryElectionIds.add(event.payload.electionId);
+        state.trajectoryElectionInvocationIds.add(event.payload.invocationId);
+        state.trajectoryElections.set(event.payload.electionId, {
+          electionId: event.payload.electionId,
+          inferenceId: event.payload.inferenceId,
+          soundingId: event.payload.soundingId,
+          projection: event.payload.projection,
+          carrierRoot: event.payload.carrierRoot,
+          selector: structuredClone(event.payload.selector),
+          invocationId: event.payload.invocationId,
+          ...election,
+        });
+        break;
+      }
       case 'tool_revision_activated': {
         throw new Error(`${FORMAT} does not allow standalone tool activation`);
       }
@@ -1454,6 +1563,13 @@ function reduceEvents(events) {
         }
         authorizeSelection(state, encounter, binding.manifest, event.payload.input, event.payload.selectionReceipt);
         if (event.payload.selectionReceipt) state.usedSelectionIds.add(event.payload.selectionReceipt);
+        authorizeTrajectoryElection(
+          state, encounter, binding.manifest, event.payload.input,
+          event.payload.trajectoryElectionReceipt ?? null,
+        );
+        if (event.payload.trajectoryElectionReceipt) {
+          state.usedTrajectoryElectionIds.add(event.payload.trajectoryElectionReceipt);
+        }
         state.invocationIds.add(event.payload.invocationId);
         state.activeToolInvocations.set(event.payload.invocationId, structuredClone(event.payload));
         state.invocationHistory.set(event.payload.invocationId, { ...structuredClone(event.payload), status: 'started' });
@@ -1857,6 +1973,16 @@ function previewToolSelection(toolId, frontier) {
     selectionReceipt: null,
     selectedCandidateId: frontier.selectedCandidateId,
     selected: jsonValue(selected, 'selected developmental trial candidate'),
+  };
+}
+
+function previewTrajectoryElection(frontier) {
+  const election = validateTrajectoryElectionFrontier(frontier);
+  return {
+    format: 'music-provisional-trajectory-election-1',
+    trajectoryElectionReceipt: null,
+    selectedCandidateId: election.selectedCandidateId,
+    selected: structuredClone(election.selected),
   };
 }
 
@@ -2314,18 +2440,29 @@ function validateDelta(delta) {
   if (typeof delta.at !== 'string' || Number.isNaN(Date.parse(delta.at))) throw new Error('Delta needs an ISO timestamp');
   if (delta.bearsOn !== undefined) {
     if (!Array.isArray(delta.bearsOn) || delta.bearsOn.length < 1 || delta.bearsOn.length > 32) {
-      throw new Error('Delta bearsOn must contain 1-32 invocation references');
+      throw new Error('Delta bearsOn must contain 1-32 causal references');
     }
-    const invocationIds = new Set();
+    const references = new Set();
     for (const reference of delta.bearsOn) {
-      if (!reference || typeof reference !== 'object' || Array.isArray(reference)
-        || reference.kind !== 'tool-invocation'
-        || typeof reference.invocationId !== 'string' || !reference.invocationId.trim() || reference.invocationId.length > 128
-        || Object.keys(reference).some(key => !['kind', 'invocationId'].includes(key))) {
-        throw new Error('invalid Delta invocation reference');
+      if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
+        throw new Error('invalid Delta causal reference');
       }
-      if (invocationIds.has(reference.invocationId)) throw new Error(`Delta repeats invocation reference: ${reference.invocationId}`);
-      invocationIds.add(reference.invocationId);
+      let key;
+      if (reference.kind === 'tool-invocation'
+        && typeof reference.invocationId === 'string' && reference.invocationId.trim()
+        && reference.invocationId.length <= 128
+        && !Object.keys(reference).some(field => !['kind', 'invocationId'].includes(field))) {
+        key = `tool-invocation:${reference.invocationId}`;
+      } else if (reference.kind === 'trajectory-election'
+        && typeof reference.electionId === 'string' && reference.electionId.trim()
+        && reference.electionId.length <= 128
+        && !Object.keys(reference).some(field => !['kind', 'electionId'].includes(field))) {
+        key = `trajectory-election:${reference.electionId}`;
+      } else {
+        throw new Error('invalid Delta causal reference');
+      }
+      if (references.has(key)) throw new Error(`Delta repeats causal reference: ${key}`);
+      references.add(key);
     }
   }
   if (Buffer.byteLength(canonical(delta)) > MAX_DELTA_BYTES) throw new Error(`Delta exceeds ${MAX_DELTA_BYTES} bytes`);
@@ -2333,8 +2470,11 @@ function validateDelta(delta) {
 
 function validateConsequenceReferences(delta, state) {
   for (const reference of delta.bearsOn ?? []) {
-    if (!state.invocationIds.has(reference.invocationId)) {
+    if (reference.kind === 'tool-invocation' && !state.invocationIds.has(reference.invocationId)) {
       throw new Error(`Delta cites unknown tool invocation: ${reference.invocationId}`);
+    }
+    if (reference.kind === 'trajectory-election' && !state.trajectoryElectionIds.has(reference.electionId)) {
+      throw new Error(`Delta cites unknown trajectory election: ${reference.electionId}`);
     }
   }
 }
@@ -2362,7 +2502,7 @@ function mergeDevelopmentalEvidence(left, right) {
   return boundedEvidence([...new Set([...left, ...right])]);
 }
 
-function retainConsequenceEvidence(deltaIds, encounter) {
+function retainConsequenceEvidence(deltaIds, encounter, state) {
   if (deltaIds === undefined) return [];
   if (!Array.isArray(deltaIds) || deltaIds.length > 32
     || deltaIds.some(id => typeof id !== 'string' || !id.trim() || id.length > 128)
@@ -2373,12 +2513,29 @@ function retainConsequenceEvidence(deltaIds, encounter) {
   return deltaIds.map(deltaId => {
     const delta = delivered.get(deltaId);
     if (!delta) throw new Error(`consequence Delta was not delivered in this Sounding: ${deltaId}`);
-    if (!delta.bearsOn?.length) throw new Error(`Delta does not bear on a tool invocation: ${deltaId}`);
+    if (!delta.bearsOn?.length) throw new Error(`Delta does not bear on retained causal activity: ${deltaId}`);
     return {
       deltaId,
-      invocationIds: delta.bearsOn.map(reference => reference.invocationId),
+      ...causalLineage(delta, state),
     };
   });
+}
+
+function causalLineage(delta, state) {
+  const invocationIds = delta.bearsOn
+    .filter(reference => reference.kind === 'tool-invocation')
+    .map(reference => reference.invocationId);
+  const electionIds = new Set(delta.bearsOn
+    .filter(reference => reference.kind === 'trajectory-election')
+    .map(reference => reference.electionId));
+  for (const invocationId of invocationIds) {
+    const electionId = state.invocationHistory.get(invocationId)?.trajectoryElectionReceipt;
+    if (electionId) electionIds.add(electionId);
+  }
+  return {
+    invocationIds,
+    ...(electionIds.size === 0 ? {} : { electionIds: [...electionIds] }),
+  };
 }
 
 function deliveredConsequences(encounter) {
@@ -2446,9 +2603,28 @@ function validateWakeTransition(value) {
   return structuredClone(value);
 }
 
-function planSoundingSurface(state, base) {
+function trajectoryElectionOpportunity(state, trigger) {
+  if (trigger !== 'heartbeat') return {};
+  const selector = state.tools.get(TRAJECTORY_ELECTION_TOOL_ID);
+  if (!selector) return {};
+  return {
+    trajectoryElection: {
+      format: 'music-trajectory-election-opportunity-1',
+      occasion: 'instruction-free-recurrence',
+      selector: {
+        id: selector.id,
+        version: selector.version,
+        digest: toolModuleDigest(selector),
+      },
+      consequenceAddressable: true,
+      obligation: false,
+    },
+  };
+}
+
+function planSoundingSurface(state, base, { includeCausalLineage = true } = {}) {
   const pending = state.pendingDeltas;
-  const sweep = currentConsequenceSweep(state);
+  const sweep = currentConsequenceSweep(state, { includeCausalLineage });
   const binding = state.tools.get(ENCOUNTER_SHAPE_TOOL_ID);
   if (!binding) throw new Error(`active geometry lacks ${ENCOUNTER_SHAPE_TOOL_ID}`);
   let deltas = [];
@@ -2458,6 +2634,7 @@ function planSoundingSurface(state, base) {
 
   const candidate = (nextDeltas = deltas, nextConsequences = unresolvedConsequences) => ({
     deltas: structuredClone(nextDeltas),
+    ...(includeCausalLineage ? { deltaLineage: projectDeltaLineage(nextDeltas, state) } : {}),
     unresolvedConsequences: structuredClone(nextConsequences),
     frontier: buildSoundingFrontier(pending, nextDeltas, sweep, nextConsequences),
   });
@@ -2496,6 +2673,12 @@ function planSoundingSurface(state, base) {
   };
 }
 
+function projectDeltaLineage(deltas, state) {
+  return deltas
+    .filter(delta => delta.bearsOn?.length)
+    .map(delta => ({ deltaId: delta.id, ...causalLineage(delta, state) }));
+}
+
 function planSteeringSurface(state, encounter) {
   const pending = state.pendingDeltas;
   const binding = encounter.toolBindings.get(ENCOUNTER_SHAPE_TOOL_ID);
@@ -2514,8 +2697,8 @@ function planSteeringSurface(state, encounter) {
   return { deltas: structuredClone(deltas), frontier: buildSteeringFrontier(pending, deltas) };
 }
 
-function currentConsequenceSweep(state) {
-  const available = projectUnresolvedConsequences(state);
+function currentConsequenceSweep(state, { includeCausalLineage = true } = {}) {
+  const available = projectUnresolvedConsequences(state, { includeCausalLineage });
   if (!state.consequenceSweepActive) return available;
   const byId = new Map(available.map(consequence => [consequence.delta.id, consequence]));
   return state.consequenceSweepIds.map(deltaId => byId.get(deltaId)).filter(Boolean);
@@ -2563,8 +2746,12 @@ function soundingProjectionInput(sounding) {
       ...(sounding.development ? [projectionFact('sounding:development', sounding.development)] : []),
       ...(sounding.developmentalTrial
         ? [projectionFact('sounding:developmental-trial', sounding.developmentalTrial)] : []),
+      ...(sounding.trajectoryElection
+        ? [projectionFact('sounding:trajectory-election', sounding.trajectoryElection)] : []),
       projectionFact('sounding:frontier', sounding.frontier),
       ...(sounding.wake ? [projectionFact('sounding:wake', sounding.wake)] : []),
+      ...(sounding.deltaLineage?.length
+        ? [projectionFact('sounding:delta-lineage', sounding.deltaLineage)] : []),
       ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
       ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
     ],
@@ -2620,7 +2807,9 @@ function assertActiveGeometryFits(tools, carrier, subject, position = null) {
       format: 'music-developmental-frontier-1', available: 0, included: 0, remaining: 0,
       queueDigest: digest([]), page: { index: 0, count: 1 }, proposals: [],
     },
+    ...trajectoryElectionOpportunity({ tools }, 'heartbeat'),
     wake: null,
+    deltaLineage: [],
     deltas: [],
     unresolvedConsequences: [],
     frontier: buildSoundingFrontier([], [], [], []),
@@ -2653,6 +2842,10 @@ function projectionInput(state, encounter, phase, deltaIds) {
           ...(sounding.development ? [projectionFact('sounding:development', sounding.development)] : []),
           ...(sounding.developmentalTrial
             ? [projectionFact('sounding:developmental-trial', sounding.developmentalTrial)] : []),
+          ...(sounding.trajectoryElection
+            ? [projectionFact('sounding:trajectory-election', sounding.trajectoryElection)] : []),
+          ...(sounding.deltaLineage?.length
+            ? [projectionFact('sounding:delta-lineage', sounding.deltaLineage)] : []),
           ...sounding.deltas.map(delta => projectionFact(`delta:${delta.id}`, delta)),
           ...sounding.unresolvedConsequences.map(consequence => projectionFact(`unresolved:${consequence.delta.id}`, consequence)),
         ],
@@ -2806,13 +2999,13 @@ function validateConsequenceTransition(proposal, state, encounter) {
     priorStatus,
     interpretation,
     evidence: boundedEvidence(proposal.evidence),
-    invocationIds: consequence.delta.bearsOn.map(reference => reference.invocationId),
+    ...causalLineage(consequence.delta, state),
   };
 }
 
-function validateRetainedConsequences(consequences, encounter) {
+function validateRetainedConsequences(consequences, encounter, state) {
   if (!Array.isArray(consequences)) throw new Error('staged change lacks consequence lineage');
-  const expected = retainConsequenceEvidence(consequences.map(consequence => consequence?.deltaId), encounter);
+  const expected = retainConsequenceEvidence(consequences.map(consequence => consequence?.deltaId), encounter, state);
   if (digest(expected) !== digest(consequences)) throw new Error('staged consequence lineage does not match delivered Deltas');
   return expected;
 }
@@ -2866,7 +3059,7 @@ function validateStagedRevision(payload, state) {
     projection: payload.projection,
     interpretation,
     evidence: boundedEvidence(payload.evidence),
-    consequences: validateRetainedConsequences(payload.consequences, state.activeEncounter),
+    consequences: validateRetainedConsequences(payload.consequences, state.activeEncounter, state),
     previousTool,
     tool,
     rollbackOf,
@@ -2887,13 +3080,13 @@ function validateInitialTools(tools) {
   });
 }
 
-function projectCarrierTransition(payload, encounter) {
+function projectCarrierTransition(payload, encounter, state) {
   const interpretation = typeof payload.interpretation === 'string' ? payload.interpretation.trim() : '';
   if (!interpretation || interpretation.length > 4_096) throw new Error('staged carrier transition needs a bounded interpretation');
   return {
     interpretation,
     evidence: boundedEvidence(payload.evidence),
-    consequences: validateRetainedConsequences(payload.consequences, encounter),
+    consequences: validateRetainedConsequences(payload.consequences, encounter, state),
     component: structuredClone(payload.component),
     parentRoot: payload.parentRoot,
     parentRuleDigest: payload.parentRuleDigest,
@@ -2940,6 +3133,35 @@ function validateSelectionFrontier(manifest, frontier) {
   return { candidates, selectedCandidateId: frontier.selectedCandidateId, selected };
 }
 
+function validateTrajectoryElectionFrontier(frontier) {
+  if (!frontier || typeof frontier !== 'object' || Array.isArray(frontier)) {
+    throw new Error('trajectory election frontier must be an object');
+  }
+  if (!Array.isArray(frontier.candidates) || frontier.candidates.length < 2
+    || frontier.candidates.length > MAX_SELECTION_CANDIDATES) {
+    throw new Error(`trajectory election frontier needs 2-${MAX_SELECTION_CANDIDATES} candidates`);
+  }
+  if (Buffer.byteLength(canonical(frontier.candidates)) > MAX_SELECTION_BYTES) {
+    throw new Error(`trajectory election frontier exceeds ${MAX_SELECTION_BYTES} bytes`);
+  }
+  const ids = new Set();
+  const candidates = frontier.candidates.map(candidate => {
+    const value = jsonValue(candidate, 'trajectory election candidate');
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+      || typeof value.id !== 'string' || !/^[a-z][a-z0-9_-]{0,47}$/.test(value.id)) {
+      throw new Error('invalid trajectory election candidate');
+    }
+    if (ids.has(value.id)) throw new Error(`duplicate trajectory election candidate id: ${value.id}`);
+    ids.add(value.id);
+    return value;
+  });
+  if (typeof frontier.selectedCandidateId !== 'string' || !ids.has(frontier.selectedCandidateId)) {
+    throw new Error('selected trajectory candidate is absent from its frontier');
+  }
+  const selected = candidates.find(candidate => candidate.id === frontier.selectedCandidateId);
+  return { candidates, selectedCandidateId: frontier.selectedCandidateId, selected };
+}
+
 function authorizeSelection(state, encounter, manifest, input, selectionReceipt) {
   if (!manifest.selection) {
     if (selectionReceipt !== null && selectionReceipt !== undefined) throw new Error(`tool ${manifest.id} does not accept a selection receipt`);
@@ -2962,6 +3184,30 @@ function authorizeSelection(state, encounter, manifest, input, selectionReceipt)
   return selection;
 }
 
+function authorizeTrajectoryElection(state, encounter, manifest, input, electionReceipt) {
+  if (electionReceipt === null || electionReceipt === undefined) return null;
+  if (typeof electionReceipt !== 'string' || !electionReceipt) {
+    throw new Error('trajectory election receipt must be a nonempty id');
+  }
+  const election = state.trajectoryElections.get(electionReceipt);
+  if (!election) throw new Error(`unknown trajectory election: ${electionReceipt}`);
+  if (state.usedTrajectoryElectionIds.has(electionReceipt)) {
+    throw new Error(`trajectory election receipt already used: ${electionReceipt}`);
+  }
+  if (election.inferenceId !== state.activeInferenceId
+    || election.soundingId !== encounter.sounding.id
+    || election.projection !== encounter.projection
+    || election.carrierRoot !== encounter.sounding.carrier.root) {
+    throw new Error('trajectory election receipt is not bound to the active encounter geometry');
+  }
+  const action = election.selected?.action;
+  if (!action || action.kind !== 'tool' || action.tool !== manifest.id
+    || canonical(action.input) !== canonical(input)) {
+    throw new Error('tool invocation does not match the elected trajectory action');
+  }
+  return election;
+}
+
 function projectTool(tool) {
   return {
     id: tool.id,
@@ -2973,17 +3219,18 @@ function projectTool(tool) {
   };
 }
 
-function projectUnresolvedConsequences(state) {
+function projectUnresolvedConsequences(state, { includeCausalLineage = true } = {}) {
   const pendingIds = new Set(state.pendingDeltas.map(delta => delta.id));
   return [...state.consequences.values()]
     .filter(consequence => consequence.status !== 'settled' && !pendingIds.has(consequence.delta.id))
     .sort((left, right) => left.delta.at.localeCompare(right.delta.at) || left.delta.id.localeCompare(right.delta.id))
-    .map(projectConsequence);
+    .map(consequence => projectConsequence(consequence, state, includeCausalLineage));
 }
 
-function projectConsequence(consequence) {
+function projectConsequence(consequence, state, includeCausalLineage) {
   return {
     delta: structuredClone(consequence.delta),
+    ...(includeCausalLineage ? { causalLineage: causalLineage(consequence.delta, state) } : {}),
     status: consequence.status,
     ...(consequence.disposition === null ? {} : {
       disposition: {

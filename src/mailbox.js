@@ -16,7 +16,7 @@ export function prepareMailbox(root) {
   return { ...ingress, outbound, pendingOutbound, deliveredOutbound };
 }
 
-export function submitMailboxMessage(root, { from, content, bearsOnInvocationId } = {}, {
+export function submitMailboxMessage(root, { from, content, bearsOnInvocationId, bearsOnElectionId } = {}, {
   id = () => randomUUID(),
   clock = () => new Date(),
 } = {}) {
@@ -29,8 +29,15 @@ export function submitMailboxMessage(root, { from, content, bearsOnInvocationId 
     id: deltaId,
     stream: 'inbox',
     at,
-    ...(bearsOnInvocationId === undefined ? {} : {
-      bearsOn: [{ kind: 'tool-invocation', invocationId: boundedText(bearsOnInvocationId, 'invocation id', 256) }],
+    ...(bearsOnInvocationId === undefined && bearsOnElectionId === undefined ? {} : {
+      bearsOn: [
+        ...(bearsOnInvocationId === undefined ? [] : [{
+          kind: 'tool-invocation', invocationId: boundedText(bearsOnInvocationId, 'invocation id', 128),
+        }]),
+        ...(bearsOnElectionId === undefined ? [] : [{
+          kind: 'trajectory-election', electionId: boundedText(bearsOnElectionId, 'trajectory election id', 128),
+        }]),
+      ],
     }),
     payload: {
       kind: 'message',

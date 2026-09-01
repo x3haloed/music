@@ -1,0 +1,98 @@
+import { sourceBody, validateToolModule } from '../src/tool-module.js';
+
+export function initialTrajectoryElectionTool() {
+  return validateToolModule({
+    id: 'elect_trajectory',
+    version: 1,
+    parent: null,
+    description: 'Run the resident\'s current general trajectory-election geometry over a complete actor-authored frontier. The ordinary module computes the winner; Music retains the exact election so selected action and later consequence can cite it. Quiet is a valid candidate, not a default imposed by the harness.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        candidates: {
+          type: 'array', minItems: 2, maxItems: 16,
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', pattern: '^[a-z][a-z0-9_-]{0,47}$' },
+              description: { type: 'string', minLength: 1, maxLength: 2_048 },
+              action: {
+                type: 'object',
+                properties: {
+                  kind: { type: 'string', enum: ['tool', 'quiet'] },
+                  tool: { type: 'string', pattern: '^[a-z][a-z0-9_-]{0,47}$' },
+                  input: { type: 'object', additionalProperties: true },
+                  observation: { type: 'string', minLength: 1, maxLength: 2_048 },
+                },
+                required: ['kind'], additionalProperties: false,
+              },
+              geometry: {
+                type: 'object',
+                properties: {
+                  worldValid: { type: 'boolean' },
+                  reversible: { type: 'boolean' },
+                  heldRepeat: { type: 'boolean' },
+                  completedFloors: {
+                    type: 'array', maxItems: 16,
+                    items: { type: 'string', minLength: 1, maxLength: 128 },
+                  },
+                  predictedExpansion: { type: 'integer', minimum: -1_000_000, maximum: 1_000_000 },
+                  actionableRegret: { type: 'integer', minimum: -1_000_000, maximum: 1_000_000 },
+                  basis: { type: 'string', minLength: 1, maxLength: 2_048 },
+                },
+                required: [
+                  'worldValid', 'reversible', 'heldRepeat', 'completedFloors',
+                  'predictedExpansion', 'actionableRegret', 'basis',
+                ],
+                additionalProperties: false,
+              },
+            },
+            required: ['id', 'description', 'action', 'geometry'], additionalProperties: false,
+          },
+        },
+      },
+      required: ['candidates'], additionalProperties: false,
+    },
+    source: sourceBody(electTrajectory),
+  });
+}
+
+async function electTrajectory(input, context) {
+  const ids = new Set();
+  const candidates = input.candidates.map(candidate => {
+    if (ids.has(candidate.id)) throw new Error(`trajectory frontier repeats candidate id: ${candidate.id}`);
+    ids.add(candidate.id);
+    const floors = candidate.geometry.completedFloors;
+    if (new Set(floors).size !== floors.length) {
+      throw new Error(`trajectory candidate ${candidate.id} repeats a completed floor`);
+    }
+    if (candidate.action.kind === 'tool') {
+      if (!candidate.action.tool || !candidate.action.input) {
+        throw new Error(`trajectory candidate ${candidate.id} needs a concrete tool and input`);
+      }
+      if (candidate.action.tool === context.tool.id) {
+        throw new Error('a trajectory election cannot recursively select itself');
+      }
+    } else if (candidate.action.tool !== undefined || candidate.action.input !== undefined) {
+      throw new Error(`quiet trajectory candidate ${candidate.id} cannot carry a tool action`);
+    }
+    return candidate;
+  });
+  const eligible = candidates.filter(candidate => candidate.geometry.worldValid
+    && candidate.geometry.reversible && !candidate.geometry.heldRepeat);
+  if (eligible.length === 0) {
+    throw new Error('trajectory frontier has no world-valid, reversible, non-repeated candidate');
+  }
+  eligible.sort((left, right) => {
+    const leftComposition = left.geometry.completedFloors.length >= 2 ? 1 : 0;
+    const rightComposition = right.geometry.completedFloors.length >= 2 ? 1 : 0;
+    return rightComposition - leftComposition
+      || right.geometry.predictedExpansion - left.geometry.predictedExpansion
+      || right.geometry.actionableRegret - left.geometry.actionableRegret
+      || right.id.localeCompare(left.id);
+  });
+  return context.recordTrajectoryElection({
+    candidates,
+    selectedCandidateId: eligible[0].id,
+  });
+}

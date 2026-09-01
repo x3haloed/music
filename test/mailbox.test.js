@@ -60,6 +60,17 @@ test('a delivered mailbox message and its human reply retain exact invocation li
   assert.equal(kernel.state().pendingDeltas[0].payload.content, 'It arrived; preserve this as consequence-bearing contact.');
 });
 
+test('mailbox contact can bear directly on a retained trajectory election', () => {
+  const root = mkdtempSync(join(tmpdir(), 'music-election-mailbox-test-'));
+  const mailbox = join(root, 'mailbox');
+  submitMailboxMessage(mailbox, {
+    from: 'Chad', content: 'This bears on the choice, not merely a later tool effect.',
+    bearsOnElectionId: 'election-123',
+  }, { id: () => 'election-reply', clock: () => new Date('2026-08-31T20:00:00.000Z') });
+  const contact = readIngressDelta(pendingIngressFiles(mailbox)[0]);
+  assert.deepEqual(contact.bearsOn, [{ kind: 'trajectory-election', electionId: 'election-123' }]);
+});
+
 test('a separate talk process crosses the mailbox boundary in both directions', async () => {
   const root = mkdtempSync(join(tmpdir(), 'music-talk-test-'));
   const mailbox = join(root, 'mailbox');

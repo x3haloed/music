@@ -158,6 +158,10 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - staged consequence deferral and settlement mechanics;
 - due-opening presentation and interruption restoration;
 - the receipt primitive used by selection modules.
+- an exact non-obligatory trajectory-election opportunity on instruction-free
+  recurrence, plus generic durable election and action-binding receipts; the
+  candidate ontology, ranking policy, and election implementation remain
+  ordinary resident-revisable machinery.
 
 The JavaScript loader is not a capability filter. A tool body receives `input`
 and an encounter context, but it can also use normal globals and dynamically
@@ -179,6 +183,11 @@ under [`tools/`](./tools):
   mailbox and identifies the exact invocation that produced it;
 - `select_tool_action` invokes the stable receipt primitive, but its interface,
   sequencing, and executable source are themselves ordinary revisable geometry;
+- `elect_trajectory` computes a general election over a complete resident-authored
+  contact frontier. Its seed geometry prefers composed retained floors,
+  predicted expansion, and actionable regret after excluding invalid,
+  irreversible, and held-repeat candidates. Both that ordering and the fields it
+  asks the resident to expose remain replaceable ordinary source;
 - `attend_consequence` invokes the staged consequence-transition primitive, but
   its interface, policy, and sequencing remain ordinary revisable geometry.
 - `shape_encounter` frames, orders, and emphasizes the exact Sounding or waking
@@ -222,10 +231,16 @@ world-authored Delta
   -> inference accepts its exact projection and acknowledges its Deltas
   -> waking world contact may append inside the same inference at a step boundary
   -> subject encounters current carrier and ordinary-tool digests/interfaces
+  -> a neutral heartbeat exposes an exact non-obligatory election opportunity
+  -> elect_trajectory computes over a subject-authored contact-or-quiet frontier
+  -> a durable receipt binds the selected concrete tool input to that election
   -> inspect_tool retrieves exact projected source when needed
   -> ordinary module executes with unrestricted Node authority
   -> invocation input, output, tool digest, and encounter binding are retained
   -> later world Delta cites the exact invocation without interpreting it
+  -> invocation lineage derives the exact trajectory election that selected it
+  -> the Sounding exposes that lineage and exact election inspection without
+     rewriting the world observation
   -> current Sounding delivers that consequence reference and observation
   -> the subject may defer it; unresolved consequence returns in later Soundings
   -> revise_tool authors a provisional complete replacement interface and source body

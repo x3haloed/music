@@ -106,6 +106,8 @@ The current causal path is:
 world Delta -> Sounding -> active carrier
             -> exact fact envelopes -> revisable encounter shape
             -> exact prior invocation reference
+            -> instruction-free trajectory-election opportunity
+            -> revisable election geometry -> exact elected action receipt
             -> actor-authored alternatives -> selected executable input
             -> unrestricted tool module -> retained invocation
             -> provisional source -> real execution trial -> explicit admission
@@ -138,6 +140,28 @@ every other ordinary tool.
 `retain_context` and `tune_inference` expose subject-authored situational
 continuity and inference-envelope policy through the same ordinary, revisable
 tool path.
+
+`elect_trajectory` is the seed general election organ. On a neutral heartbeat,
+the Sounding carries an exact instruction-free election opportunity bound to
+the active selector digest and explicitly marks it as non-obligatory. The one
+resident authors a bounded frontier of concrete tool actions or quiet, including
+its current factual basis for validity, reversibility, held repetition,
+completed-floor composition, predicted expansion, and actionable regret. The
+ordinary selector body—not the kernel—computes the winner. Its seed ordering
+rejects invalid, irreversible, and held-repeat candidates, then prefers a
+Boolean threshold of at least two composed completed floors, greater predicted
+expansion, greater actionable regret, and a stable id tie-break. That ordering
+is inherited seed geometry, not an immutable objective: the resident may trial,
+admit, or roll back a replacement like any other ordinary tool.
+
+The retained `trajectoryElectionReceipt` authorizes only the elected tool and
+exact input in that encounter. The resulting invocation retains the receipt, so
+ordinary consequence bearing on the action also derives exact ancestry to the
+election that selected it. Soundings carry that derived lineage beside the
+unaltered world Delta, and `inspect_trajectory_election` retrieves the exact
+selector, frontier, and winner. A world adapter may alternatively cite the election
+directly with a `trajectory-election` `bearsOn` reference. In either case a
+later tool or carrier proposal can retain both consequence and election lineage.
 
 When inventing or revising a tool, `source` contains executable async-function
 body statements. It uses `input` and `context` directly and returns a JSON value;
@@ -181,7 +205,7 @@ it authors a provisional child that copies a retained earlier executable body,
 then passes through the same exercise and explicit rollback transaction.
 
 A world-authored Delta may declare that it `bearsOn` an exact retained tool
-invocation. That reference assigns no meaning to the observation. The one mind
+invocation or trajectory election. That reference assigns no meaning to the observation. The one mind
 may cite consequence Deltas delivered in its current Sounding when staging a
 tool or carrier successor or an append-only rollback; the ledger then retains
 the exact Delta-to-invocation-to-successor lineage.
@@ -290,6 +314,7 @@ With the resident running, a separate terminal can open a real round trip:
 node src/cli.js talk /tmp/music-inbox Chad "Hello. Are you there?"
 node src/cli.js listen /tmp/music-inbox
 node src/cli.js reply /tmp/music-inbox OUTBOUND_INVOCATION_ID Chad "That worked."
+node src/cli.js reply-election /tmp/music-inbox TRAJECTORY_ELECTION_ID Chad "That choice changed what followed."
 ```
 
 `talk` starts new contact; `reply` additionally binds the inbound Delta to the

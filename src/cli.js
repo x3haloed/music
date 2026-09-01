@@ -43,15 +43,19 @@ try {
       result = { path: submitWorldDelta(ledger, readJsonFile(args[0])) };
       break;
     case 'talk':
-    case 'reply': {
+    case 'reply':
+    case 'reply-election': {
       const replyingToInvocationId = command === 'reply' ? args[0] : undefined;
-      const sender = args[command === 'reply' ? 1 : 0];
-      const content = args.slice(command === 'reply' ? 2 : 1).join(' ');
+      const replyingToElectionId = command === 'reply-election' ? args[0] : undefined;
+      const hasReference = command !== 'talk';
+      const sender = args[hasReference ? 1 : 0];
+      const content = args.slice(hasReference ? 2 : 1).join(' ');
       const existing = new Set(pendingOutboundMessages(ledger).map(entry => entry.path));
       const submitted = submitMailboxMessage(ledger, {
         from: sender,
         content,
         ...(replyingToInvocationId === undefined ? {} : { bearsOnInvocationId: replyingToInvocationId }),
+        ...(replyingToElectionId === undefined ? {} : { bearsOnElectionId: replyingToElectionId }),
       });
       const reply = await waitForOutbound(
         ledger,
@@ -61,6 +65,7 @@ try {
       result = {
         contactDeltaId: submitted.delta.id,
         ...(replyingToInvocationId === undefined ? {} : { bearsOnInvocationId: replyingToInvocationId }),
+        ...(replyingToElectionId === undefined ? {} : { bearsOnElectionId: replyingToElectionId }),
         message: reply.message,
       };
       afterOutput = () => archiveOutboundMessage(ledger, reply.path);
@@ -162,7 +167,7 @@ function liveCommandPaths(command, args, launchCwd) {
 }
 
 function usage() {
-  throw new Error('usage: music <init|delta|submit|talk|reply|listen|sound|run|reside|audit> TARGET [arguments]');
+  throw new Error('usage: music <init|delta|submit|talk|reply|reply-election|listen|sound|run|reside|audit> TARGET [arguments]');
 }
 
 function boundedInteger(value, label) {

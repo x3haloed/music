@@ -1073,6 +1073,90 @@ test('only the exact selected input can execute and a selection receipt is singl
   await assert.rejects(() => kernel.invokeTool(inferenceId, sounding.id, 'message', selected, receipt), /already used/);
 });
 
+test('instruction-free recurrence retains one plastic trajectory election through action and later consequence', async () => {
+  const { kernel, root } = harness();
+  const sounding = kernel.openSounding('heartbeat');
+  assert.equal(sounding.trajectoryElection.occasion, 'instruction-free-recurrence');
+  assert.equal(sounding.trajectoryElection.obligation, false);
+  assert.equal(sounding.trajectoryElection.selector.id, 'elect_trajectory');
+  const inferenceId = begin(kernel, sounding.id);
+  const wakeInput = {
+    afterMs: 60_000,
+    reason: 'Return after this elected contact has had time to change the available world.',
+    closureStatus: 'elected-contact',
+    content: { trajectory: 'elected-world-contact' },
+  };
+  const elected = await kernel.invokeTool(inferenceId, sounding.id, 'elect_trajectory', {
+    candidates: [
+      {
+        id: 'remain_quiet',
+        description: 'Remain quiet for this recurrence.',
+        action: { kind: 'quiet', observation: 'No contact is currently worth its cost.' },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 0, actionableRegret: 0, basis: 'Quiet remains available.',
+        },
+      },
+      {
+        id: 'compose_and_return',
+        description: 'Compose retained timing and trajectory capacity into a later opening.',
+        action: { kind: 'tool', tool: 'schedule_wake', input: wakeInput },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false,
+          completedFloors: ['temporal-opening', 'trajectory-carriage'],
+          predictedExpansion: 1, actionableRegret: 0, basis: 'This composes two retained capacities.',
+        },
+      },
+    ],
+  });
+  assert.equal(elected.selectedCandidateId, 'compose_and_return');
+  await assert.rejects(() => kernel.invokeTool(
+    inferenceId, sounding.id, 'read_file', { path: '/tmp/not-elected' }, null,
+    elected.trajectoryElectionReceipt,
+  ), /does not match the elected trajectory action/);
+  await kernel.invokeTool(
+    inferenceId, sounding.id, 'schedule_wake', wakeInput, null, elected.trajectoryElectionReceipt,
+  );
+  complete(kernel, inferenceId);
+
+  const electionId = elected.trajectoryElectionReceipt;
+  const reconstructed = new MusicKernel(join(root, 'events.jsonl'));
+  assert.equal(reconstructed.state().trajectoryElections.get(electionId).selected.id, 'compose_and_return');
+  assert.equal(reconstructed.audit().trajectoryElections, 1);
+  assert.equal(reconstructed.audit().electedActions, 1);
+  const actionInvocationId = reconstructed.state().invocations
+    .find(invocation => invocation.tool.id === 'schedule_wake').invocationId;
+  reconstructed.admitDelta({
+    authority: 'world', id: 'election-consequence', stream: 'world', at: '2026-08-30T13:00:00.000Z',
+    bearsOn: [{ kind: 'tool-invocation', invocationId: actionInvocationId }],
+    payload: { observation: 'The elected opening composed successfully but exposed a narrower expansion estimate.' },
+  });
+  const consequenceSounding = reconstructed.openSounding('delta');
+  assert.deepEqual(consequenceSounding.deltaLineage, [{
+    deltaId: 'election-consequence', invocationIds: [actionInvocationId], electionIds: [electionId],
+  }]);
+  const consequenceInference = begin(reconstructed, consequenceSounding.id);
+  assert.equal(
+    reconstructed.inspectTrajectoryElection(consequenceInference, consequenceSounding.id, electionId)
+      .selectedCandidateId,
+    'compose_and_return',
+  );
+  const current = reconstructed.inspectTool(consequenceInference, consequenceSounding.id, 'elect_trajectory');
+  const proposal = reconstructed.authorToolProposal(consequenceInference, consequenceSounding.id, {
+    interpretation: 'The exact election consequence now bears on the machinery that computed it.',
+    consequenceDeltaIds: ['election-consequence'],
+    tool: {
+      id: current.id,
+      description: `${current.description} Consequence-linked revision candidate.`,
+      inputSchema: current.inputSchema,
+      source: current.source,
+    },
+  });
+  assert.deepEqual(proposal.revision.consequences, [{
+    deltaId: 'election-consequence', invocationIds: [actionInvocationId], electionIds: [electionId],
+  }]);
+});
+
 test('tampering with retained history is detected', () => {
   const { kernel } = harness();
   const lines = readFileSync(kernel.ledgerPath, 'utf8').trimEnd().split('\n');

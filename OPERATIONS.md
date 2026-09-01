@@ -130,3 +130,19 @@ explicit, separately reviewed migration.
   receipt; a complete digest-invalid event is refused unchanged.
 - The development checkout, `current`, disposable habitats, and test artifacts
   are never service paths for the long-term resident.
+
+## Election-addressed contact
+
+Normal `music reply` remains the preferred response to a visible message: when
+that message's invocation fulfilled a trajectory election, Music derives the
+election ancestry automatically. An adapter or operator with a retained election
+id can instead address the choice itself:
+
+```sh
+node /Users/chad/.local/share/music/installations/releases/COMMIT/src/cli.js \
+  reply-election /Users/chad/.local/share/music/residents/RESIDENT/mailbox \
+  ELECTION_ID Chad "This observation bears on the election itself."
+```
+
+The reference supplies provenance only. It does not tell the resident what the
+observation means or require a machinery change.

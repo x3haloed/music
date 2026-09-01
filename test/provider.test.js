@@ -86,6 +86,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.has('message'));
     assert.ok(tools.has('file_patch'));
     assert.ok(tools.has('select_tool_action'));
+    assert.ok(tools.has('elect_trajectory'));
     assert.ok(tools.has('shape_encounter'));
     assert.ok(tools.has('manage_dependency'));
     assert.ok(tools.has('read_file'));
@@ -96,10 +97,14 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.has('retain_context'));
     assert.ok(tools.has('tune_inference'));
     assert.ok(tools.has('inspect_tool'));
+    assert.ok(tools.has('inspect_trajectory_election'));
     assert.ok(tools.has('revise_tool'));
     assert.ok(tools.has('rollback_tool'));
     assert.ok(tools.has('revise_carrier'));
     assert.ok(tools.get('message').required.includes('selectionReceipt'));
+    assert.equal(tools.get('message').properties.trajectoryElectionReceipt.type, 'string');
+    assert.equal(tools.get('elect_trajectory').properties.trajectoryElectionReceipt, undefined);
+    assert.equal(tools.get('elect_trajectory').properties.candidates.minItems, 2);
     assert.equal(tools.get('select_tool_action').properties.candidates.items.properties.input.type, 'object');
     assert.deepEqual(tools.get('shape_encounter').properties.phase.enum, ['sounding', 'steering']);
     assert.deepEqual(tools.get('shape_encounter').properties.trigger.enum, ['delta', 'continuation', 'opening', 'scheduled', 'heartbeat', 'manual']);
