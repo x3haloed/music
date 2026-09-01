@@ -69,13 +69,13 @@ machine-owner governance without a researcher-authored transition bridge.
 
 ## Prediction errors
 
-- **Open:** expected the hosted role contract to carry the selector recurrence
-  through GLM Flash. Live evidence first disproved the provider-side JSON-string
-  envelope, then exposed unbound reasoning effort, order-sensitive replay
-  equality, silent permanent resident retries, and a witness representation
-  mismatch. Each failure was repaired at its owning boundary; rerun the same
-  probe after canonicalizing witnesses as `{output: WORLD_OUTPUT}`. Raw evidence
-  remains under `.music/hosted-selector-20260901-{1..5}` and
+- Live GLM Flash verification disproved the provider-side JSON-string envelope
+  and exposed unbound reasoning effort, order-sensitive replay equality, silent
+  permanent resident retries, and a witness representation mismatch. Each was
+  repaired at its owning boundary. Run 6 then completed the full causal path;
+  its observer verdict alone was invalidated by the actor-local label mistake
+  recorded below. Raw evidence remains under
+  `.music/hosted-selector-20260901-{1..6}` and
   `.music/openrouter-plain-smoke.json`.
 - Recursive free-form JSON is not accepted by the hosted response-schema
   subset. Provider-side schema output is therefore not an authority boundary;
@@ -88,6 +88,12 @@ machine-owner governance without a researcher-authored transition bridge.
 - Hosted output may be schema-valid while semantically misunderstanding witness
   shape. Admission remained strict; protocol language and rejection feedback
   now expose the distinction.
+- The first complete hosted selector recurrence was falsely scored as failed
+  because its observer check expected globally meaningful actor-local wager
+  labels. The retained run independently achieved install, measurement-8
+  selection, contradiction correction, measurement-2 selection, and closure.
+  Following OT-0207, the evaluator now scores sealed measurements and contact;
+  encounter identity remains kernel-owned.
 
 ## Current frontier
 

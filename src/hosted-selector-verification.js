@@ -84,8 +84,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
     threePromotions: state.subject.generation === 3,
     correctedSelector: state.subject.mechanisms.pursuitSelector?.dimension?.id === 'declared-checkpoint-count'
       && state.subject.mechanisms.pursuitSelector?.dimension?.direction === 'minimize',
-    selectorSelectedHighThenLow: selections[1]?.selectedIds?.includes('high') && selections[1]?.selectedIds?.length === 1
-      && selections[2]?.selectedIds?.includes('low') && selections[2]?.selectedIds?.length === 1,
+    selectorSelectedEightThenTwo: selectedMeasurement(selections[1]) === 8 && selectedMeasurement(selections[2]) === 2,
     hostedHatch: Boolean(state.hatched),
     freshContexts: new Set(state.invocations.filter(value => value.status === 'completed').map(value => value.contextId)).size
       === state.invocations.filter(value => value.status === 'completed').length,
@@ -100,4 +99,9 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
     selections,
     audit: kernel.audit(),
   };
+}
+
+function selectedMeasurement(selection) {
+  if (!selection || selection.selectedIds.length !== 1) return null;
+  return selection.candidates.find(candidate => candidate.id === selection.selectedIds[0])?.measurement ?? null;
 }
