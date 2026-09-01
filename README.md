@@ -106,7 +106,7 @@ The current causal path is:
 world Delta -> Sounding -> active carrier
             -> exact fact envelopes -> revisable encounter shape
             -> exact prior invocation reference
-            -> instruction-free trajectory-election opportunity
+            -> required recurrence-election entry (action may still be quiet)
             -> revisable election geometry -> exact elected action receipt
             -> actor-authored alternatives -> selected executable input
             -> unrestricted tool module -> retained invocation
@@ -141,25 +141,33 @@ every other ordinary tool.
 continuity and inference-envelope policy through the same ordinary, revisable
 tool path.
 
-`elect_trajectory` is the seed general election organ. On a neutral heartbeat,
-the Sounding carries an exact instruction-free election opportunity bound to
-the active selector digest and explicitly marks it as non-obligatory. The one
-resident authors a bounded frontier of concrete tool actions or quiet, including
+`elect_trajectory` is the seed general election organ. On an instruction-free
+heartbeat, scheduled recurrence, or due subject opening with no competing world
+contact or unresolved consequence, the Sounding carries an exact election
+opportunity bound to the active selector digest. Entry into that resident-owned
+selection is required before ordinary deliberation; taking an action is not.
+The provider's first step exposes only the selector, and the one resident
+authors a bounded frontier containing quiet plus at least one executable tool
+action, including
 its current factual basis for validity, reversibility, held repetition,
 completed-floor composition, predicted expansion, and actionable regret. The
 ordinary selector body—not the kernel—computes the winner and asks Music to
 execute that exact winner within the same invocation. Quiet executes nothing.
-Its seed ordering
-rejects invalid, irreversible, and held-repeat candidates, then prefers a
+Its seed ordering rejects invalid and held-repeat candidates, then prefers a
 Boolean threshold of at least two composed completed floors, greater predicted
-expansion, greater actionable regret, and a stable id tie-break. That ordering
+expansion, greater actionable regret, reversibility, and a stable id tie-break.
+Irreversibility is therefore a cost in the election rather than a stable ban on
+contact. That ordering
 is inherited seed geometry, not an immutable objective: the resident may trial,
 admit, or roll back a replacement like any other ordinary tool. Completed
 floors are exact retained references; Music verifies their existence and current
 status without endorsing the resident's expansion, regret, or validity judgments.
 
 The retained `trajectoryElectionReceipt` authorizes only the elected tool and
-exact input in that encounter. Invoking the seed selector records the election
+exact input in that encounter. If the elected tool has its own selection gate,
+Music derives that nested complete frontier from the trajectory candidates for
+the same tool, so a selected message can execute without a second volunteered
+election. Invoking the seed selector records the election
 and performs that action directly instead of relying on another model step to
 honor an optional receipt. Every ordinary invocation is retained as `elected`,
 `ad-hoc`, or `selector`. The resulting invocation retains the receipt, so

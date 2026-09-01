@@ -1277,10 +1277,13 @@ function reduceEvents(events) {
             && digest(sounding.development) !== digest(projectDevelopmentalFrontier(state))) {
             throw new Error('Sounding developmental frontier projection mismatch');
           }
-          if (sounding.trajectoryElection !== undefined
-            && digest({ trajectoryElection: sounding.trajectoryElection })
-              !== digest(trajectoryElectionOpportunity(state, sounding.trigger))) {
-            throw new Error('Sounding trajectory-election opportunity mismatch');
+          if (sounding.trajectoryElection !== undefined) {
+            const projected = digest({ trajectoryElection: sounding.trajectoryElection });
+            const accepted = [
+              trajectoryElectionOpportunity(state, sounding.trigger),
+              legacyTrajectoryElectionOpportunity(state, sounding.trigger),
+            ].some(opportunity => projected === digest(opportunity));
+            if (!accepted) throw new Error('Sounding trajectory-election opportunity mismatch');
           }
         }
         if (state.openSoundingId || state.activeInferenceId) throw new Error('ledger opens overlapping Soundings');
@@ -2863,6 +2866,28 @@ function trajectoryElectionOpportunity(state, trigger) {
         minimumCandidates: 2,
         minimumExecutableCandidates: 1,
       },
+    },
+  };
+}
+
+// Event format 12 already contains the earlier, optional heartbeat opportunity.
+// It remains reconstructable history; only newly opened Soundings receive the
+// stronger recurrence entry contract above.
+function legacyTrajectoryElectionOpportunity(state, trigger) {
+  if (trigger !== 'heartbeat') return {};
+  const selector = state.tools.get(TRAJECTORY_ELECTION_TOOL_ID);
+  if (!selector) return {};
+  return {
+    trajectoryElection: {
+      format: 'music-trajectory-election-opportunity-1',
+      occasion: 'instruction-free-recurrence',
+      selector: {
+        id: selector.id,
+        version: selector.version,
+        digest: toolModuleDigest(selector),
+      },
+      consequenceAddressable: true,
+      obligation: false,
     },
   };
 }

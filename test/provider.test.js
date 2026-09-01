@@ -125,6 +125,72 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
   }
 });
 
+test('OpenRouter receives a named first-step selector for instruction-free recurrence', async () => {
+  const previous = process.env.MUSIC_TEST_OPENROUTER_KEY;
+  process.env.MUSIC_TEST_OPENROUTER_KEY = 'secret-test-key';
+  let generation = 0;
+  const election = {
+    candidates: [
+      {
+        id: 'quiet', description: 'Remain secluded.', action: { kind: 'quiet' },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 1, actionableRegret: 0, basis: 'Quiet is explicitly selected when it wins.',
+        },
+      },
+      {
+        id: 'inspect', description: 'Inspect a bounded local fact.',
+        action: { kind: 'tool', tool: 'read_file', input: { path: 'package.json', offset: 1, limit: 1 } },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 0, actionableRegret: 0, basis: 'An executable alternative remains in the frontier.',
+        },
+      },
+    ],
+  };
+  const fetch = async url => {
+    if (String(url).includes('/api/v1/model/')) {
+      return jsonResponse({ data: { id: 'z-ai/glm-5.3-flash', supported_parameters: ['tools', 'tool_choice'] } });
+    }
+    generation += 1;
+    return jsonResponse(generation === 1
+      ? completion({
+          content: null,
+          tool_calls: [{
+            id: 'election-call', type: 'function',
+            function: { name: 'elect_trajectory', arguments: JSON.stringify(election) },
+          }],
+        }, 'tool_calls')
+      : completion({ content: 'Quiet was selected through the retained organ.' }, 'stop'));
+  };
+  try {
+    const configured = createConfiguredModel({
+      provider: 'openrouter', model: 'z-ai/glm-5.3-flash', apiKeyEnv: 'MUSIC_TEST_OPENROUTER_KEY',
+      maxSteps: 2, maxOutputTokens: 256, maxRetries: 0,
+      modelSettings: { extraBody: { reasoning: { effort: 'minimal' } } },
+    }, { fetch });
+    const root = mkdtempSync(join(tmpdir(), 'music-provider-recurrence-test-'));
+    const kernel = new MusicKernel(join(root, 'events.jsonl'));
+    kernel.initialize('Test Subject', initialTools());
+
+    await new MusicMind(kernel, configured, configured.inference).receive(kernel.openSounding('heartbeat').id);
+
+    const requests = configured.requests();
+    assert.equal(requests.length, 2);
+    assert.deepEqual(requests[0].body.tool_choice, {
+      type: 'function', function: { name: 'elect_trajectory' },
+    });
+    assert.deepEqual(requests[0].body.tools.map(tool => tool.function.name), ['elect_trajectory']);
+    assert.equal(requests[1].body.tool_choice, 'auto');
+    assert.equal(requests[1].body.tools.length > 1, true);
+    assert.equal(kernel.audit().trajectoryElections, 1);
+    assert.equal(kernel.audit().electedActions, 0);
+  } finally {
+    if (previous === undefined) delete process.env.MUSIC_TEST_OPENROUTER_KEY;
+    else process.env.MUSIC_TEST_OPENROUTER_KEY = previous;
+  }
+});
+
 test('generic OpenAI-compatible endpoints remain a separate provider path', async () => {
   const configured = createConfiguredModel({
     provider: 'openai-compatible',

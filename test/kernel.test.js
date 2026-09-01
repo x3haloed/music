@@ -6,6 +6,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
+import { canonical, digest } from '../src/canonical.js';
 import { serializeCarrier } from '../src/carrier.js';
 import { MusicKernel } from '../src/kernel.js';
 import { toolModuleDigest } from '../src/tool-module.js';
@@ -1168,6 +1169,32 @@ test('instruction-free recurrence retains one plastic trajectory election throug
   assert.deepEqual(proposal.revision.consequences, [{
     deltaId: 'election-consequence', invocationIds: [actionInvocationId], electionIds: [electionId],
   }]);
+});
+
+test('format-12 reconstruction preserves the earlier optional heartbeat opportunity', () => {
+  const { kernel, root } = harness();
+  const sounding = kernel.openSounding('heartbeat');
+  const events = kernel.events();
+  const opened = events.find(event => event.type === 'sounding_opened');
+  opened.payload.sounding.trajectoryElection = {
+    format: 'music-trajectory-election-opportunity-1',
+    occasion: 'instruction-free-recurrence',
+    selector: structuredClone(sounding.trajectoryElection.selector),
+    consequenceAddressable: true,
+    obligation: false,
+  };
+  opened.payload.projection = digest(opened.payload.sounding);
+  const { hash: ignored, ...unsigned } = opened;
+  opened.hash = digest(unsigned);
+  const ledgerPath = join(root, 'events.jsonl');
+  writeFileSync(ledgerPath, `${events.map(event => canonical(event)).join('\n')}\n`);
+
+  const reconstructed = new MusicKernel(ledgerPath);
+  assert.equal(reconstructed.state().openSoundingId, sounding.id);
+  assert.equal(
+    reconstructed.state().soundings.get(sounding.id).sounding.trajectoryElection.obligation,
+    false,
+  );
 });
 
 test('recurrence cannot complete by bypassing election or offering only quiet narration', async () => {

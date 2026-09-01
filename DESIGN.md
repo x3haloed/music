@@ -158,8 +158,9 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - staged consequence deferral and settlement mechanics;
 - due-opening presentation and interruption restoration;
 - the receipt primitive used by selection modules.
-- an exact non-obligatory trajectory-election opportunity on instruction-free
-  recurrence, plus generic durable election and action-binding receipts; the
+- exact required entry into resident-owned trajectory election on recurrence
+  without competing world contact, while action and quiet remain outcomes of
+  that election, plus generic durable election and action-binding receipts; the
   candidate ontology, ranking policy, and election implementation remain
   ordinary resident-revisable machinery.
 
@@ -185,8 +186,10 @@ under [`tools/`](./tools):
   sequencing, and executable source are themselves ordinary revisable geometry;
 - `elect_trajectory` computes a general election over a complete resident-authored
   contact frontier and directly invokes the exact selected action; quiet invokes
-  nothing. Its seed geometry prefers composed retained floors, predicted expansion,
-  and actionable regret after excluding invalid, irreversible, and held-repeat
+  nothing. On recurrence without competing contact or consequence, the provider
+  must first enter this selector before ordinary tools become available. Its seed
+  geometry prefers composed retained floors, predicted expansion, actionable
+  regret, and then reversibility after excluding invalid and held-repeat
   candidates. Completed floors cite exact retained Delta, invocation, election,
   admitted-proposal, or active-tool receipts. Music verifies those references and
   their current status without treating the resident's scores as world fact. Both
@@ -235,10 +238,14 @@ world-authored Delta
   -> inference accepts its exact projection and acknowledges its Deltas
   -> waking world contact may append inside the same inference at a step boundary
   -> subject encounters current carrier and ordinary-tool digests/interfaces
-  -> a neutral heartbeat exposes an exact non-obligatory election opportunity
+  -> recurrence without competing world contact exposes exact required entry
+     into resident-owned election; action remains non-obligatory
+  -> the first inference step exposes only elect_trajectory
   -> elect_trajectory computes over a subject-authored contact-or-quiet frontier
+     containing at least one executable alternative
   -> the same invocation records the election and executes its exact selected
-     concrete action; quiet executes nothing
+     concrete action; quiet executes nothing; a selection-gated elected tool
+     receives a nested frontier derived from the same trajectory candidates
   -> every ordinary invocation retains an elected, ad-hoc, or selector basis
   -> inspect_tool retrieves exact projected source when needed
   -> ordinary module executes with unrestricted Node authority
@@ -447,6 +454,26 @@ JSON content. The seed `schedule_wake` module is ordinary geometry over the
 stable opening-transition primitive: it supplies a relative delay, closure
 status and interpretation, and arbitrary bounded content. The kernel supplies
 identity, ancestry, invocation/tool binding, and atomic retention.
+
+Recurrence must enter the resident's active selection machinery before the
+language model can narrate that nothing is needed. For a heartbeat, scheduled
+opening, or due subject-authored opening that carries neither new world contact
+nor unresolved consequence, the exact Sounding therefore requires one retained
+trajectory election. The first provider step exposes only the active retained
+`elect_trajectory` version. That version remains ordinary plastic machinery;
+the stable kernel requires only one election, a frontier with at least one
+executable alternative, and exact action binding. Quiet remains a legitimate
+winner. This is a separation of causal perspectives inside one resident mind,
+not a supervisor, second agent, or fixed external objective.
+
+World contact and consequence reconciliation take precedence over this
+recurrence entry. A Delta-bearing or unresolved-consequence Sounding retains the
+ordinary deliberative tool surface rather than forcing a competing trajectory
+election. After the first election call, ordinary tools return for the remainder
+of the same encounter. When an elected action targets selection-gated ordinary
+machinery, its nested candidate frontier is compiled from the same trajectory
+frontier instead of asking the model to restate its choice through a second
+independent representation.
 
 When due and unpresented, the opening itself triggers the next Sounding and is
 already present inside the exact `sounding:position` fact. Earlier world contact

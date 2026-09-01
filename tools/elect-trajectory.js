@@ -100,7 +100,7 @@ async function electTrajectory(input, context) {
     throw new Error('trajectory frontier needs at least one executable alternative');
   }
   if (eligible.length === 0) {
-    throw new Error('trajectory frontier has no world-valid, reversible, non-repeated candidate');
+    throw new Error('trajectory frontier has no world-valid, non-repeated candidate');
   }
   eligible.sort((left, right) => {
     const leftComposition = left.geometry.completedFloors.length >= 2 ? 1 : 0;
