@@ -2,7 +2,7 @@ import { classify } from './predicate.js';
 import { clone, digest, identifier } from './canonical.js';
 import { admitWager, validateAssimilation } from './constitution.js';
 import { RoleSchemas, RoleTasks, RunSpecSchema } from './protocol.js';
-import { applyTransition, createSubject, eraseProjection, verifySubject } from './subject.js';
+import { applyTransition, createSubject, eraseProjection, pathsOverlap, verifySubject } from './subject.js';
 import { RunStore } from './store.js';
 import { ResidentLease } from './residency.js';
 import { IdentifierSchema } from './subject.js';
@@ -365,6 +365,7 @@ export class DevelopmentalKernel {
         wagerId: wager.id,
         classification: state.currentCycle.evaluation.kind,
         authority,
+        applied: this.store.put(transition),
         priorSubjectId: state.subject.id,
         subject: this.store.put(next),
         floors: next.floors.map(floor => ({ id: floor.id, passed: true })),
@@ -520,16 +521,26 @@ export class DevelopmentalKernel {
     const history = state.cycles
       .filter(cycle => cycle.transition)
       .slice(-state.spec.limits.projectionHistoryEntries)
-      .map(cycle => ({
-        generation: cycle.generation,
-        wager: this.store.get(cycle.binding.wager),
-        world: cycle.contactStarted.world,
-        receipt: this.store.get(cycle.contact.output),
-        attestations: this.store.get(cycle.contact.attestations),
-        evaluation: cycle.evaluation,
-        successor: this.store.get(cycle.transition.subject),
-        selection: this.store.get(cycle.frontier).selection,
-      }));
+      .map(cycle => {
+        const successor = this.store.get(cycle.transition.subject);
+        return {
+          generation: cycle.generation,
+          wager: this.store.get(cycle.binding.wager),
+          world: cycle.contactStarted.world,
+          receipt: this.store.get(cycle.contact.output),
+          attestations: this.store.get(cycle.contact.attestations),
+          evaluation: cycle.evaluation,
+          transition: this.appliedTransition(cycle),
+          transitionAuthority: cycle.transition.authority,
+          successor: {
+            id: successor.id,
+            parent: successor.parent,
+            generation: successor.generation,
+            createdAt: successor.createdAt,
+          },
+          selection: this.store.get(cycle.frontier).selection,
+        };
+      });
     let projection = {
       format: 'music-v3-fresh-projection-1',
       role,
@@ -555,13 +566,21 @@ export class DevelopmentalKernel {
     const condition = state.spec.conditions.find(value => value.id === state.condition);
     for (const intervention of condition.interventions.filter(value => value.generation === state.subject.generation)) {
       const stateErase = intervention.erase.map(pointer => pointer.replace(/^\/subject/, '')).filter(Boolean);
-      const stateReplace = Object.fromEntries(Object.entries(intervention.replace).map(([pointer, value]) => [pointer.replace(/^\/subject/, ''), value]).filter(([pointer]) => pointer));
+      const stateReplace = Object.keys(intervention.replace).map(pointer => pointer.replace(/^\/subject/, '')).filter(Boolean);
       projection.history = projection.history.map(entry => ({
         ...entry,
-        successor: eraseProjection(entry.successor, stateErase, stateReplace),
+        transition: maskTransition(entry.transition, [...stateErase, ...stateReplace]),
       }));
     }
     return projection;
+  }
+
+  appliedTransition(cycle) {
+    if (cycle.transition.applied) return this.store.get(cycle.transition.applied);
+    const wager = this.store.get(cycle.binding.wager);
+    if (cycle.transition.authority === 'bound-predicate') return wager.continuations[cycle.transition.classification];
+    if (cycle.assimilate) return this.store.get(cycle.assimilate).transition;
+    throw new Error(`completed cycle has no recoverable applied transition: ${cycle.id}`);
   }
 
   subjectForCondition(state) {
@@ -686,6 +705,13 @@ function requiredCycle(cycles, id) {
   const cycle = cycles.get(id);
   if (!cycle) throw new Error(`event references unknown cycle: ${id}`);
   return cycle;
+}
+
+function maskTransition(value, erasedPointers) {
+  const transition = clone(value);
+  transition.set = Object.fromEntries(Object.entries(transition.set).filter(([pointer]) => !erasedPointers.some(erased => pathsOverlap(pointer, erased))));
+  transition.remove = transition.remove.filter(pointer => !erasedPointers.some(erased => pathsOverlap(pointer, erased)));
+  return transition;
 }
 
 function jsonData(value) {

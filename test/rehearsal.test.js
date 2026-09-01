@@ -56,6 +56,7 @@ test('fresh projections retain only the configured number of completed generatio
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const { worlds, spec, plans } = rehearsalFixture();
   spec.limits.projectionHistoryEntries = 2;
+  spec.initialSubject.memory = { projectionPadding: 'x'.repeat(10_000) };
   const kernel = new DevelopmentalKernel(root, { worlds, actor: rehearsalActor(plans) });
   kernel.initialize(spec);
   await kernel.run();
@@ -63,7 +64,11 @@ test('fresh projections retain only the configured number of completed generatio
     .filter(value => value.status === 'completed')
     .map(value => kernel.store.get(value.projection));
   assert.ok(projections.every(value => value.history.length <= 2));
-  assert.deepEqual(projections.find(value => value.role === 'orient' && value.subject.generation === 3).history.map(value => value.generation), [1, 2]);
+  const generationThree = projections.find(value => value.role === 'orient' && value.subject.generation === 3);
+  assert.deepEqual(generationThree.history.map(value => value.generation), [1, 2]);
+  assert.ok(generationThree.history.every(value => Object.keys(value.successor).sort().join(',') === 'createdAt,generation,id,parent'));
+  assert.ok(generationThree.history.every(value => value.transition && value.transition.continuation));
+  assert.equal(JSON.stringify(generationThree).split('x'.repeat(10_000)).length - 1, 1);
 });
 
 test('projection erasure changes actor-visible state without rewriting the control subject', async t => {
@@ -81,7 +86,7 @@ test('projection erasure changes actor-visible state without rewriting the contr
   const generationTwoOrientation = state.invocations.find(value => value.role === 'orient' && value.status === 'completed' && kernel.store.get(value.projection).subject.generation === 2);
   const projection = kernel.store.get(generationTwoOrientation.projection);
   assert.equal(projection.subject.mechanisms.allocation, undefined);
-  assert.ok(projection.history.every(entry => entry.successor.mechanisms.allocation === undefined));
+  assert.ok(projection.history.every(entry => entry.transition.set['/mechanisms/allocation'] === undefined));
   assert.equal(JSON.stringify(projection).includes('mechanism-erased'), false);
 });
 

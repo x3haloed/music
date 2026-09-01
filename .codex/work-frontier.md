@@ -13,6 +13,8 @@ inspection without turning that window into a second controller or authority.
 
 - The subject is a content-identified lineage; transcripts and process
   workspaces are never continuity substrates.
+- Fresh projections carry the exact current subject plus bounded historical
+  transitions; they never duplicate cumulative predecessor subjects as history.
 - Genesis binds the causal runtime, actor settings, worlds, grants, limits,
   conditions, and stopping rule. The kernel alone selects, contacts, classifies,
   and applies transitions; actors propose and worlds alone issue receipts.
@@ -68,7 +70,3 @@ inspection without turning that window into a second controller or authority.
   unpredictable receipt fields. Exact receipts remain in the evidence graph;
   genuine unresolved bearing belongs in assimilation rather than fabricated
   prospective state.
-- Live generation 56 wrote and reread a file claiming a second operator
-  delivery although no operator-outbox contact or delivery existed. Structural
-  receipt validation therefore permits representation evidence to be laundered
-  into unsupported semantic authority.

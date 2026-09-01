@@ -71,7 +71,11 @@ sealed run specification + exact subject
 
 Every actor invocation records a new context identifier, a projection object
 digest, `responseChain: null`, and `workspaceContinuity: null`. No prior model
-transcript is projected.
+transcript is projected. The projection contains one exact current subject and
+a bounded history of exact applied transitions, receipts, selections, and
+compact successor identities. It never repeats cumulative historical subject
+snapshots; present state therefore appears once rather than once per retained
+generation.
 
 ## Authorities
 

@@ -75,6 +75,12 @@ file write can establish persisted bytes, but a file containing “message
 delivered” cannot establish operator delivery. Only an `operator-outbox`
 delivery attestation can carry that authority.
 
+Each fresh inference projection contains the complete current subject once.
+Bounded history carries exact applied transitions, receipts, selections, and
+compact successor identities rather than cumulative copies of prior subjects.
+Increasing retained history therefore preserves more causal changes without
+multiplying the resident's entire accumulated state.
+
 File input is bounded before body allocation: `file-read` refuses sources over
 16 MiB, while `file-patch` refuses sources or projected results over 8 MiB.
 Sparse files and files that grow beyond their checked size are refused. The
