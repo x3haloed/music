@@ -3,9 +3,11 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, re
 import { dirname, join, resolve } from 'node:path';
 import { canonical, digest } from './canonical.js';
 import { defineWorld, WorldRegistry } from './world.js';
+import { localWorlds } from './local-worlds.js';
 
 export function builtinWorlds() {
   return new WorldRegistry([
+    ...localWorlds(),
     defineWorld({
       id: 'operator-outbox',
       version: '1',

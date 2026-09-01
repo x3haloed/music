@@ -24,9 +24,11 @@ of open-ended development.
    every placeholder. Freeze the hypothesis, falsifier, worlds, grants,
    conditions, retry budgets, cycle budget, and stopping rule before `init` or
    `hatch`.
-5. Prefer `operator-outbox` for the first hatch. It grants only durable messages
-   inside the run. Treat `network.fetch` and especially `local.execute` as broad
-   authority; do not grant them casually.
+5. Prefer `operator-outbox`, `file-read`, and `file-write` for the first hatch.
+   Inspect available identities with `music worlds` and copy only the worlds
+   being granted into genesis. Treat `network.fetch` and especially
+   `local.execute` as broad authority. The shell adapter is deliberately
+   unrestricted; timeout means possibly partial effect, not rollback.
 
 ## Hatch and residence
 

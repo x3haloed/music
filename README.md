@@ -57,6 +57,16 @@ OpenRouter model `z-ai/glm-5.3-flash`. Set comma-separated
 `MUSIC_ALLOWED_OPENROUTER_MODELS` explicitly to change that spending boundary;
 a sealed run naming any other model fails before inference.
 
+The starter world set includes durable operator outbox delivery, bounded HTTP
+JSON, structured external JSON commands, paginated UTF-8 file reads, atomic
+file writes, exact-count file patches, bounded ripgrep search, and unrestricted
+foreground shell execution with process-group timeout handling. Relative local
+paths resolve from `RUN/workspace`; absolute paths remain available. Every
+world has an exact sealed identity and effect requirement (`local.read`,
+`local.write`, `local.execute`, `network.fetch`, or `operator.message`). Shell
+timeouts return `effect: "possibly-partial"` rather than pretending an
+arbitrary command was rolled back.
+
 ## CLI
 
 ```sh

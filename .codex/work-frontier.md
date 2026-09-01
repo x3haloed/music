@@ -46,6 +46,9 @@ machine-owner governance without a researcher-authored transition bridge.
   pulse; external contact always wakes first and no pulse carries a task.
 - One resident owns advancement. Restart reuses a retained effect key and
   explicitly abandons inference calls without terminal receipts.
+- Starter local contact retains the proven v1 file-read/write/patch/search and
+  shell semantics; effect grants remain explicit and arbitrary shell timeout is
+  reported as possibly partial.
 - Bounded observer episodes may end while the subject remains open. Succession
   binds the exact predecessor run, head, and subject without resetting lifetime
   generation.

@@ -11,6 +11,7 @@ const implementationFiles = [
   'src/canonical.js',
   'src/constitution.js',
   'src/kernel.js',
+  'src/local-worlds.js',
   'src/predicate.js',
   'src/protocol.js',
   'src/residency.js',
