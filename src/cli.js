@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import process from 'node:process';
 import { DevelopmentalOrgan } from './organ.js';
 import { MusicKernel } from './kernel.js';
 import { DEFAULT_MODEL, PerspectiveEngine } from './perspective.js';
 import { nextEncounterAt } from './recurrence.js';
+import { readHabitat } from './habitat.js';
+import { runtimeProvenance } from './runtime-provenance.js';
 
 const { command, options, positionals } = parse(process.argv.slice(2));
 
@@ -14,6 +16,7 @@ try {
   if (!options.habitat && !process.env.MUSIC_HABITAT) {
     throw new Error('set MUSIC_HABITAT or pass --habitat');
   }
+  if (existsSync(join(habitat, 'habitat.json'))) process.chdir(readHabitat(habitat).home);
   const kernel = new MusicKernel(habitat);
   if (command === 'init') {
     const state = kernel.initialize(options.designation ?? null);
@@ -44,8 +47,10 @@ try {
   } else if (command === 'outbox') {
     print(kernel.state().observations.filter(value => value.kind === 'message.outbound'));
   } else if (command === 'step') {
+    kernel.receiveObservation(runtimeProvenance(habitat, 'single-opening'));
     print(await step(kernel, options));
   } else if (command === 'run') {
+    kernel.receiveObservation(runtimeProvenance(habitat, 'resident'));
     await run(kernel, options);
   } else {
     usage(command ? `unknown command: ${command}` : null);
