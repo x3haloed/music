@@ -25,6 +25,23 @@ export class MusicKernel {
     return reconstruct(this.ledger.read());
   }
 
+  recoverInterruptedPerspectives() {
+    const state = this.state();
+    const interrupted = [...state.perspectives.values()].filter(value => value.status === 'started');
+    for (const invocation of interrupted) {
+      this.ledger.append('perspective.failed', {
+        invocationId: invocation.id,
+        failure: {
+          name: 'InterruptedPerspective',
+          message: 'The process ended before this perspective retained a terminal receipt.',
+          quarantined: true,
+          failedAt: this.clock().toISOString(),
+        },
+      });
+    }
+    return interrupted.map(value => value.id);
+  }
+
   initialize(designation = null) {
     if (this.state().subject) throw new Error('Music subject already exists');
     const at = this.clock().toISOString();
@@ -43,7 +60,24 @@ export class MusicKernel {
       designation: normalizeDesignation(designation),
       bornAt: at,
     };
-    const position = initialPosition(at, { mechanisms });
+    const position = initialPosition(at, {
+      mechanisms,
+      authority: {
+        inference: {
+          model: 'z-ai/glm-5.3-flash',
+          reasoningEffort: 'low',
+          providerOrder: ['z-ai', 'deepinfra', 'baseten'],
+          budgets: {
+            orientation: 4_096,
+            challenge: 4_096,
+            election: 4_096,
+            assimilation: 4_096,
+            disposition: 4_096,
+          },
+          timeoutMs: 120_000,
+        },
+      },
+    });
     this.ledger.append('subject.born', { subject, position });
     return this.state();
   }
@@ -91,7 +125,10 @@ export class MusicKernel {
       position: state.position,
       grants,
       artifactExists: id => this.artifacts.has(id),
-      toolEffects: id => ToolArtifactSchema.parse(this.artifacts.readJson(id)).manifest.effects,
+      toolContract: id => {
+        const manifest = ToolArtifactSchema.parse(this.artifacts.readJson(id)).manifest;
+        return { effects: manifest.effects, outputSchema: manifest.outputSchema };
+      },
     });
     if (!admission.admissible) throw new Error(`wager is inadmissible:\n- ${admission.reasons.join('\n- ')}`);
     this.ledger.append('wager.bound', {
@@ -116,17 +153,26 @@ export class MusicKernel {
     const wager = bound.wager;
     const tool = ToolArtifactSchema.parse(this.artifacts.readJson(wager.contact.tool));
     const startedAt = this.clock().toISOString();
-    const output = await executeTool(tool, wager.contact.input, {
-      grants: this.governance.read(),
-      habitat: this.habitat,
-      emitObservation: value => this.receiveObservation(value),
-    });
+    let output;
+    let failure = null;
+    try {
+      output = await executeTool(tool, wager.contact.input, {
+        grants: this.governance.read(),
+        habitat: this.habitat,
+        emitObservation: value => this.receiveObservation(value),
+      });
+    } catch (error) {
+      failure = {
+        name: error?.name ?? 'Error',
+        message: String(error?.message ?? error).slice(0, 16_384),
+      };
+    }
     const receipt = {
       id: this.id(),
-      kind: 'tool.result',
+      kind: failure ? 'tool.failure' : 'tool.result',
       tool: { artifact: wager.contact.tool, id: tool.manifest.id },
       input: structuredClone(wager.contact.input),
-      output,
+      ...(failure ? { failure } : { output }),
       startedAt,
       completedAt: this.clock().toISOString(),
       capture: { runtime: 'music-v2-tool-runtime-1', transformed: false },

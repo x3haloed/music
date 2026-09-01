@@ -11,6 +11,7 @@ export function reconstruct(events) {
     realizations: new Map(),
     evaluations: new Map(),
     development: new Map(),
+    pendingAssimilation: null,
     head: null,
   };
   for (const event of events) {
@@ -55,8 +56,10 @@ function applyEvent(state, event) {
     state.election = null;
   } else if (event.type === 'consequence.underdetermined') {
     state.election = null;
+    state.pendingAssimilation = { wagerId: payload.wagerId, position: payload.position };
   } else if (event.type === 'development.proposed') {
     state.development.set(payload.id, { ...structuredClone(payload), status: 'proposed' });
+    state.pendingAssimilation = null;
   } else if (event.type === 'development.trialed') {
     const prior = state.development.get(payload.id);
     if (!prior || prior.status !== 'proposed') throw new Error('development trial lacks proposal');
@@ -69,5 +72,6 @@ function applyEvent(state, event) {
       if (payload.position.parent !== state.position.id) throw new Error('development successor has wrong parent');
       state.position = verifyPosition(payload.position);
     }
+    state.pendingAssimilation = null;
   }
 }

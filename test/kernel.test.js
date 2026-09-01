@@ -35,8 +35,8 @@ function readWager(state, path, expected = 'green') {
       contradiction: { op: 'eq', path: '/output/text', value: 'red' },
     },
     witnesses: {
-      support: { output: { text: expected } },
-      contradiction: { output: { text: 'red' } },
+      support: { output: { path, bytes: expected.length, text: expected } },
+      contradiction: { output: { path, bytes: 3, text: 'red' } },
     },
     continuations: { support: transition('supported'), contradiction: transition('contradicted') },
     retainedFloorIds: [],
@@ -81,4 +81,20 @@ test('predicate gap retains consequence without inventing a transition', async t
   assert.equal(result.evaluation.reason, 'predicate-gap');
   assert.equal(result.position, null);
   assert.equal(kernel.state().position.id, initial.position.id);
+});
+
+test('tool failure is retained as underdetermined consequence instead of escaping the loop', async t => {
+  const { habitat, kernel } = fixture();
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  writeFileSync(join(habitat, 'answer.txt'), 'a result larger than four bytes');
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  const wager = readWager(initial, 'answer.txt');
+  wager.contact.input.maxBytes = 4;
+  kernel.bindWager(wager);
+  const result = await kernel.realize(wager.id);
+  assert.equal(result.receipt.kind, 'tool.failure');
+  assert.match(result.receipt.failure.message, /exceeds maxBytes/);
+  assert.equal(result.evaluation.kind, 'underdetermined');
+  assert.equal(kernel.state().realizations.get(wager.id).kind, 'tool.failure');
 });

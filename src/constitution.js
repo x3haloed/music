@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { classifyReceipt, PredicateSchema } from './predicate.js';
 import { affectedPaths, pathsOverlap, TransitionSchema } from './position.js';
 import { DigestSchema, IdentifierSchema, JsonValueSchema } from './schema.js';
+import { validateContract } from './tools.js';
 
 export const WagerSchema = z.object({
   id: IdentifierSchema,
@@ -19,8 +20,8 @@ export const WagerSchema = z.object({
     contradiction: PredicateSchema,
   }),
   witnesses: z.object({
-    support: JsonValueSchema,
-    contradiction: JsonValueSchema,
+    support: z.object({ output: JsonValueSchema }),
+    contradiction: z.object({ output: JsonValueSchema }),
   }),
   continuations: z.object({
     support: TransitionSchema,
@@ -31,15 +32,23 @@ export const WagerSchema = z.object({
   effectRequirements: z.array(IdentifierSchema).max(32),
 });
 
-export function admitWager(wagerValue, { position, grants = [], artifactExists, toolEffects = () => [] }) {
+export function admitWager(wagerValue, { position, grants = [], artifactExists, toolContract = () => ({ effects: [], outputSchema: {} }) }) {
   const wager = WagerSchema.parse(wagerValue);
   const reasons = [];
   if (!artifactExists(wager.contact.tool)) reasons.push('contact tool artifact is absent');
   else {
-    const requiredByTool = [...new Set(toolEffects(wager.contact.tool))].sort();
+    const contract = toolContract(wager.contact.tool);
+    const requiredByTool = [...new Set(contract.effects)].sort();
     const declaredByWager = [...new Set(wager.effectRequirements)].sort();
     if (JSON.stringify(requiredByTool) !== JSON.stringify(declaredByWager)) {
       reasons.push(`effect requirements must exactly match the contact tool: ${requiredByTool.join(', ')}`);
+    }
+    for (const [kind, witness] of Object.entries(wager.witnesses)) {
+      try {
+        validateContract(contract.outputSchema, witness.output, `${kind} witness output`);
+      } catch (error) {
+        reasons.push(error.message);
+      }
     }
   }
 

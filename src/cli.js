@@ -58,10 +58,11 @@ try {
 async function step(kernel, options) {
   const state = kernel.state();
   if (!state.subject) throw new Error('initialize the habitat first');
-  const engine = new PerspectiveEngine(kernel, inferenceOptions(kernel.habitat, options));
+  kernel.recoverInterruptedPerspectives();
+  const engine = new PerspectiveEngine(kernel, inferenceOptions(options));
   const result = await new DevelopmentalOrgan(kernel, engine).open();
   return {
-    wager: result.election.output.selectedWagerId,
+    wager: result.election?.output.selectedWagerId ?? result.wagerId,
     outcome: result.realized.evaluation.kind,
     position: (result.position ?? result.realized.position)?.id ?? kernel.state().position.id,
     generation: kernel.state().position.generation,
@@ -111,13 +112,15 @@ async function run(kernel, options) {
   }
 }
 
-function inferenceOptions(habitat, options) {
+function inferenceOptions(options) {
   const keyFile = options.keyFile ?? process.env.MUSIC_OPENROUTER_KEY_FILE;
   const apiKey = keyFile ? readFileSync(resolve(keyFile), 'utf8').trim() : process.env.OPENROUTER_API_KEY;
   return {
     apiKey,
     model: options.model ?? process.env.MUSIC_MODEL ?? DEFAULT_MODEL,
     maxOutputTokens: integerOption(options.maxOutputTokens ?? process.env.MUSIC_MAX_OUTPUT_TOKENS ?? 15_000, 256, 32_768, 'maxOutputTokens'),
+    timeoutMs: integerOption(options.inferenceTimeoutMs ?? process.env.MUSIC_INFERENCE_TIMEOUT_MS ?? 120_000, 1_000, 10 * 60_000, 'inferenceTimeoutMs'),
+    reasoningEffort: options.reasoningEffort ?? process.env.MUSIC_REASONING_EFFORT ?? 'low',
   };
 }
 

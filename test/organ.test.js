@@ -21,18 +21,15 @@ function candidate(id, artifact, path, expected) {
     id,
     stake: { id: `stake-${id}`, description: `Read ${path} for ${expected}.`, costOfDelay: 'low' },
     contact: { tool: artifact, input: { path } },
-    classifiers: {
-      support: { op: 'eq', path: '/output/text', value: expected },
-      contradiction: { op: 'eq', path: '/output/text', value: 'no' },
+    discrimination: {
+      outputPath: '/text',
+      supportValue: expected,
+      contradictionValue: 'no',
     },
-    witnesses: {
-      support: { output: { text: expected } },
-      contradiction: { output: { text: 'no' } },
+    continuations: {
+      support: { set: transition(id).set, remove: [], opening: transition(id).opening },
+      contradiction: { set: transition(`${id}_failed`).set, remove: [], opening: transition(`${id}_failed`).opening },
     },
-    continuations: { support: transition(id), contradiction: transition(`${id}_failed`) },
-    retainedFloorIds: [],
-    revisionScope: ['/memory'],
-    effectRequirements: ['local.read'],
   };
 }
 
@@ -155,4 +152,77 @@ test('underdetermined residue crosses candidate execution and fresh disposition 
   assert.equal(result.position.memory.novel_contact, 'blue');
   assert.equal(kernel.state().position.id, result.position.id);
   assert.equal([...kernel.state().perspectives.values()].length, 5);
+});
+
+test('restart quarantines a perspective that never retained a terminal receipt', t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-interrupted-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  const kernel = new MusicKernel(habitat);
+  kernel.initialize();
+  kernel.ledger.append('perspective.started', {
+    invocation: {
+      id: 'interrupted-1',
+      kind: 'orientation',
+      schema: 'music.orientation-1',
+      projection: 'a'.repeat(64),
+      context: 'context-1',
+      responseChain: null,
+      workspaceContinuity: null,
+      authority: ['subject.perspective'],
+      tools: [],
+      model: 'test/model',
+      timeoutMs: 120_000,
+      startedAt: new Date().toISOString(),
+    },
+  });
+  assert.deepEqual(kernel.recoverInterruptedPerspectives(), ['interrupted-1']);
+  const recovered = kernel.state().perspectives.get('interrupted-1');
+  assert.equal(recovered.status, 'failed');
+  assert.equal(recovered.failure.name, 'InterruptedPerspective');
+});
+
+test('a failed assimilator leaves consequence warm for a fresh assimilation without replaying contact', async t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-resume-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  let sequence = 0;
+  const kernel = new MusicKernel(habitat, {
+    clock: () => new Date(1_788_220_800_000 + sequence++ * 1_000),
+    id: () => `id-${sequence++}`,
+  });
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  writeFileSync(join(habitat, 'a.txt'), 'blue');
+  const artifact = initial.position.mechanisms.read_file.artifact;
+  const wager = candidate('resume-contact', artifact, 'a.txt', 'alpha');
+  const { compileWager } = await import('../src/wager-compiler.js');
+  const compiled = compileWager(wager, {
+    position: initial.position,
+    readTool: id => kernel.artifacts.readJson(id),
+  });
+  kernel.bindWager(compiled);
+  await kernel.realize(compiled.id);
+  assert.equal(kernel.state().pendingAssimilation.wagerId, compiled.id);
+
+  const outputs = {
+    assimilation: {
+      consequenceClass: 'novel', bearsOn: ['blue'], harm: 'low', urgency: 'soon', disposition: 'revise',
+      proposedTransition: {
+        kind: 'position.transition', set: { '/memory/resumed': true }, remove: [],
+        opening: { kind: 'continue', notBefore: null, focus: 'Continue.' },
+      },
+      evidence: [],
+    },
+    disposition: {
+      choice: 'admit', opening: { kind: 'continue', notBefore: null, focus: 'Continue.' },
+      basis: { trialEligible: true, floorsPreserved: true, consequenceBearing: 'adequate' },
+    },
+  };
+  const perspectives = new PerspectiveEngine(kernel, {
+    infer: async ({ kind }) => ({ output: outputs[kind], model: 'test/fresh' }),
+  });
+  const result = await new DevelopmentalOrgan(kernel, perspectives).open();
+  assert.equal(result.orientation, null);
+  assert.equal(result.challenge, null);
+  assert.equal(result.position.memory.resumed, true);
+  assert.equal([...kernel.state().perspectives.values()].length, 2);
 });
