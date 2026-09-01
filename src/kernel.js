@@ -476,7 +476,7 @@ export class DevelopmentalKernel {
   requireRuntime(spec, expectedProvenance = null) {
     if (!this.actor || !this.worlds) throw new Error('actor and world registry are required');
     const actual = this.actor.describe();
-    if (JSON.stringify(actual) !== JSON.stringify(spec.actor)) {
+    if (digest(actual) !== digest(spec.actor)) {
       throw new Error(`actor condition mismatch: expected ${JSON.stringify(spec.actor)}, got ${JSON.stringify(actual)}`);
     }
     if (expectedProvenance && this.provenance().implementationSha256 !== expectedProvenance.implementationSha256) {

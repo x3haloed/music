@@ -115,6 +115,21 @@ test('adapter identity is part of the sealed run envelope', () => {
   rmSync(value.parent, { recursive: true, force: true });
 });
 
+test('canonical actor identity ignores object-key insertion order after replay', async t => {
+  const value = fixture();
+  const delegate = value.actor;
+  value.actor = {
+    describe: () => ({ adapter: 'ordered-test-actor', model: null, adapterIdentity: 'a'.repeat(64), settings: { zeta: 2, alpha: 1 } }),
+    invoke: request => delegate.invoke(request),
+  };
+  value.spec.actor = value.actor.describe();
+  t.after(() => rmSync(value.parent, { recursive: true, force: true }));
+  const kernel = new DevelopmentalKernel(value.root, value);
+  kernel.initialize(value.spec);
+  const state = await kernel.run();
+  assert.equal(state.subject.generation, 1);
+});
+
 test('observer cycle limit leaves an otherwise open subject open', async t => {
   const value = fixture({ maxCycles: 1 });
   value.wager.continuations.support.continuation = { kind: 'continue', focus: 'Remain open.', notBefore: null };
