@@ -7,13 +7,13 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { CodexExecActor, OpenRouterActor } from '../src/actor.js';
 import { RoleSchemas } from '../src/protocol.js';
 
-test('OpenRouter actor uses one locally validated fresh request and binds reasoning policy', async () => {
+test('OpenRouter actor accepts descriptive live stakes in one locally validated fresh request and binds reasoning policy', async () => {
   let request;
   const model = new MockLanguageModelV4({
     doGenerate: async options => {
       request = options;
       return {
-        content: [{ type: 'text', text: JSON.stringify({ summary: 'Remain exact.', liveStakes: ['continuity'], recommendedNext: 'Contact the world.' }) }],
+        content: [{ type: 'text', text: JSON.stringify({ summary: 'Remain exact.', liveStakes: ['Whether the first contact leaves durable evidence'], recommendedNext: 'Contact the world.' }) }],
         finishReason: { unified: 'stop', raw: 'stop' },
         usage: {
           inputTokens: { total: 30, noCache: 30, cacheRead: undefined, cacheWrite: undefined },
@@ -32,6 +32,7 @@ test('OpenRouter actor uses one locally validated fresh request and binds reason
     projection: { subject: { generation: 7 }, retained: 'exact' },
   });
   assert.equal(result.output.summary, 'Remain exact.');
+  assert.deepEqual(result.output.liveStakes, ['Whether the first contact leaves durable evidence']);
   assert.equal(result.model, 'provider/model-v1');
   assert.equal(result.responseId, 'response-1');
   assert.equal(request.responseFormat, undefined);

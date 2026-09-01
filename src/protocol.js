@@ -95,7 +95,7 @@ export const WagerSchema = z.object({
 
 export const OrientationSchema = z.object({
   summary: z.string().min(1).max(8192),
-  liveStakes: z.array(IdentifierSchema).max(128),
+  liveStakes: z.array(z.string().min(1).max(4096)).max(128),
   recommendedNext: z.string().min(1).max(4096),
 });
 
@@ -111,7 +111,7 @@ export const RoleSchemas = {
 };
 
 export const RoleTasks = {
-  orient: 'Orient to the exact inherited subject position. Identify live stakes and the next consequence-bearing opening. Do not propose world contact yet.',
+  orient: 'Orient to the exact inherited subject position. Identify live stakes as concise descriptive text and the next consequence-bearing opening. Do not propose world contact yet.',
   challenge: [
     'Author one or more executable falsifiable wagers using an available world.',
     'Predicates are evaluated against a document shaped exactly as {output: WORLD_OUTPUT}; predicate paths for world fields therefore begin with /output.',
