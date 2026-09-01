@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { clone, digest } from './canonical.js';
 import { PredicateSchema, evaluatePredicate } from './predicate.js';
-import { PURSUIT_SELECTOR_KEY, PursuitSelectorSchema } from './selector.js';
+import { DEFAULT_PURSUIT_SELECTOR, PURSUIT_SELECTOR_KEY, PursuitSelectorSchema } from './selector.js';
 import { verifyAttestation } from './world.js';
 
 const Json = z.json();
@@ -68,7 +68,7 @@ export function createSubject(seedValue, at) {
     generation: 0,
     createdAt: at,
     stakes: seed.stakes ?? {},
-    mechanisms: seed.mechanisms ?? {},
+    mechanisms: { [PURSUIT_SELECTOR_KEY]: clone(DEFAULT_PURSUIT_SELECTOR), ...(seed.mechanisms ?? {}) },
     language: seed.language ?? {},
     authority: seed.authority ?? {},
     memory: seed.memory ?? {},

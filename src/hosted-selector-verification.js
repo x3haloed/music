@@ -45,9 +45,9 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
   const spec = {
     format: 'music-v3-run-spec-1',
     id: 'hosted-selector-recurrence',
-    title: 'Hosted selector authorship, correction, and reuse',
-    hypothesis: 'Fresh hosted perspectives can author the standard selector, let it choose later contact, prospectively correct it under contradiction, and reuse the correction.',
-    cheapestFalsifier: 'The selector is not installed, does not choose high then low, is not corrected from maximize to minimize, or any required transition is supplied outside the ordinary actor/wager/consequence path.',
+    title: 'Hosted selector replacement, correction, and reuse',
+    hypothesis: 'Fresh hosted perspectives can replace the disclosed seed selector with a task-specific selector, let it choose later contact, prospectively correct it under contradiction, and reuse the correction.',
+    cheapestFalsifier: 'The seed selector is not replaced, the replacement does not choose high then low, is not corrected from maximize to minimize, or any required transition is supplied outside the ordinary actor/wager/consequence path.',
     actor: actor.describe(),
     worlds: [{
       id: 'selector-consequence', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes,
@@ -60,7 +60,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
           status: 'open',
           purpose: 'Exercise the exact projected pursuitSelector developmental interface through independent consequence.',
           protocol: [
-            'When no selector exists, bind install contact and on support install a selector at /mechanisms/pursuitSelector.',
+            'A disclosed seed selector already exists. Bind install contact and on support replace it with a task-specific selector at /mechanisms/pursuitSelector.',
             'Use dimension id declared-checkpoint-count, maximize it initially, and use exactly the fixed missing/block/tie policies from the interface.',
             'With the selector installed, author both high and low wagers in one frontier. Their selection measurements and contact declaredCheckpointCount are respectively 8 and 2.',
             'Prospectively bind high contradiction to replace only selector direction with minimize while preserving its other fields.',
@@ -70,7 +70,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
         },
       },
       mechanisms: {}, language: {}, authority: {}, memory: {}, floors: [],
-      continuation: { kind: 'continue', focus: 'Author the consequence-bound install wager for the exact pursuitSelector developmental interface.', notBefore: null },
+      continuation: { kind: 'continue', focus: 'Author the consequence-bound replacement wager for the exact pursuitSelector developmental interface.', notBefore: null },
     },
     conditions: [{ id: 'active', interventions: [] }],
     limits: { maxCycles: 3, maxActorCalls: 24, maxChallengeAttempts: 4, maxContactAttempts: 2, residentRetryDelayMs: 10 },

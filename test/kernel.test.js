@@ -9,6 +9,7 @@ import { DevelopmentalKernel } from '../src/kernel.js';
 import { createSubject } from '../src/subject.js';
 import { defineWorld, WorldRegistry } from '../src/world.js';
 import { ResidentLease } from '../src/residency.js';
+import { defaultSelectionMeasurements } from '../src/selector.js';
 
 function fixture({ execute, plan = null, maxCycles = 1 } = {}) {
   const calls = [];
@@ -29,6 +30,7 @@ function fixture({ execute, plan = null, maxCycles = 1 } = {}) {
     predicates: { support: { op: 'gt', path: '/output/value', value: 0 }, contradiction: { op: 'lte', path: '/output/value', value: 0 } },
     witnesses: { support: { output: { value: 1 } }, contradiction: { output: { value: 0 } } }, continuations: { support: transition },
     revisionScope: ['/memory'], retainedFloorIds: [], effectRequirements: [],
+    selection: { measurements: defaultSelectionMeasurements() },
   };
   const actorPlan = plan ?? {
     '0:orient': { summary: 'Probe.', liveStakes: ['probe-stake'], recommendedNext: 'Probe.' },

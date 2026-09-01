@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { FunctionActor } from './actor.js';
 import { digest } from './canonical.js';
+import { defaultSelectionMeasurements } from './selector.js';
 import { runExperiment } from './experiment.js';
 import { defineWorld, WorldRegistry } from './world.js';
 
@@ -149,6 +150,7 @@ function plan(control) {
     revisionScope: scope,
     retainedFloorIds: floors,
     effectRequirements: [],
+    selection: { measurements: defaultSelectionMeasurements() },
   });
   const normal = wager({
     id: 'install-balanced', world: 'allocation', input: { policy: 'balanced', regime: 'normal' }, predicates: classifyScore,

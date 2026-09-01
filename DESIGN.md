@@ -54,7 +54,7 @@ sealed run specification + exact subject
   -> fresh challenge construction
   -> constitutional admission of a frozen frontier
   -> retained subject selector deterministically transforms the frontier
-     (or leaves it to actor election when no selector exists)
+     (or leaves it to actor election after explicit selector surrender)
   -> fresh election restricted to the transformed frontier
   -> immutable wager binding
   -> retained idempotency key
@@ -81,8 +81,9 @@ generation.
 
 - **Subject perspectives:** orient, propose wagers and their public selection
   measurements, elect from the transformed frozen frontier, and assimilate
-  genuinely underdetermined consequence. A perspective may author or revise
-  the selector through a consequence-bound transition.
+  genuinely underdetermined consequence. A perspective may replace, revise, or
+  surrender the disclosed seed selector through a consequence-bound
+  transition.
 - **Constitution:** admits structural contact, derives affected floors, checks
   mutation scope and grants, and rejects hidden or malformed authority.
 - **Kernel:** orders events, binds identities, executes the exact retained
@@ -156,19 +157,23 @@ from operational promotion.
 
 The local kernel and hosted actor path realize the base operational shape,
 including a live four-generation lineage across process and episode boundaries.
-The deterministic rehearsal now additionally proves that one subject can
-install a scalar pursuit selector, have it restrict a later election, correct
-the selector after independent contradiction, and have the corrected machinery
+Origination supplies a disclosed, revisable Pareto seed selector rather than
+letting the first actor call unknowingly invent the harness's initial selection
+geometry. Its seven bounded dimensions remove only strictly dominated wagers,
+preserving genuine tradeoffs for the continuing subject. The deterministic
+rehearsal additionally proves that one subject can replace that seed with a
+scalar pursuit selector, have it restrict a later election, correct the
+selector after independent contradiction, and have the corrected machinery
 select different later contact. A matched projection-erased condition changes
 selection without rewriting either subject. A sealed hosted verification then
-carried the same organ through nine fresh GLM Flash perspectives: install,
+carried the same organ through nine fresh GLM Flash perspectives: replacement,
 measurement-8 selection, hidden contradiction, correction from maximize to
 minimize, measurement-2 selection, independent support, and an open
 generation-3 successor. This is causal engineering evidence, not a claim of
 general utility.
 
 The selector's writable contract travels in every fresh projection as a
-developmental interface. Installation, correction, and surrender all use the
+developmental interface. Replacement, correction, and surrender all use the
 ordinary wager/receipt/transition path. Surrender removes the mechanism from
 subject state; the following frontier is explicitly recorded as
 `actor-election`, never silently given a replacement selector.

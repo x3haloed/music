@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FunctionActor, ScriptActor } from '../src/actor.js';
 import { DevelopmentalKernel } from '../src/kernel.js';
-import { selectWagers } from '../src/selector.js';
+import { defaultSelectionMeasurements, selectWagers } from '../src/selector.js';
 import { createSubject } from '../src/subject.js';
 import { defineWorld, WorldRegistry } from '../src/world.js';
 
@@ -36,6 +36,33 @@ test('retained selector excludes blocked candidates, rejects missing measurement
   const missing = selectWagers(subject, [...wagers, { id: 'missing', selection: { measurements: {} } }]);
   assert.deepEqual(missing.selectedIds, []);
   assert.match(missing.reasons.join('\n'), /missing selector measurement decision-ready-signal/);
+});
+
+test('new subjects inherit the disclosed Pareto selector, which removes domination without collapsing real tradeoffs', () => {
+  const subject = createSubject({}, new Date().toISOString());
+  assert.equal(subject.mechanisms.pursuitSelector.id, 'music-default-developmental-pareto-1');
+  const wagers = [
+    { id: 'grounded-expansion', selection: { measurements: defaultSelectionMeasurements({
+      'demonstrated-harm-reduction': 0.8, 'world-grounding': 0.9, 'affordance-expansion': 0.8,
+      'information-gain': 0.8, reversibility: 0.8, cost: 0.3, 'redundancy-saturation': 0.2,
+    }) } },
+    { id: 'dominated-repeat', selection: { measurements: defaultSelectionMeasurements({
+      'demonstrated-harm-reduction': 0.4, 'world-grounding': 0.7, 'affordance-expansion': 0.3,
+      'information-gain': 0.4, reversibility: 0.6, cost: 0.6, 'redundancy-saturation': 0.8,
+    }) } },
+    { id: 'cheap-reversible-probe', selection: { measurements: defaultSelectionMeasurements({
+      'demonstrated-harm-reduction': 0.2, 'world-grounding': 0.8, 'affordance-expansion': 0.4,
+      'information-gain': 0.7, reversibility: 1, cost: 0.05, 'redundancy-saturation': 0.1,
+    }) } },
+  ];
+  const result = selectWagers(subject, wagers);
+  assert.equal(result.selector.format, 'music-v3-pareto-pursuit-selector-1');
+  assert.deepEqual(result.selectedIds, ['grounded-expansion', 'cheap-reversible-probe']);
+  assert.equal(result.candidates.find(value => value.id === 'dominated-repeat').disposition, 'not-selected');
+
+  const outside = selectWagers(subject, [{ id: 'unbounded', selection: { measurements: defaultSelectionMeasurements({ cost: 2 }) } }]);
+  assert.deepEqual(outside.selectedIds, []);
+  assert.match(outside.reasons.join('\n'), /cost is outside \[0, 1\]/);
 });
 
 test('one subject installs, uses, corrects, and reuses executable selection machinery across independent consequence', async t => {
@@ -81,17 +108,18 @@ test('one subject installs, uses, corrects, and reuses executable selection mach
   });
   const install = wager({
     id: 'install-selector', pursuit: 'install', scope: ['/mechanisms'],
+    selection: { measurements: defaultSelectionMeasurements() },
     continuations: { support: { set: { '/mechanisms/pursuitSelector': selector('maximize') }, remove: [], continuation: continuation('Let the installed selector shape the next frontier.') } },
   });
   const high = wager({
-    id: 'pursue-high', pursuit: 'high', selection: { measurements: { 'decision-ready-signal': 9 } }, scope: ['/mechanisms'],
+    id: 'pursue-high', pursuit: 'high', selection: { measurements: { ...defaultSelectionMeasurements(), 'decision-ready-signal': 9 } }, scope: ['/mechanisms'],
     continuations: {
       support: { set: {}, remove: [], continuation: continuation('Retain the selector after supporting consequence.') },
       contradiction: { set: { '/mechanisms/pursuitSelector': selector('minimize') }, remove: [], continuation: continuation('Use the consequence-corrected selector on a fresh frontier.') },
     },
   });
   const low = wager({
-    id: 'pursue-low', pursuit: 'low', selection: { measurements: { 'decision-ready-signal': 2 } }, scope: ['/memory'],
+    id: 'pursue-low', pursuit: 'low', selection: { measurements: { ...defaultSelectionMeasurements(), 'decision-ready-signal': 2 } }, scope: ['/memory'],
     continuations: { support: { set: { '/memory/selectorRecurrence': 'complete' }, remove: [], continuation: continuation('Selector recurrence complete.', 'stop') } },
   });
   const plans = {

@@ -18,10 +18,11 @@ inspection without turning that window into a second controller or authority.
 - Genesis binds the causal runtime, actor settings, worlds, grants, limits,
   conditions, and stopping rule. The kernel alone selects, contacts, classifies,
   and applies transitions; actors propose and worlds alone issue receipts.
-- A subject-authored selector is executable subject state. It deterministically
-  transforms later admitted frontiers, preserves ties, rejects missing
-  measurements, and can be corrected or surrendered only by prospectively
-  bound consequence.
+- Origination supplies disclosed, revisable Pareto selection geometry rather
+  than leaving first-contact salience as a hidden default. It removes only
+  strictly dominated wagers and preserves incomparable alternatives. The
+  retained selector remains executable subject state and can be replaced,
+  corrected, or surrendered only by prospectively bound consequence.
 - Contact is bound before effect. Determinate predicates apply their bound
   transition directly; only genuine predicate residue may invoke fresh
   assimilation.
@@ -49,7 +50,7 @@ inspection without turning that window into a second controller or authority.
 ## Evaluation regime
 
 - **Epoch:** V3-HATCH-READY-1
-- **Engineering anchors:** 56 deterministic tests; active/control rehearsal;
+- **Engineering anchors:** 59 deterministic tests; active/control rehearsal;
   hosted selector recurrence in `.music/hosted-selector-20260901-7`; installed
   GLM Flash hatch and replayable snapshot in
   `/Users/chad/.local/share/music/evidence/v3-final-live-311e5a8`.

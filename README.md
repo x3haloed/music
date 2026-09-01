@@ -37,15 +37,22 @@ node bin/music-install.js /absolute/new/release-directory
 two independent world adapters. It is executable evidence about the harness,
 not evidence that an AI subject develops.
 
-The standard selector organ lives at `subject.mechanisms.pursuitSelector`.
-When present, every unblocked wager publishes the selector's scalar measurement;
-the kernel excludes blocked candidates, rejects missing measurements, preserves
-tied extrema, and permits election only from the resulting subset. The selector
-itself remains ordinary consequence-addressable subject state. Every fresh
-perspective receives its exact writable contract in
+The selector organ lives at `subject.mechanisms.pursuitSelector`. A newly
+originated subject inherits a disclosed seed selector over demonstrated harm
+reduction, world grounding, affordance expansion, information gain,
+reversibility, cost, and redundancy/saturation. Each measure is bounded from
+zero to one. The kernel removes strictly dominated wagers and preserves
+incomparable alternatives for the subject's election; it does not hide a
+weighted scalar judgment inside the default.
+
+The measurements remain public subject proposals, not independently certified
+facts. World consequence may expose and correct bad geometry. The selector is
+ordinary consequence-addressable subject state, and every fresh perspective
+receives its exact writable contract in
 `developmentalInterfaces.pursuitSelector`; a consequence-bound transition may
-install, replace, or remove it. Removal restores ordinary actor election on the
-next frontier.
+replace or remove it. Task-specific scalar selectors remain supported. Removal
+is an explicit surrender that restores ordinary actor election on the next
+frontier rather than silently reinstalling the seed.
 
 The supported hosted actors are OpenRouter and an ephemeral `codex exec`
 adapter. Both open a fresh provider context for every role. OpenRouter returns
