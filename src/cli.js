@@ -210,7 +210,7 @@ function template([adapterId = 'http-json', actorId = 'openrouter']) {
       continuation: { kind: 'continue', focus: 'Originate one bounded falsifiable contact with the available world.', notBefore: null },
     },
     conditions: [{ id: 'active', interventions: [] }],
-    limits: { maxCycles: 20, maxActorCalls: 80, maxChallengeAttempts: 3, maxContactAttempts: 8, residentRetryDelayMs: 5000 },
+    limits: { maxCycles: 20, maxActorCalls: 80, maxChallengeAttempts: 3, maxContactAttempts: 8, residentRetryDelayMs: 5000, continuityPulseMs: 5_400_000 },
     stoppingRule: 'Stop after twenty promoted cycles, subject-authored closure, or the first invalid transition.',
   });
 }

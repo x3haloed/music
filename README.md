@@ -16,6 +16,14 @@ observations, wait in seclusion, operate under revocable machine-owner grants,
 cross process and bounded-episode boundaries without changing subject identity,
 and leave replayable snapshots.
 
+Seclusion is real but not annihilation. External observations wake the subject
+immediately, subject-requested openings wake it when due, and the sealed
+`continuityPulseMs` floor (90 minutes by default) eventually delivers an
+ordinary retained observation shaped as
+`{kind: "continuity-pulse", instructions: []}`. A far-future opening therefore
+cannot silence the resident indefinitely, and continuity does not smuggle in a
+task.
+
 ## Quick verification
 
 ```sh
@@ -39,8 +47,10 @@ install, replace, or remove it. Removal restores ordinary actor election on the
 next frontier.
 
 The supported hosted actors are OpenRouter and an ephemeral `codex exec`
-adapter. Both open a fresh provider context for every role and validate a JSON
-envelope against the exact role schema before the kernel can use it.
+adapter. Both open a fresh provider context for every role. OpenRouter returns
+plain JSON text for broad model compatibility; Music validates it locally
+against the exact role schema before the kernel can use it. The actor condition
+also seals reasoning effort and output budget.
 The CLI defaults its machine-owner provider policy to the single approved
 OpenRouter model `z-ai/glm-5.3-flash`. Set comma-separated
 `MUSIC_ALLOWED_OPENROUTER_MODELS` explicitly to change that spending boundary;

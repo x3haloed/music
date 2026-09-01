@@ -126,10 +126,20 @@ export class DevelopmentalKernel {
       else throw new Error(`unsupported event type: ${event.type}`);
     }
     const orderedCycles = [...cycles.values()].sort((left, right) => left.generation - right.generation);
+    const now = this.clock().getTime();
     const openingAt = subject.continuation.notBefore === null ? null : Date.parse(subject.continuation.notBefore);
+    const continuityAt = Date.parse(subject.createdAt) + spec.limits.continuityPulseMs;
     const lastObservedThrough = orderedCycles.filter(cycle => cycle.transition).at(-1)?.observedThrough ?? 0;
     const pendingObservations = observations.filter(value => value.sequence > lastObservedThrough);
-    const waitingForObservation = !completed && subject.continuation.kind === 'seclusion' && pendingObservations.length === 0;
+    const noContact = pendingObservations.length === 0;
+    const scheduledOpeningDue = Number.isFinite(openingAt) && openingAt <= now;
+    const continuityPulseDue = !completed && subject.continuation.kind !== 'stop' && noContact && !scheduledOpeningDue
+      && now >= continuityAt && (subject.continuation.kind === 'seclusion' || (Number.isFinite(openingAt) && openingAt > now));
+    const waitsForSchedule = !completed && noContact && !continuityPulseDue && Number.isFinite(openingAt) && openingAt > now;
+    const waitsForSeclusion = !completed && noContact && !continuityPulseDue && subject.continuation.kind === 'seclusion' && !scheduledOpeningDue;
+    const nextOpeningAt = waitsForSchedule || waitsForSeclusion
+      ? Math.min(Number.isFinite(openingAt) && openingAt > now ? openingAt : Infinity, continuityAt)
+      : null;
     return {
       initialized: true,
       runId: genesis.payload.runId,
@@ -148,8 +158,9 @@ export class DevelopmentalKernel {
       grantHistory,
       hatched,
       completed,
-      waitingUntil: !completed && Number.isFinite(openingAt) && openingAt > this.clock().getTime() ? subject.continuation.notBefore : null,
-      waitingForObservation,
+      waitingUntil: Number.isFinite(nextOpeningAt) ? new Date(nextOpeningAt).toISOString() : null,
+      waitingForObservation: waitsForSeclusion,
+      continuityPulseDue,
       head: events.at(-1).hash,
     };
   }
@@ -171,6 +182,15 @@ export class DevelopmentalKernel {
       }
     }
     this.requireRuntime(state.spec, state.runtime);
+    if (state.continuityPulseDue) {
+      this.store.append('observation.received', {
+        id: this.id('continuity'),
+        channel: 'continuity',
+        from: 'music',
+        content: { kind: 'continuity-pulse', instructions: [] },
+      });
+      state = this.state();
+    }
     if (state.waitingUntil || state.waitingForObservation) return state;
     if (state.subject.continuation.kind === 'stop') {
       this.complete('subject-stop', state);
@@ -439,6 +459,7 @@ export class DevelopmentalKernel {
       subject: { id: state.subject.id, generation: state.subject.generation, continuation: state.subject.continuation },
       waitingUntil: state.waitingUntil,
       waitingForObservation: state.waitingForObservation,
+      continuityPulseDue: state.continuityPulseDue,
       pendingObservations: state.pendingObservations.length,
       residentFailures: state.residentFailures,
       effectiveGrants: state.effectiveGrants,

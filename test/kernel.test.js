@@ -172,21 +172,22 @@ test('a dead writer lock is recovered but a live writer lock fails closed', () =
   rmSync(live.parent, { recursive: true, force: true });
 });
 
-test('a future subject opening does not invoke an actor before its retained time', async t => {
+test('a future subject opening is bounded by the continuity floor without early inference', async t => {
   const value = fixture();
   value.spec.initialSubject.continuation = { kind: 'continue', focus: 'Wait for contact.', notBefore: '2099-01-01T00:00:00.000Z' };
+  const now = new Date('2026-09-01T00:00:00.000Z');
   t.after(() => rmSync(value.parent, { recursive: true, force: true }));
-  const kernel = new DevelopmentalKernel(value.root, value);
+  const kernel = new DevelopmentalKernel(value.root, { ...value, clock: () => now });
   kernel.initialize(value.spec);
   const state = await kernel.run();
-  assert.equal(state.waitingUntil, '2099-01-01T00:00:00.000Z');
+  assert.equal(state.waitingUntil, '2026-09-01T01:30:00.000Z');
   assert.equal(state.invocations.length, 0);
   assert.equal(state.completed, null);
 });
 
 test('a retained observation wakes seclusion and is projected exactly once', async t => {
   const value = fixture();
-  value.spec.initialSubject.continuation = { kind: 'seclusion', focus: 'Wait for a machine-owner message.', notBefore: null };
+  value.spec.initialSubject.continuation = { kind: 'seclusion', focus: 'Wait for a machine-owner message.', notBefore: '2099-01-01T00:00:00.000Z' };
   const seen = [];
   const plan = value.actor.plan;
   value.actor = new FunctionActor(async ({ role, projection }) => {
@@ -202,6 +203,34 @@ test('a retained observation wakes seclusion and is projected exactly once', asy
   const state = await kernel.run();
   assert.equal(state.subject.generation, 1);
   assert.deepEqual(seen[0].observations.map(observation => observation.id), ['message-1']);
+  assert.equal(state.pendingObservations.length, 0);
+});
+
+test('maximum quietness delivers an instruction-free continuity pulse through the observation path', async t => {
+  const value = fixture();
+  value.spec.initialSubject.continuation = { kind: 'seclusion', focus: 'Remain secluded.', notBefore: null };
+  value.spec.limits.continuityPulseMs = 1_000;
+  let now = Date.parse('2026-09-01T00:00:00.000Z');
+  const seen = [];
+  const plan = value.actor.plan;
+  value.actor = new FunctionActor(async ({ role, projection }) => {
+    seen.push({ role, observations: projection.observations });
+    return plan[`${projection.subject.generation}:${role}`];
+  }, { id: 'continuity-pulse-actor', model: null });
+  value.spec.actor = value.actor.describe();
+  t.after(() => rmSync(value.parent, { recursive: true, force: true }));
+  const kernel = new DevelopmentalKernel(value.root, { ...value, clock: () => new Date(now) });
+  kernel.initialize(value.spec);
+  let state = await kernel.run();
+  assert.equal(state.waitingUntil, '2026-09-01T00:00:01.000Z');
+  assert.equal(state.waitingForObservation, true);
+  now += 1_000;
+  state = await kernel.run();
+  assert.equal(state.subject.generation, 1);
+  assert.equal(state.observations.length, 1);
+  assert.equal(seen[0].observations[0].channel, 'continuity');
+  assert.equal(seen[0].observations[0].from, 'music');
+  assert.deepEqual(seen[0].observations[0].content, { kind: 'continuity-pulse', instructions: [] });
   assert.equal(state.pendingObservations.length, 0);
 });
 

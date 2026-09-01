@@ -113,6 +113,16 @@ Invalid actor outputs, invalid world receipts, and rejected frontiers are
 retained rather than silently retried. A bounded fresh challenge may revise a
 constitutionally rejected proposal using the exact rejection reasons.
 
+## Continuity floor
+
+External observations preempt seclusion and future openings. Without contact,
+the earlier of the subject's requested opening and the sealed
+`continuityPulseMs` deadline reopens the cycle. When the deadline wins, the
+kernel appends one ordinary observation from `music` whose content is
+`{kind: "continuity-pulse", instructions: []}`. It is projected and consumed
+through the same sequence boundary as any other observation. The floor changes
+when contact occurs, not what the subject must do with it.
+
 All advancing entry points share one resident lease. Observations may arrive
 concurrently through the append-only ledger. Seclusion wakes only when a new
 observation exists; timed continuations wake only at their retained time.

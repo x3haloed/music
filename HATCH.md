@@ -39,6 +39,12 @@ closing the subject. Restart with `music reside RUN`. Use `music revoke` to
 stop an effect before contact and `music grant` to restore an effect already in
 the genesis envelope.
 
+Set `limits.continuityPulseMs` deliberately before genesis (default 5,400,000,
+90 minutes). It is the maximum quiet interval, not an instruction cadence.
+External observations and earlier subject-requested openings still wake first;
+when the floor fires, the resident receives an exact instruction-free
+continuity observation.
+
 ## Verify and preserve
 
 ```sh

@@ -42,6 +42,8 @@ machine-owner governance without a researcher-authored transition bridge.
   predicate residue may invoke fresh assimilation.
 - New observations and grant changes are ledger facts, never silent mutable
   process state.
+- Seclusion and future openings are bounded by an instruction-free continuity
+  pulse; external contact always wakes first and no pulse carries a task.
 - One resident owns advancement. Restart reuses a retained effect key and
   explicitly abandons inference calls without terminal receipts.
 - Bounded observer episodes may end while the subject remains open. Succession
