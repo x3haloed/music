@@ -463,7 +463,11 @@ test('a restart after authority election resumes at disposition and preserves th
   });
   kernel.trialAuthorityDevelopment(developmentId, {
     candidatePosition: candidatePosition.id, selectedWager: selected,
-    perspectiveReceipts: { orientation: 'a'.repeat(64), challenge: 'b'.repeat(64), election: 'c'.repeat(64) },
+    perspectiveReceipts: {
+      orientation: { invocation: 'orientation-invocation', output: 'a'.repeat(64) },
+      challenge: { invocation: 'challenge-invocation', output: 'b'.repeat(64) },
+      election: { invocation: 'election-invocation', output: 'c'.repeat(64) },
+    },
   });
   const perspectives = new PerspectiveEngine(kernel, { infer: async ({ kind }) => {
     assert.equal(kind, 'disposition');
@@ -476,4 +480,73 @@ test('a restart after authority election resumes at disposition and preserves th
   assert.equal(result.realized.evaluation.kind, 'support');
   assert.equal(kernel.state().position.memory['authority-resumed-selection'], true);
   assert.equal([...kernel.state().perspectives.values()].length, 1);
+});
+
+test('an inference policy governs fresh selection perspectives before admission', async t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-inference-authority-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  const kernel = new MusicKernel(habitat);
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  writeFileSync(join(habitat, 'origin.txt'), 'blue');
+  writeFileSync(join(habitat, 'selected.txt'), 'alpha');
+  const { compileWager } = await import('../src/wager-compiler.js');
+  const originIntent = candidate('inference-origin', initial.position.mechanisms.read_file.artifact, 'origin.txt', 'alpha');
+  originIntent.developmentScope = ['/memory', '/authority'];
+  const origin = compileWager(originIntent, { position: initial.position, readTool: id => kernel.artifacts.readJson(id) });
+  kernel.bindWager(origin);
+  await kernel.realize(origin.id);
+  const developmentId = kernel.proposeDevelopment({
+    wagerId: origin.id,
+    invocationId: 'inference-assimilation',
+    proposal: {
+      proposedDevelopment: {
+        kind: 'inference-policy',
+        selectionBudgets: { orientation: 1_111, challenge: 2_222, election: 3_333 },
+        reasoningEffort: 'high',
+        providerOrder: ['z-ai'],
+        opening: { kind: 'continue', notBefore: null, focus: 'Exercise a bounded selection policy.' },
+      },
+    },
+  });
+  const seen = [];
+  const outputs = {
+    orientation: { harms: [], opportunities: [], unresolved: [], machineryConcerns: [] },
+    challenge: { candidates: [
+      candidate('inference-alpha', initial.position.mechanisms.read_file.artifact, 'selected.txt', 'alpha'),
+      candidate('inference-beta', initial.position.mechanisms.read_file.artifact, 'origin.txt', 'blue'),
+    ] },
+    election: {
+      selectedWagerId: 'inference-alpha',
+      assessments: [
+        { wagerId: 'inference-alpha', consequenceExposure: 'strong', cost: 'low', delayHarm: 'low', admissibilityRisk: 'low' },
+        { wagerId: 'inference-beta', consequenceExposure: 'adequate', cost: 'low', delayHarm: 'low', admissibilityRisk: 'low' },
+      ],
+    },
+    disposition: {
+      choice: 'admit', opening: { kind: 'continue', notBefore: null, focus: 'Unused.' },
+      basis: { trialEligible: true, floorsPreserved: true, consequenceBearing: 'strong' },
+    },
+  };
+  const perspectives = new PerspectiveEngine(kernel, { infer: async input => {
+    seen.push(input);
+    return { output: outputs[input.kind], model: 'test/fresh' };
+  } });
+  const result = await new DevelopmentalOrgan(kernel, perspectives).open();
+  assert.equal(result.trial.runtime, 'music-v2-inference-policy-trial-1');
+  assert.equal(result.trial.eligible, true);
+  assert.deepEqual(seen.slice(0, 3).map(value => ({
+    kind: value.kind,
+    maxOutputTokens: value.maxOutputTokens,
+    reasoningEffort: value.reasoningEffort,
+    providerOrder: value.providerOrder,
+  })), [
+    { kind: 'orientation', maxOutputTokens: 1_111, reasoningEffort: 'high', providerOrder: ['z-ai'] },
+    { kind: 'challenge', maxOutputTokens: 2_222, reasoningEffort: 'high', providerOrder: ['z-ai'] },
+    { kind: 'election', maxOutputTokens: 3_333, reasoningEffort: 'high', providerOrder: ['z-ai'] },
+  ]);
+  assert.equal(result.realized.evaluation.kind, 'support');
+  assert.equal(kernel.state().development.get(developmentId).status, 'admit');
+  assert.equal(kernel.state().position.authority.inference.reasoningEffort, 'high');
+  assert.deepEqual(kernel.state().position.authority.inference.providerOrder, ['z-ai']);
 });

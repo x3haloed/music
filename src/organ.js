@@ -69,13 +69,27 @@ const ToolAuthorityDevelopmentSchema = z.object({
   opening: OpeningSchema,
 });
 
+const InferencePolicyDevelopmentSchema = z.object({
+  kind: z.literal('inference-policy'),
+  selectionBudgets: z.object({
+    orientation: z.number().int().min(256).max(15_000),
+    challenge: z.number().int().min(256).max(15_000),
+    election: z.number().int().min(256).max(15_000),
+  }),
+  reasoningEffort: z.enum(['low', 'high', 'max']),
+  providerOrder: z.array(z.enum(['z-ai', 'deepinfra', 'baseten'])).min(1).max(3),
+  opening: OpeningSchema,
+});
+
 export const AssimilationSchema = z.object({
   consequenceClass: z.enum(['ambiguous', 'conflicting', 'insufficient', 'novel']),
   bearsOn: z.array(z.string().min(1).max(1024)).min(1).max(16),
   harm: z.enum(['none', 'low', 'medium', 'high', 'critical']),
   urgency: z.enum(['background', 'soon', 'now']),
   disposition: z.enum(['retain', 'revise', 'defer', 'surrender']),
-  proposedDevelopment: z.discriminatedUnion('kind', [PositionDevelopmentSchema, ToolDevelopmentSchema, ToolAuthorityDevelopmentSchema]),
+  proposedDevelopment: z.discriminatedUnion('kind', [
+    PositionDevelopmentSchema, ToolDevelopmentSchema, ToolAuthorityDevelopmentSchema, InferencePolicyDevelopmentSchema,
+  ]),
   evidence: z.array(z.object({ observationId: z.string(), bearing: z.string().min(1).max(1024) })).max(32),
 });
 
@@ -276,10 +290,10 @@ export class DevelopmentalOrgan {
   }
 
   async continueDevelopment(development, projection, prior) {
-    if (development.status === 'proposed' && development.proposal.proposedDevelopment.kind === 'tool-authority') {
+    if (development.status === 'proposed' && authorityKind(development)) {
       return this.exerciseAuthorityDevelopment(development, prior);
     }
-    if (development.status === 'trialed' && development.proposal.proposedDevelopment.kind === 'tool-authority') {
+    if (development.status === 'trialed' && authorityKind(development)) {
       return this.finishAuthorityDevelopment(development, development.trial, this.projection(development.trial.candidate), prior, null);
     }
     const standing = this.kernel.state();
@@ -336,9 +350,9 @@ export class DevelopmentalOrgan {
       candidatePosition: candidate.id,
       selectedWager: elected.selected.wager,
       perspectiveReceipts: {
-        orientation: elected.orientation.receipt.output,
-        challenge: elected.challenge.receipt.output,
-        election: elected.election.receipt.output,
+        orientation: { invocation: elected.orientation.invocation.id, output: elected.orientation.receipt.output },
+        challenge: { invocation: elected.challenge.invocation.id, output: elected.challenge.receipt.output },
+        election: { invocation: elected.election.invocation.id, output: elected.election.receipt.output },
       },
     });
     return this.finishAuthorityDevelopment(development, trial, candidateProjection, prior, elected);
@@ -365,7 +379,7 @@ export class DevelopmentalOrgan {
     const selectedWager = elected?.selected.wager ?? trial.authorityExercise.selectedWager;
     this.kernel.bindWager(selectedWager, {
       invocation: elected?.election.invocation.id ?? null,
-      output: elected?.election.receipt.output ?? trial.authorityExercise.perspectiveReceipts.election,
+      output: elected?.election.receipt.output ?? trial.authorityExercise.perspectiveReceipts.election.output,
       authorityTrial: development.id,
     });
     const realized = await this.kernel.realize(selectedWager.id);
@@ -395,6 +409,10 @@ export class DevelopmentalOrgan {
       },
     });
   }
+}
+
+function authorityKind(development) {
+  return ['tool-authority', 'inference-policy'].includes(development.proposal.proposedDevelopment.kind);
 }
 
 function challengeTask() {

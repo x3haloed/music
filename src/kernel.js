@@ -69,11 +69,11 @@ export class MusicKernel {
           reasoningEffort: 'low',
           providerOrder: ['z-ai', 'deepinfra', 'baseten'],
           budgets: {
-            orientation: 4_096,
-            challenge: 4_096,
-            election: 4_096,
-            assimilation: 4_096,
-            disposition: 4_096,
+            orientation: 15_000,
+            challenge: 15_000,
+            election: 15_000,
+            assimilation: 15_000,
+            disposition: 15_000,
           },
           timeoutMs: 120_000,
         },
@@ -351,6 +351,20 @@ export class MusicKernel {
         opening: development.opening,
       });
     }
+    if (development?.kind === 'inference-policy') {
+      return TransitionSchema.parse({
+        kind: 'position.transition',
+        set: {
+          '/authority/inference/budgets/orientation': development.selectionBudgets.orientation,
+          '/authority/inference/budgets/challenge': development.selectionBudgets.challenge,
+          '/authority/inference/budgets/election': development.selectionBudgets.election,
+          '/authority/inference/reasoningEffort': development.reasoningEffort,
+          '/authority/inference/providerOrder': [...new Set(development.providerOrder)],
+        },
+        remove: [],
+        opening: development.opening,
+      });
+    }
     if (development?.kind !== 'tool') throw new Error('unknown proposed development kind');
     const tool = ToolArtifactSchema.parse(development.tool);
     const artifact = this.artifacts.putJson(tool);
@@ -379,13 +393,35 @@ export class MusicKernel {
     const state = this.state();
     const development = state.development.get(id);
     if (!development || development.status !== 'proposed') throw new Error(`development is not proposed: ${id}`);
-    if (development.proposal.proposedDevelopment.kind !== 'tool-authority') throw new Error('development is not a tool-authority proposal');
+    if (!['tool-authority', 'inference-policy'].includes(development.proposal.proposedDevelopment.kind)) throw new Error('development is not an authority proposal');
     const candidate = this.developmentCandidate(id);
     if (evidence.candidatePosition !== candidate.id) throw new Error('authority exercise used the wrong candidate position');
-    const allowed = candidate.authority.toolSelection.allowedToolIds;
     const selectedTool = ToolArtifactSchema.parse(this.artifacts.readJson(evidence.selectedWager.contact.tool)).manifest.id;
     const requiredFloorIds = state.position.floors.filter(floor => pathsOverlap(floor.scope, '/authority/toolSelection')).map(floor => floor.id);
     const passedFloorIds = state.position.floors.filter(floor => requiredFloorIds.includes(floor.id) && evaluatePredicate(candidate, floor.predicate)).map(floor => floor.id);
+    const proposed = development.proposal.proposedDevelopment;
+    let authorityEvidence;
+    let authorityEligible;
+    if (proposed.kind === 'tool-authority') {
+      const allowed = candidate.authority.toolSelection.allowedToolIds;
+      authorityEvidence = { allowedToolIds: allowed, selectedTool };
+      authorityEligible = allowed.includes(selectedTool);
+    } else {
+      const phases = ['orientation', 'challenge', 'election'];
+      const invocations = {};
+      authorityEligible = true;
+      for (const phase of phases) {
+        const invocation = state.perspectives.get(evidence.perspectiveReceipts[phase].invocation);
+        const expectedBudget = candidate.authority.inference.budgets[phase];
+        const conforms = invocation?.status === 'completed' && invocation.kind === phase &&
+          invocation.maxOutputTokens === expectedBudget &&
+          invocation.reasoningEffort === candidate.authority.inference.reasoningEffort &&
+          JSON.stringify(invocation.providerOrder) === JSON.stringify(candidate.authority.inference.providerOrder);
+        invocations[phase] = { id: invocation?.id ?? null, conforms };
+        if (!conforms) authorityEligible = false;
+      }
+      authorityEvidence = { inferencePolicy: structuredClone(candidate.authority.inference), invocations, selectedTool };
+    }
     const trial = {
       candidate,
       transition: this.developmentTransition(development.proposal),
@@ -394,13 +430,14 @@ export class MusicKernel {
       probeReceipts: [],
       authorityExercise: {
         candidatePosition: candidate.id,
-        allowedToolIds: allowed,
-        selectedTool,
+        ...authorityEvidence,
         selectedWager: structuredClone(evidence.selectedWager),
         perspectiveReceipts: structuredClone(evidence.perspectiveReceipts),
       },
-      eligible: allowed.includes(selectedTool) && requiredFloorIds.length === passedFloorIds.length,
-      runtime: 'music-v2-tool-authority-trial-1',
+      eligible: authorityEligible && requiredFloorIds.length === passedFloorIds.length,
+      runtime: proposed.kind === 'tool-authority'
+        ? 'music-v2-tool-authority-trial-1'
+        : 'music-v2-inference-policy-trial-1',
       completedAt: this.clock().toISOString(),
     };
     this.ledger.append('development.trialed', { id, trial });
