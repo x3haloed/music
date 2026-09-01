@@ -8,7 +8,8 @@
     "music": "./src/cli.js",
     "music-doctor": "./bin/music-doctor.js",
     "music-habitat": "./bin/music-habitat.js",
-    "music-install-release": "./bin/music-install-release.js"
+    "music-install-release": "./bin/music-install-release.js",
+    "music-migrate-v1": "./bin/music-migrate-v1.js"
   },
   "scripts": {
     "test": "node --test",
