@@ -10,12 +10,14 @@
   },
   "bin": {
     "music": "./src/cli.js",
-    "music-doctor": "./bin/music-doctor.js"
+    "music-doctor": "./bin/music-doctor.js",
+    "music-verify-hosted-selector": "./bin/music-verify-hosted-selector.js"
   },
   "scripts": {
     "test": "node --test",
     "check": "node --check src/*.js bin/*.js && node --test",
-    "rehearse": "node src/cli.js rehearse"
+    "rehearse": "node src/cli.js rehearse",
+    "verify:hosted-selector": "node bin/music-verify-hosted-selector.js"
   },
   "engines": {
     "node": ">=22"

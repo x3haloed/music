@@ -1,4 +1,5 @@
 export { CodexExecActor, FunctionActor, OpenRouterActor, ScriptActor } from './actor.js';
+export { runHostedSelectorVerification } from './hosted-selector-verification.js';
 export { builtinWorlds } from './builtin-worlds.js';
 export { admitWager, validateAssimilation } from './constitution.js';
 export { runExperiment } from './experiment.js';

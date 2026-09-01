@@ -7,6 +7,29 @@ selection machinery shapes later frontiers and world contact across fresh model
 contexts, process restarts, bounded episode succession, new observations, and
 machine-owner governance without a researcher-authored transition bridge.
 
+## Construction contract
+
+- **Central truth:** retained subject machinery deterministically transforms a
+  later actor-authored frontier; the selected contact yields independent
+  consequence that can retain, correct, or surrender that machinery, and the
+  resulting subject position reaches another fresh perspective.
+- **Envelope:** one local Node.js resident, one append-only run store, fresh
+  OpenRouter contexts using only the machine-owner-approved low-cost model,
+  bounded JSON worlds, explicit grants, restart and episode succession.
+- **Exclusions:** v2 compatibility, distributed residents, process isolation,
+  scientific claims about general intelligence, and unattended spending on
+  unapproved models.
+- **Topology:** the kernel is the sole transition/selection/contact authority;
+  the subject is the sole retained developmental identity; actors propose but
+  do not retain authority; world adapters alone produce contact receipts.
+- **Embodiment depth:** simplify within the current Node.js process, filesystem
+  ledger, and provider boundary. Replacing the runtime, store substrate, or
+  machine boundary is outside this goal absent evidence it is necessary.
+- **Evidence horizon / risk frontier:** deterministic recurrence, erasure,
+  correction, surrender, restart, and succession are covered locally. The
+  least-proven edge is actual hosted authorship of selector-bearing wagers and
+  their survival through independent contact into a later fresh context.
+
 ## Goal invariants
 
 - The subject is a content-identified lineage; model transcripts and process
