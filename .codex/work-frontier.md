@@ -17,12 +17,25 @@ opening without a researcher choosing each developmental phase.
   OT-0186 directly executed the exact bound route and removed that engineering
   failure.
 
-- **World consequence and subject interpretation must remain separate
-  authorities.**
+- **A determinate executable consequence transition must apply directly; only
+  genuinely underdetermined residue returns to probabilistic judgment.**
+  **Evidence:** OT-0192 failed when a successor reinterpreted an already
+  evaluated operation. OT-0193 then showed the complementary boundary: direct
+  application must remain confined to the exact prospectively declared scope.
+
+- **Independently caused world observation and subject interpretation must
+  remain separate authorities.**
   **Evidence:** Open Trajectory’s bind-before-outcome experiments depend on
   independently owned consequence to distinguish development from
-  self-description. The user accepted independent reality as the irreplaceable
-  answerer in the generalized loop.
+  self-description. Receipts establish what Music captured with named
+  provenance, not that the observed content is infallibly true.
+
+- **Human messages must remain ordinary world observations; sender humanity or
+  identity must not confer harness-level instruction or effect authority.**
+  **Evidence:** The user explicitly decided that a message from Chad should be
+  retained only as an addressed inbox event from Chad, with no special
+  handling. Sender and relationship may matter to the subject, but Music must
+  not pre-decide that meaning.
 
 - **A proposed mechanism or authority change must govern actual later behavior
   before becoming authoritative.**
@@ -54,6 +67,22 @@ opening without a researcher choosing each developmental phase.
   separation between authorship, consequence, and assimilation. The user
   accepted a design in which those perspectives are cognitive functions rather
   than separate social identities.
+
+- **Every claimed epistemic separation must be enforced and evidenced at the
+  invocation boundary.**
+  **Evidence:** Open Trajectory’s fresh-actor method depends on exact projected
+  inputs, no hidden response-chain or workspace continuity, bounded authority,
+  retained effects, and quarantine of invalid output. Merely naming a later
+  inference “fresh” would not preserve that causal boundary.
+
+- **A non-delegable causal constitution must own transition validity without
+  supplying the entity’s purpose.**
+  **Evidence:** The independent review identified operational admission as
+  otherwise circular: subject-authored adequacy, optional eligibility, and
+  plastic admission policy could jointly self-certify. Open Trajectory’s
+  operational-transition requirements preserve lineage, binding, authority
+  separation, effect conformance, confinement, and recoverability without
+  choosing the developmental stake.
 
 - **Developmental policy may not authorize its own admission in the same
   transition.**
