@@ -31,7 +31,7 @@ test('Companion gives structured resident contact a readable claim while retaini
   assert.deepEqual(projected.structuredContent, message);
 });
 
-test('Companion sends one ordinary observation through the sealed resident CLI', async () => {
+test('Companion executes the sealed CLI directly instead of relaunching its Electron executable', async () => {
   let call;
   const result = await sendCompanionMessage('/run', ' hello ', {
     cliPath: '/release/src/cli.js',
@@ -41,8 +41,8 @@ test('Companion sends one ordinary observation through the sealed resident CLI',
     },
   });
   assert.equal(result.accepted, true);
-  assert.equal(call[0], process.execPath);
-  assert.deepEqual(call[1], ['/release/src/cli.js', 'observe', '/run', '{"message":"hello"}', 'operator', 'Chad']);
+  assert.equal(call[0], '/release/src/cli.js');
+  assert.deepEqual(call[1], ['observe', '/run', '{"message":"hello"}', 'operator', 'Chad']);
 });
 
 test('Companion discovers the exact CLI from the live resident lease rather than the development tree', async () => {

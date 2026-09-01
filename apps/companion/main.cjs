@@ -9,6 +9,10 @@ let window;
 let tray;
 let pollTimer;
 let lastRevision = '';
+const ownsInstance = app.requestSingleInstanceLock();
+
+if (!ownsInstance) app.quit();
+else app.on('second-instance', showWindow);
 
 async function loadCompanion() {
   const moduleUrl = pathToFileURL(path.resolve(__dirname, '../../src/companion.js')).href;
@@ -89,12 +93,15 @@ ipcMain.handle('music:send', async (_event, payload) => {
   }
 });
 
-app.whenReady().then(async () => {
-  await loadCompanion();
-  createWindow();
-  createTray();
-  beginPolling();
-});
+if (ownsInstance) {
+  app.whenReady().then(async () => {
+    await loadCompanion();
+    createWindow();
+    createTray();
+    beginPolling();
+  });
+  app.on('activate', showWindow);
+}
 
 app.on('window-all-closed', event => event.preventDefault());
 app.on('before-quit', () => clearInterval(pollTimer));

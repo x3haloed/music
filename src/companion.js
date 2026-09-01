@@ -45,7 +45,7 @@ export async function sendCompanionMessage(rootArg, message, { cliPath, from = '
   if (!text) throw new Error('message is required');
   if (Buffer.byteLength(text) > 64 * 1024) throw new Error('message exceeds 64 KiB');
   const sealedCli = cliPath ?? await discoverResidentCli(root, { execute });
-  const { stdout } = await execute(process.execPath, [sealedCli, 'observe', root, JSON.stringify({ message: text }), 'operator', from], {
+  const { stdout } = await execute(sealedCli, ['observe', root, JSON.stringify({ message: text }), 'operator', from], {
     maxBuffer: 1024 * 1024,
   });
   const result = JSON.parse(stdout);
