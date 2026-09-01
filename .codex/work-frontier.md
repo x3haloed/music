@@ -69,15 +69,14 @@ machine-owner governance without a researcher-authored transition bridge.
 
 ## Prediction errors
 
-- **Open:** expected OpenRouter schema output around a JSON-string envelope to
-  give GLM Flash a reliable recursive-JSON carrier. The live provider returned
-  the schema-valid placeholder `temp`, then timed out on retry, while an
-  otherwise identical plain-JSON call returned valid content in five seconds.
-  The plain-JSON rerun produced one valid orientation, but consumed 4,362
-  reasoning tokens and its challenge timed out. Evidence is retained under
-  `.music/hosted-selector-20260901-{1,2}` and
-  `.music/openrouter-plain-smoke.json`; rerun the same causal probe with strict
-  local validation and sealed low reasoning effort.
+- **Open:** expected the hosted role contract to carry the selector recurrence
+  through GLM Flash. Live evidence first disproved the provider-side JSON-string
+  envelope, then exposed unbound reasoning effort, order-sensitive replay
+  equality, silent permanent resident retries, and a witness representation
+  mismatch. Each failure was repaired at its owning boundary; rerun the same
+  probe after canonicalizing witnesses as `{output: WORLD_OUTPUT}`. Raw evidence
+  remains under `.music/hosted-selector-20260901-{1..5}` and
+  `.music/openrouter-plain-smoke.json`.
 - Recursive free-form JSON is not accepted by the hosted response-schema
   subset. Provider-side schema output is therefore not an authority boundary;
   actors return plain JSON text and Music applies the exact Zod role schema

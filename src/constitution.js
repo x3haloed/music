@@ -38,7 +38,7 @@ export function admitWager(value, { subject, spec, worlds, grants = spec.grants 
   if (adapter) {
     for (const reason of adapter.conform(boundWager.contact.input)) reasons.push(`contact: ${reason}`);
     for (const [kind, witness] of Object.entries(wager.witnesses)) {
-      for (const reason of adapter.conformOutput(witness)) reasons.push(`${kind} witness: ${reason}`);
+      for (const reason of adapter.conformOutput(witness.output)) reasons.push(`${kind} witness: ${reason}`);
     }
     const required = [...adapter.effects].sort();
     const declared = [...new Set(wager.effectRequirements)].sort();
@@ -49,8 +49,8 @@ export function admitWager(value, { subject, spec, worlds, grants = spec.grants 
   const activeGrants = new Set(grants);
   for (const effect of wager.effectRequirements) if (!activeGrants.has(effect)) reasons.push(`missing grant: ${effect}`);
 
-  const support = classify({ output: wager.witnesses.support }, wager.predicates);
-  const contradiction = classify({ output: wager.witnesses.contradiction }, wager.predicates);
+  const support = classify(wager.witnesses.support, wager.predicates);
+  const contradiction = classify(wager.witnesses.contradiction, wager.predicates);
   if (support.kind !== 'support') reasons.push('support witness does not uniquely reach support');
   if (contradiction.kind !== 'contradiction') reasons.push('contradiction witness does not uniquely reach contradiction');
 

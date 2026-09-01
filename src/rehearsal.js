@@ -140,7 +140,7 @@ function plan(control) {
     stake: { id: 'allocation-quality', question: `What consequence follows ${id}?` },
     contact: { world, input },
     predicates,
-    witnesses: { support: supportWitness, contradiction: contradictionWitness },
+    witnesses: { support: { output: supportWitness }, contradiction: { output: contradictionWitness } },
     continuations,
     revisionScope: scope,
     retainedFloorIds: floors,

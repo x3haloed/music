@@ -63,7 +63,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
             'With the selector installed, author both high and low wagers in one frontier. Their selection measurements and contact declaredCheckpointCount are respectively 8 and 2.',
             'Prospectively bind high contradiction to replace only selector direction with minimize while preserving its other fields.',
             'With the corrected selector, offer both candidates again; bind low support to close this bounded verification.',
-            'For every contact, classify support when /output/passed equals true and contradiction when it equals false; provide complete world-output witnesses.',
+            'For every contact, classify support when /output/passed equals true and contradiction when it equals false; each witness is {output: COMPLETE_WORLD_OUTPUT}.',
           ],
         },
       },

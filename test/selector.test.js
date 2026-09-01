@@ -61,8 +61,8 @@ test('one subject installs, uses, corrects, and reuses executable selection mach
     contradiction: { op: 'eq', path: '/output/passed', value: false },
   };
   const witnesses = {
-    support: { pursuit: 'example', passed: true },
-    contradiction: { pursuit: 'example', passed: false },
+    support: { output: { pursuit: 'example', passed: true } },
+    contradiction: { output: { pursuit: 'example', passed: false } },
   };
   const wager = ({ id, pursuit, selection, continuations, scope }) => ({
     id,
@@ -149,7 +149,7 @@ test('independent contradiction can surrender the selector and reopen actor elec
     id, stake: { id: 'selector-surrender', question: `What follows from ${id}?` },
     contact: { world: 'surrender', input: { pursuit: id } },
     predicates: { support: { op: 'eq', path: '/output/passed', value: true }, contradiction: { op: 'eq', path: '/output/passed', value: false } },
-    witnesses: { support: { passed: true }, contradiction: { passed: false } },
+    witnesses: { support: { output: { passed: true } }, contradiction: { output: { passed: false } } },
     continuations: continuation,
     revisionScope: id === 'selected' ? ['/mechanisms/pursuitSelector'] : ['/memory'], retainedFloorIds: [], effectRequirements: [],
     selection: { measurements: { 'decision-ready-signal': measurement } },
@@ -205,7 +205,7 @@ test('a matched projection erasure removes selector influence without rewriting 
     id: `choose-${id}`, stake: { id: 'choice', question: `Choose ${id}?` },
     contact: { world: 'choice', input: { pursuit: id } },
     predicates: { support: { op: 'eq', path: '/output/passed', value: true }, contradiction: { op: 'eq', path: '/output/passed', value: false } },
-    witnesses: { support: { pursuit: id, passed: true }, contradiction: { pursuit: id, passed: false } },
+    witnesses: { support: { output: { pursuit: id, passed: true } }, contradiction: { output: { pursuit: id, passed: false } } },
     continuations: { support: { set: { '/memory/chosen': id }, remove: [], continuation: { kind: 'stop', focus: 'Choice observed.', notBefore: null } } },
     revisionScope: ['/memory'], retainedFloorIds: [], effectRequirements: [],
     selection: { measurements: { 'decision-ready-signal': measurement } },

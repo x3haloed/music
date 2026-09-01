@@ -78,8 +78,8 @@ export const WagerSchema = z.object({
     inconclusive: PredicateSchema.optional(),
   }),
   witnesses: z.object({
-    support: Json,
-    contradiction: Json,
+    support: z.object({ output: Json }),
+    contradiction: z.object({ output: Json }),
   }),
   continuations: z.object({
     support: TransitionSchema.optional(),
@@ -114,8 +114,8 @@ export const RoleTasks = {
   challenge: [
     'Author one or more executable falsifiable wagers using an available world.',
     'Predicates are evaluated against a document shaped exactly as {output: WORLD_OUTPUT}; predicate paths for world fields therefore begin with /output.',
-    'The support and contradiction witnesses are complete example WORLD_OUTPUT values and must each uniquely reach their named predicate branch.',
-    'Each witness value is the WORLD_OUTPUT itself; never wrap a witness inside an output property.',
+    'The support and contradiction witnesses are complete predicate documents shaped exactly as {output: WORLD_OUTPUT} and must each uniquely reach their named predicate branch.',
+    'Wrap each complete example world output exactly once in the witness output property.',
     'effectRequirements must exactly equal the selected world adapter effects and every effect must be present in capabilities.effectiveGrants.',
     'retainedFloorIds must exactly name the inherited subject floors whose scopes overlap revisionScope; do not invent floor IDs.',
     'Every continuation mutation must stay within revisionScope.',

@@ -93,6 +93,11 @@ transcript is projected.
   already present in the genesis envelope. These actions are retained ledger
   events and cannot rewrite subject state or sealed outcomes.
 
+Support and contradiction witnesses use the same predicate-document shape as
+real consequence: `{output: WORLD_OUTPUT}`. The world adapter validates the
+nested output and the classifier evaluates that document directly, so proposal
+and realization do not rely on parallel witness representations.
+
 ## Restart contract
 
 The ledger records `contact.started` with an idempotency key before invoking a

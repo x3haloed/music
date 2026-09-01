@@ -24,7 +24,7 @@ function fixture({ execute, plan = null, maxCycles = 1 } = {}) {
   const wager = {
     id: 'probe', stake: { id: 'probe-stake', question: 'Is the value positive?' }, contact: { world: 'probe', input: { value: 1 } },
     predicates: { support: { op: 'gt', path: '/output/value', value: 0 }, contradiction: { op: 'lte', path: '/output/value', value: 0 } },
-    witnesses: { support: { value: 1 }, contradiction: { value: 0 } }, continuations: { support: transition },
+    witnesses: { support: { output: { value: 1 } }, contradiction: { output: { value: 0 } } }, continuations: { support: transition },
     revisionScope: ['/memory'], retainedFloorIds: [], effectRequirements: [],
   };
   const actorPlan = plan ?? {
@@ -101,7 +101,7 @@ test('constitution rejects predicate witnesses outside the sealed world output c
   const value = fixture();
   const subject = createSubject({}, new Date().toISOString());
   const candidate = structuredClone(value.wager);
-  candidate.witnesses.support = { value: 'not-a-number' };
+  candidate.witnesses.support = { output: { value: 'not-a-number' } };
   const admission = admitWager(candidate, { subject, spec: value.spec, worlds: value.worlds });
   assert.equal(admission.admissible, false);
   assert.match(admission.reasons.join('\n'), /support witness: numeric value required/);
@@ -431,7 +431,7 @@ test('constitutional rejection is retained and a bounded fresh challenge may rep
   const value = fixture();
   const valid = structuredClone(value.wager);
   const invalid = structuredClone(value.wager);
-  invalid.witnesses.support = { value: 'wrong-shape' };
+  invalid.witnesses.support = { output: { value: 'wrong-shape' } };
   let challenges = 0;
   const plan = value.actor.plan;
   value.actor = new FunctionActor(async ({ role, projection }) => {
