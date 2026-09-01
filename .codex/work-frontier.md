@@ -2,9 +2,10 @@
 
 ## Outcome
 
-Host one exact continuous LLM subject through fresh model contexts, independent
-consequence, process restarts, bounded episode succession, new observations,
-and machine-owner governance without a researcher-authored transition bridge.
+Host one exact continuous LLM subject whose consequence-correctable executable
+selection machinery shapes later frontiers and world contact across fresh model
+contexts, process restarts, bounded episode succession, new observations, and
+machine-owner governance without a researcher-authored transition bridge.
 
 ## Goal invariants
 
@@ -24,18 +25,23 @@ and machine-owner governance without a researcher-authored transition bridge.
   binds the exact predecessor run, head, and subject without resetting lifetime
   generation.
 - Negative evidence, constitutional rejection, and failed effects are retained.
+- A selector is subject state, not prompt advice: the kernel applies it
+  deterministically before election, preserves its ties, and rejects incomplete
+  measurement surfaces.
+- Matched selector erasure changes only the decision interface. It cannot
+  rewrite the underlying subject lineage.
 
 ## Evaluation regime
 
-- **Epoch:** V3-HATCH-1
-- **Engineering criterion:** automated causal rehearsal plus a hosted-model
-  lineage that completes contact and transition, survives fresh contexts and
-  process/episode boundaries, consumes a new observation, and remains open.
-- **Observed result:** satisfied through generation 4; final implementation
-  digest `f3eb80f55f9127d3adecc373e1496cd93d7c01eccf1036b8c9be36f7c3b326a7`.
-- **Scientific criterion:** not yet satisfied. Requires consequence-driven
-  machinery change and renewed contact in environments not tailored to the
-  seed protocol, with live residue assimilation and appropriate controls.
+- **Epoch:** V3-SELECTOR-1
+- **Engineering criterion:** one unchanged kernel must let the subject install
+  an executable selector, use it to constrain a later election, correct it from
+  independent contradiction, and have the corrected selector change later
+  contact. A matched erasure must change selection without changing lineage.
+- **Observed result:** satisfied in deterministic end-to-end and matched-control
+  tests. Hosted-model selector authorship and correction remain untested.
+- **Real-v3 criterion:** the selector path must survive hosted inference and the
+  completed operational release must earn a new hatch/readiness receipt.
 
 ## Prediction errors
 
@@ -51,8 +57,6 @@ and machine-owner governance without a researcher-authored transition bridge.
 
 ## Current frontier
 
-The habitat is hatch-ready. The next decisive work is not more residence
-plumbing: it is a prospectively sealed live experiment where independent
-consequence forces a nontrivial mechanism revision, the revised mechanism is
-used directly in later contact, and a matched condition removes that mechanism
-without altering the active lineage.
+Run the selector recurrence through fresh hosted perspectives, preserve any
+prediction errors, then harden the evidenced system into an installable and
+operable resident release without importing v2's topology by default.

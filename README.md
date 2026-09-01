@@ -8,7 +8,8 @@ choosing the phase between cycles.
 
 The implementation has one transition authority, an append-only hash-chain
 ledger, a content-addressed object store, versioned actor and world adapters,
-prospectively bound wagers, deterministic consequence predicates, exact scoped
+prospectively bound wagers, subject-authored executable pursuit selectors,
+deterministic selector application and consequence predicates, exact scoped
 transitions, behavioral floors, restart-safe idempotency keys, and
 projection-only matched controls. A resident can also receive durable
 observations, wait in seclusion, operate under revocable machine-owner grants,
@@ -26,6 +27,12 @@ npm run rehearse
 `rehearse` runs a deterministic multi-cycle developmental trajectory through
 two independent world adapters. It is executable evidence about the harness,
 not evidence that an AI subject develops.
+
+The standard selector organ lives at `subject.mechanisms.pursuitSelector`.
+When present, every unblocked wager publishes the selector's scalar measurement;
+the kernel excludes blocked candidates, rejects missing measurements, preserves
+tied extrema, and permits election only from the resulting subset. The selector
+itself remains ordinary consequence-addressable subject state.
 
 The supported hosted actors are OpenRouter and an ephemeral `codex exec`
 adapter. Both open a fresh provider context for every role and validate a JSON

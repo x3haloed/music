@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import { clone, digest } from './canonical.js';
 import { PredicateSchema, evaluatePredicate } from './predicate.js';
+import { PURSUIT_SELECTOR_KEY, PursuitSelectorSchema } from './selector.js';
 
 const Json = z.json();
+const MechanismsSchema = z.record(z.string(), Json).superRefine((value, context) => {
+  if (!Object.hasOwn(value, PURSUIT_SELECTOR_KEY)) return;
+  const parsed = PursuitSelectorSchema.safeParse(value[PURSUIT_SELECTOR_KEY]);
+  if (!parsed.success) context.addIssue({ code: 'custom', message: `invalid ${PURSUIT_SELECTOR_KEY}: ${parsed.error.message}` });
+});
 export const IdentifierSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/);
 export const DigestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const StatePointerSchema = z.string().regex(/^\/(stakes|mechanisms|language|authority|memory)(?:\/(?:[^/~]|~[01])*)*$/);
@@ -27,7 +33,7 @@ export const SubjectSchema = z.object({
   generation: z.number().int().nonnegative(),
   createdAt: z.iso.datetime(),
   stakes: z.record(z.string(), Json),
-  mechanisms: z.record(z.string(), Json),
+  mechanisms: MechanismsSchema,
   language: z.record(z.string(), Json),
   authority: z.record(z.string(), Json),
   memory: z.record(z.string(), Json),

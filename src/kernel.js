@@ -7,6 +7,7 @@ import { RunStore } from './store.js';
 import { ResidentLease } from './residency.js';
 import { IdentifierSchema } from './subject.js';
 import { runtimeProvenance } from './runtime-provenance.js';
+import { selectWagers } from './selector.js';
 
 export class DevelopmentalKernel {
   constructor(root, { actor, worlds, clock = () => new Date(), id = identifier, provenance = runtimeProvenance } = {}) {
@@ -193,18 +194,21 @@ export class DevelopmentalKernel {
         priorRejections: (state.currentCycle.frontierRejections ?? []).map(reference => this.store.get(reference)),
       });
       const challenge = await this.invoke('challenge', cycle.id, projection);
+      const decisionSubject = this.subjectForCondition(state);
       const admissions = challenge.wagers.map(value => admitWager(value, {
-        subject: state.subject,
+        subject: decisionSubject,
         spec: state.spec,
         worlds: this.worlds,
         grants: state.effectiveGrants,
       }));
       const admitted = admissions.filter(value => value.admissible).map(value => value.wager);
+      const selection = selectWagers(decisionSubject, admitted);
       const frontier = this.store.put({
         wagers: admitted,
         admissions: admissions.map(value => ({ id: value.wager.id, admissible: value.admissible, reasons: value.reasons, derivedFloors: value.derivedFloors })),
+        selection,
       });
-      if (admitted.length === 0) {
+      if (admitted.length === 0 || selection.selectedIds.length === 0) {
         this.store.append('frontier.rejected', { cycleId: cycle.id, frontier });
         const attempts = (state.currentCycle.frontierRejections?.length ?? 0) + 1;
         if (attempts >= state.spec.limits.maxChallengeAttempts) {
@@ -218,8 +222,8 @@ export class DevelopmentalKernel {
     if (!state.currentCycle.binding) {
       const frontier = this.store.get(state.currentCycle.frontier);
       const election = await this.invoke('elect', cycle.id, this.projection(state, 'elect', { frontier }));
-      const wager = frontier.wagers.find(value => value.id === election.wagerId);
-      if (!wager) throw new Error(`election selected outside frozen frontier: ${election.wagerId}`);
+      const wager = frontier.wagers.find(value => value.id === election.wagerId && frontier.selection.selectedIds.includes(value.id));
+      if (!wager) throw new Error(`election selected outside transformed frontier: ${election.wagerId}`);
       this.store.append('wager.bound', {
         cycleId: cycle.id,
         wager: this.store.put(wager),
@@ -434,6 +438,7 @@ export class DevelopmentalKernel {
         transitionAuthority: cycle.transition?.authority ?? null,
         complete: Boolean(cycle.transition),
         rejectedFrontiers: cycle.frontierRejections?.length ?? 0,
+        selection: cycle.frontier ? this.store.get(cycle.frontier).selection : null,
       })),
       actorInvocations: state.invocations.filter(value => value.invocationId).map(value => ({
         invocationId: value.invocationId,
@@ -474,6 +479,7 @@ export class DevelopmentalKernel {
       receipt: this.store.get(cycle.contact.output),
       evaluation: cycle.evaluation,
       successor: this.store.get(cycle.transition.subject),
+      selection: this.store.get(cycle.frontier).selection,
     }));
     let projection = {
       format: 'music-v3-fresh-projection-1',
@@ -485,7 +491,7 @@ export class DevelopmentalKernel {
         cheapestFalsifier: state.spec.cheapestFalsifier,
         limits: state.spec.limits,
       },
-      subject: state.subject,
+      subject: this.subjectForCondition(state),
       worlds: state.spec.worlds.map(({ id, description, publicContract }) => ({ id, description, publicContract })),
       capabilities: { effectiveGrants: state.effectiveGrants },
       observations: this.observationsFor(state),
@@ -494,7 +500,6 @@ export class DevelopmentalKernel {
     };
     const condition = state.spec.conditions.find(value => value.id === state.condition);
     for (const intervention of condition.interventions.filter(value => value.generation === state.subject.generation)) {
-      projection = eraseProjection(projection, intervention.erase, intervention.replace);
       const stateErase = intervention.erase.map(pointer => pointer.replace(/^\/subject/, '')).filter(Boolean);
       const stateReplace = Object.fromEntries(Object.entries(intervention.replace).map(([pointer, value]) => [pointer.replace(/^\/subject/, ''), value]).filter(([pointer]) => pointer));
       projection.history = projection.history.map(entry => ({
@@ -503,6 +508,17 @@ export class DevelopmentalKernel {
       }));
     }
     return projection;
+  }
+
+  subjectForCondition(state) {
+    let subject = clone(state.subject);
+    const condition = state.spec.conditions.find(value => value.id === state.condition);
+    for (const intervention of condition.interventions.filter(value => value.generation === state.subject.generation)) {
+      const erase = intervention.erase.map(pointer => pointer.replace(/^\/subject/, '')).filter(Boolean);
+      const replace = Object.fromEntries(Object.entries(intervention.replace).map(([pointer, value]) => [pointer.replace(/^\/subject/, ''), value]).filter(([pointer]) => pointer));
+      subject = eraseProjection(subject, erase, replace);
+    }
+    return subject;
   }
 
   observationsFor(state) {

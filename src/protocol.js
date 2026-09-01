@@ -6,6 +6,7 @@ import {
   SubjectSeedSchema,
   TransitionSchema,
 } from './subject.js';
+import { SelectionSignalSchema } from './selector.js';
 
 const Json = z.json();
 
@@ -88,6 +89,7 @@ export const WagerSchema = z.object({
   revisionScope: z.array(StatePointerSchema).min(1).max(128),
   retainedFloorIds: z.array(IdentifierSchema).max(512),
   effectRequirements: z.array(IdentifierSchema).max(64),
+  selection: SelectionSignalSchema.optional(),
 });
 
 export const OrientationSchema = z.object({
@@ -119,7 +121,8 @@ export const RoleTasks = {
     'Every continuation mutation must stay within revisionScope.',
     'Omit contact.mechanism unless deliberately binding an existing exact subject value into an otherwise absent contact input key.',
     'Do not include optional inconclusive predicates or continuations unless they are needed.',
+    'If subject.mechanisms.pursuitSelector exists, every unblocked wager must publish a finite selection.measurements value for its named dimension. Blocked wagers set selection.blocked true. The kernel applies that retained selector deterministically before election.',
   ].join(' '),
-  elect: 'Select exactly one wager from the frozen admitted frontier. You may not rewrite it.',
+  elect: 'Select exactly one wager whose id appears in frontier.selection.selectedIds. The retained selector has already transformed the frontier; you may break a preserved tie but may not override or rewrite the selection.',
   assimilate: 'The bound predicates left genuine residue. Author one exact scoped transition grounded in the retained receipt and evaluation. Do not claim a determinate branch that the predicates did not establish.',
 };

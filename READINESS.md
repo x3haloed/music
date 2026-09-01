@@ -73,3 +73,15 @@ Hosted deployment receipts identify observed thread IDs, model names, usage,
 and exact local projections, but do not make the provider deployment itself
 immutably reproducible. External effecting adapters still own durable
 idempotency at their boundary.
+
+## Selector-recurrence frontier
+
+The current kernel contains the bounded selector recurrence promoted by the
+latest Open Trajectory work. Deterministic evidence covers subject-authored
+installation, later frontier transformation, independent contradiction,
+selector correction, changed later contact, and a matched selector-erased
+decision interface that does not rewrite the underlying subject. This is
+engineering evidence for the causal organ, not hosted evidence that a resident
+will author a useful selection dimension or improve it under an unarranged
+world. The real-v3 readiness claim remains open until that path and the updated
+operational release are exercised end to end.

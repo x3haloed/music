@@ -53,7 +53,9 @@ sealed run specification + exact subject
   -> fresh orientation
   -> fresh challenge construction
   -> constitutional admission of a frozen frontier
-  -> fresh election
+  -> retained subject selector deterministically transforms the frontier
+     (or leaves it to actor election when no selector exists)
+  -> fresh election restricted to the transformed frontier
   -> immutable wager binding
   -> retained idempotency key
   -> exact independent world contact
@@ -72,12 +74,16 @@ transcript is projected.
 
 ## Authorities
 
-- **Subject perspectives:** orient, propose wagers, elect from the frozen
-  frontier, and assimilate genuinely underdetermined consequence.
+- **Subject perspectives:** orient, propose wagers and their public selection
+  measurements, elect from the transformed frozen frontier, and assimilate
+  genuinely underdetermined consequence. A perspective may author or revise
+  the selector through a consequence-bound transition.
 - **Constitution:** admits structural contact, derives affected floors, checks
   mutation scope and grants, and rejects hidden or malformed authority.
-- **Kernel:** orders events, binds identities, realizes the exact selected
-  contact, evaluates predicates, applies transitions, and schedules recurrence.
+- **Kernel:** orders events, binds identities, executes the exact retained
+  selector policy, restricts election to its selected subset, realizes the
+  exact selected contact, evaluates predicates, applies transitions, and
+  schedules recurrence.
 - **World adapters:** validate contact inputs and cause independently owned
   outputs under identities binding their implementation, public contract, and
   declared hidden-configuration material.
@@ -122,9 +128,11 @@ from operational promotion.
 
 ## Risk frontier
 
-The local kernel and hosted actor path now realize the intended operational
-shape, including a live four-generation lineage across process and episode
-boundaries. The remaining risk is scientific breadth: whether consequence can
-drive useful machinery change and renewed contact across environments not
-designed around the seed protocol. The run-local outbox hatch establishes
-inhabitance and continuity, not open-ended self-expansion.
+The local kernel and hosted actor path realize the base operational shape,
+including a live four-generation lineage across process and episode boundaries.
+The deterministic rehearsal now additionally proves that one subject can
+install a scalar pursuit selector, have it restrict a later election, correct
+the selector after independent contradiction, and have the corrected machinery
+select different later contact. A matched projection-erased condition changes
+selection without rewriting either subject. Hosted-model use of this organ and
+useful correction outside its purpose-built rehearsal remain unproven.

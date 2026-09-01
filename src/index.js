@@ -6,6 +6,7 @@ export { DevelopmentalKernel } from './kernel.js';
 export { classify, evaluatePredicate } from './predicate.js';
 export { RunSpecSchema, WagerSchema } from './protocol.js';
 export { ResidentLease } from './residency.js';
+export { PURSUIT_SELECTOR_KEY, PursuitSelectorSchema, SelectionSignalSchema, pursuitSelector, selectWagers } from './selector.js';
 export { runtimeProvenance } from './runtime-provenance.js';
 export { applyTransition, createSubject, verifySubject } from './subject.js';
 export { defineWorld, WorldRegistry } from './world.js';
