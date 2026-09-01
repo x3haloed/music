@@ -59,6 +59,7 @@ export class DevelopmentalKernel {
     const cycles = new Map();
     const invocations = [];
     const observations = [];
+    const residentFailures = [];
     const effectiveGrants = new Set(spec.grants);
     const grantHistory = [];
     for (const event of events.slice(1)) {
@@ -77,6 +78,10 @@ export class DevelopmentalKernel {
       if (event.type === 'subject.hatched') {
         if (hatched) throw new Error('duplicate subject hatch event');
         hatched = clone(event.payload);
+        continue;
+      }
+      if (event.type === 'resident.failed') {
+        residentFailures.push({ sequence: event.sequence, at: event.at, ...clone(event.payload) });
         continue;
       }
       if (event.type === 'cycle.opened') {
@@ -137,6 +142,7 @@ export class DevelopmentalKernel {
       currentCycle: orderedCycles.find(cycle => !cycle.transition) ?? null,
       invocations,
       observations,
+      residentFailures,
       pendingObservations,
       effectiveGrants: [...effectiveGrants].sort(),
       grantHistory,
@@ -369,10 +375,17 @@ export class DevelopmentalKernel {
           const remaining = state.waitingUntil ? Date.parse(state.waitingUntil) - this.clock().getTime() : maximumSleepMs;
           await delay(Math.max(1, Math.min(remaining, maximumSleepMs)), signal);
         }
+        const priorHead = state.head;
         try { state = await this.advance({ lease: false }); }
         catch (error) {
           state = this.state();
           if (state.completed || signal?.aborted) continue;
+          if (state.head === priorHead) {
+            this.store.append('resident.failed', {
+              failure: { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384), retryable: false },
+            });
+            throw error;
+          }
           await delay(Math.min(state.spec.limits.residentRetryDelayMs, maximumSleepMs), signal);
         }
       }
@@ -427,6 +440,7 @@ export class DevelopmentalKernel {
       waitingUntil: state.waitingUntil,
       waitingForObservation: state.waitingForObservation,
       pendingObservations: state.pendingObservations.length,
+      residentFailures: state.residentFailures,
       effectiveGrants: state.effectiveGrants,
       hatched: state.hatched,
       cycles: state.cycles.map(cycle => ({

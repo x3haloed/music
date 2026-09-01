@@ -382,7 +382,7 @@ test('the first complete hosted-model consequence transition records one hatch e
   assert.equal(kernel.store.readEvents().filter(event => event.type === 'subject.hatched').length, 1);
 });
 
-test('a changed kernel implementation cannot advance a sealed run', async t => {
+test('a changed kernel implementation cannot advance and residence surfaces the permanent failure', async t => {
   const value = fixture();
   t.after(() => rmSync(value.parent, { recursive: true, force: true }));
   const first = new DevelopmentalKernel(value.root, { ...value, provenance: () => ({ implementationSha256: 'a'.repeat(64) }) });
@@ -390,6 +390,11 @@ test('a changed kernel implementation cannot advance a sealed run', async t => {
   const changed = new DevelopmentalKernel(value.root, { ...value, provenance: () => ({ implementationSha256: 'b'.repeat(64) }) });
   await assert.rejects(() => changed.advance(), /differs from sealed genesis provenance/);
   assert.equal(changed.state().subject.generation, 0);
+  await assert.rejects(() => changed.reside({ maximumSleepMs: 1 }), /differs from sealed genesis provenance/);
+  assert.equal(changed.state().residentFailures.length, 1);
+  assert.match(changed.state().residentFailures[0].failure.message, /differs from sealed genesis provenance/);
+  const recovered = new ResidentLease(value.root).acquire();
+  recovered.release();
 });
 
 test('run and step cannot advance while another resident owns the subject', async t => {
