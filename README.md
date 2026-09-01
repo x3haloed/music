@@ -63,11 +63,16 @@ should remain permanently immutable.
 Keep the checkout and the resident habitat separate. The checkout is replaceable
 software; the habitat is the subject's own lineage.
 
+Install only a clean commit that has already been pushed. This makes the
+resident's executable release exact and independently replaceable:
+
 ```sh
 npm ci
-npm link
-mkdir -p /absolute/path/to/music-habitat
-music init --habitat /absolute/path/to/music-habitat
+node bin/music-install-release.js /absolute/path/to/music-installations
+MUSIC_RELEASE=/absolute/path/to/music-installations/current
+MUSIC_HABITAT=/absolute/path/to/music-habitat
+node "$MUSIC_RELEASE/bin/music-habitat.js" create "$MUSIC_HABITAT"
+node "$MUSIC_RELEASE/bin/music-habitat.js" init "$MUSIC_HABITAT"
 ```
 
 The designation is generic by default. `--designation` is optional.
@@ -82,11 +87,12 @@ chmod 600 /absolute/path/to/openrouter.key
 Grant only the physical effects the machine owner intends to make available:
 
 ```sh
-music grant local.read --by "machine owner" --habitat /absolute/path/to/music-habitat
-music grant local.write --by "machine owner" --habitat /absolute/path/to/music-habitat
-music grant local.execute --by "machine owner" --habitat /absolute/path/to/music-habitat
-music grant network.fetch --by "machine owner" --habitat /absolute/path/to/music-habitat
-music grant message.send --by "machine owner" --habitat /absolute/path/to/music-habitat
+node "$MUSIC_RELEASE/bin/music-habitat.js" grant "$MUSIC_HABITAT" local.read --by "machine owner"
+node "$MUSIC_RELEASE/bin/music-habitat.js" grant "$MUSIC_HABITAT" local.write --by "machine owner"
+node "$MUSIC_RELEASE/bin/music-habitat.js" grant "$MUSIC_HABITAT" local.execute --by "machine owner"
+node "$MUSIC_RELEASE/bin/music-habitat.js" grant "$MUSIC_HABITAT" network.fetch --by "machine owner"
+node "$MUSIC_RELEASE/bin/music-habitat.js" grant "$MUSIC_HABITAT" message.send --by "machine owner"
+node "$MUSIC_RELEASE/bin/music-habitat.js" grant "$MUSIC_HABITAT" dependency.manage --by "machine owner"
 ```
 
 Grants are independently revocable with `music revoke CAPABILITY`. Granting a
@@ -97,26 +103,23 @@ capability does not instruct the subject to use it.
 Send ordinary world contact:
 
 ```sh
-music message \
+node "$MUSIC_RELEASE/bin/music-habitat.js" message "$MUSIC_HABITAT" \
   --from Chad \
-  --content "Hello." \
-  --habitat /absolute/path/to/music-habitat
+  --content "Hello."
 ```
 
 Run one complete opening:
 
 ```sh
-music step \
-  --key-file /absolute/path/to/openrouter.key \
-  --habitat /absolute/path/to/music-habitat
+node "$MUSIC_RELEASE/bin/music-habitat.js" step "$MUSIC_HABITAT" \
+  --key-file /absolute/path/to/openrouter.key
 ```
 
 Or keep recurrence alive:
 
 ```sh
-music run \
+node "$MUSIC_RELEASE/bin/music-habitat.js" reside "$MUSIC_HABITAT" \
   --key-file /absolute/path/to/openrouter.key \
-  --habitat /absolute/path/to/music-habitat \
   --minimum-cycle-ms 60000 \
   --continuity-ms 1800000
 ```
@@ -129,9 +132,9 @@ real opening with no hidden task injected into it.
 Inspect exact standing without invoking a model:
 
 ```sh
-music status --habitat /absolute/path/to/music-habitat
-music events --count 20 --habitat /absolute/path/to/music-habitat
-music outbox --habitat /absolute/path/to/music-habitat
+node "$MUSIC_RELEASE/bin/music-habitat.js" audit "$MUSIC_HABITAT"
+node "$MUSIC_RELEASE/bin/music-habitat.js" events "$MUSIC_HABITAT" --count 20
+node "$MUSIC_RELEASE/bin/music-habitat.js" outbox "$MUSIC_HABITAT"
 ```
 
 `outbox` exposes retained outbound messages for an external delivery adapter;
@@ -148,3 +151,5 @@ underdetermined transitions, tool failure retention, structural predicates,
 tool invention with real provisional execution, recurrence floors/ceilings,
 provider-output quarantine, and restart at retained phase boundaries.
 
+The complete hatch, contact, shutdown, snapshot, upgrade, and recovery runbook
+is [OPERATIONS.md](./OPERATIONS.md).
