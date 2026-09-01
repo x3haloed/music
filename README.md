@@ -194,6 +194,9 @@ no single future opening can end autonomous recurrence.
 Seed modules are dynamically loaded only by `music init`. Reconstructing an
 existing subject does not import `tools/`; a broken or deleted seed file cannot
 prevent an already-living subject from loading its ledger-retained machinery.
+A clean installed release may instead offer one seed to a stopped resident as
+inactive provisional development. The offer and one instruction-free contact
+fact are retained exactly; only the resident can trial and activate it.
 
 `manage_dependency` is ordinary revisable machinery too. It runs real npm—with
 normal lifecycle scripts and unrestricted network/process authority—inside the

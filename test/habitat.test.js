@@ -6,8 +6,9 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { canonical, digest } from '../src/canonical.js';
-import { createHabitat, defaultModelConfig, migrateHabitat, readHabitat, snapshotHabitat } from '../src/habitat.js';
+import { createHabitat, defaultModelConfig, migrateHabitat, offerSeedTool, readHabitat, snapshotHabitat } from '../src/habitat.js';
 import { MusicKernel } from '../src/kernel.js';
+import { initialTools } from '../src/seeds.js';
 
 const repository = resolve(import.meta.dirname, '..');
 
@@ -41,6 +42,32 @@ test('the habitat command initializes and audits one ledger without placing it i
   assert.equal(audit.status, 0, audit.stderr);
   assert.equal(JSON.parse(audit.stdout).subject.name, null);
   assert.notEqual(habitatCommand(['init', root, 'Another Resident']).status, 0);
+});
+
+test('a stopped habitat receives a seed tool as inactive exact contact, never silent activation', async () => {
+  const parent = mkdtempSync(join(tmpdir(), 'music-habitat-offer-'));
+  const habitat = createHabitat(join(parent, 'resident'));
+  const kernel = new MusicKernel(habitat.ledger);
+  kernel.initialize(null, initialTools().filter(tool => tool.id !== 'elect_trajectory'));
+  const release = {
+    commit: 'c'.repeat(40), version: '0.0.1', workingTreeClean: true,
+    workingTreeStateSha256: 'd'.repeat(64),
+  };
+
+  const offered = await offerSeedTool(habitat.root, 'elect_trajectory', { release });
+  const reconstructed = new MusicKernel(habitat.ledger);
+  assert.equal(offered.active, false);
+  assert.equal(reconstructed.state().tools.has('elect_trajectory'), false);
+  assert.equal(reconstructed.state().developmentalProposals.get(offered.proposalId).offer.release.commit, release.commit);
+  assert.deepEqual(reconstructed.state().pendingDeltas.map(delta => delta.id), [offered.contactDeltaId]);
+  assert.equal(reconstructed.state().pendingDeltas[0].payload.active, false);
+
+  const held = reconstructed.acquireWriter('fixture live resident');
+  try {
+    await assert.rejects(() => offerSeedTool(habitat.root, 'elect_trajectory', { release }), /writer lease is held/);
+  } finally {
+    held();
+  }
 });
 
 test('a habitat snapshot holds the writer authority and retains a digest inventory outside the resident world', async () => {

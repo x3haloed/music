@@ -6,6 +6,7 @@ import {
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { serializeCarrier } from './carrier.js';
 import { MusicKernel } from './kernel.js';
+import { toolModuleDigest } from './tool-module.js';
 
 export const MUSIC_HABITAT_FORMAT = 'music-habitat-1';
 const MARKER = 'habitat.json';
@@ -75,6 +76,70 @@ export function snapshotHabitat(rootArgument, backupRootArgument) {
     throw new Error(`habitat snapshot failed at ${target}: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     release();
+  }
+}
+
+export async function offerSeedTool(rootArgument, toolId, { release = null } = {}) {
+  const habitat = readHabitat(rootArgument);
+  if (!existsSync(habitat.ledger)) throw new Error(`habitat has not been initialized: ${habitat.root}`);
+  const kernel = new MusicKernel(habitat.ledger);
+  const releaseWriter = kernel.acquireWriter('seed tool developmental offer');
+  try {
+    const seed = (await import('./seeds.js')).initialTools().find(tool => tool.id === toolId);
+    if (!seed) throw new Error(`unknown seed tool: ${toolId}`);
+    let retainedRelease = release;
+    if (retainedRelease === null) {
+      const { createRuntimeProvenance } = await import('./runtime-provenance.js');
+      retainedRelease = createRuntimeProvenance(habitat.home, { mode: 'single-run' }).release;
+    }
+    const current = kernel.state().tools.get(seed.id);
+    const offeredTool = {
+      ...seed,
+      version: current ? current.version + 1 : 1,
+      parent: current ? toolModuleDigest(current) : null,
+    };
+    const offer = {
+      format: 'music-developmental-offer-1',
+      authority: 'release',
+      release: {
+        commit: retainedRelease.commit,
+        version: retainedRelease.version,
+        workingTreeClean: retainedRelease.workingTreeClean,
+        workingTreeStateSha256: retainedRelease.workingTreeStateSha256,
+      },
+      tool: { id: offeredTool.id, digest: toolModuleDigest(offeredTool) },
+    };
+    const proposal = kernel.offerToolProposal({
+      interpretation: `Release ${offer.release.commit} makes seed tool ${seed.id} available as inactive provisional machinery. The resident alone may inspect, trial, admit, deny, defer, contradict, or retire it.`,
+      evidence: [
+        `release:${offer.release.commit}`,
+        `seed-tool:${seed.id}:${offer.tool.digest}`,
+      ],
+      tool: offeredTool,
+    }, offer);
+    kernel.admitDelta({
+      authority: 'world',
+      id: `developmental-offer-${proposal.proposalId}`,
+      stream: 'release-development',
+      at: proposal.authoredAt,
+      payload: {
+        format: 'music-developmental-offer-contact-1',
+        proposalId: proposal.proposalId,
+        tool: { id: proposal.revision.tool.id, version: proposal.revision.tool.version, digest: toolModuleDigest(proposal.revision.tool) },
+        release: structuredClone(offer.release),
+        active: false,
+      },
+    });
+    return {
+      habitat: habitat.root,
+      proposalId: proposal.proposalId,
+      tool: structuredClone(proposal.revision.tool),
+      offer: structuredClone(offer),
+      contactDeltaId: `developmental-offer-${proposal.proposalId}`,
+      active: false,
+    };
+  } finally {
+    releaseWriter();
   }
 }
 

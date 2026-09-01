@@ -320,6 +320,67 @@ export class MusicKernel {
     return { proposalId, kind: 'tool', status: 'authored', revision: structuredClone(revision) };
   }
 
+  offerToolProposal(proposal, offer) {
+    const state = this.state();
+    requireSubject(state);
+    if (state.activeInferenceId || state.openSoundingId) {
+      throw new Error('developmental machinery can be offered only between encounters');
+    }
+    const interpretation = typeof proposal?.interpretation === 'string' ? proposal.interpretation.trim() : '';
+    if (!interpretation || interpretation.length > 4_096) throw new Error('proposal offer needs a bounded interpretation');
+    const requested = proposal?.tool;
+    const current = state.tools.get(requested?.id);
+    const tool = validateToolModule({
+      ...requested,
+      version: current ? current.version + 1 : 1,
+      parent: current ? toolModuleDigest(current) : null,
+    });
+    if (RESERVED_TOOL_IDS.has(tool.id)) throw new Error(`${tool.id} is reserved by the continuity kernel`);
+    const pendingDuplicate = [...state.developmentalProposals.values()].find(candidate =>
+      candidate.kind === 'tool'
+      && !['denied', 'contradicted', 'retired', 'admitted', 'rolled-back'].includes(candidate.status)
+      && candidate.revision.tool.id === tool.id);
+    if (pendingDuplicate) throw new Error(`tool ${tool.id} already has active proposal ${pendingDuplicate.proposalId}`);
+    if (current && digest(projectToolBody(current)) === digest(projectToolBody(tool))) {
+      throw new Error(`tool ${tool.id} already has the offered executable body`);
+    }
+    const pendingNewTools = [...state.developmentalProposals.values()]
+      .filter(candidate => candidate.kind === 'tool' && candidate.status !== 'denied'
+        && candidate.status !== 'contradicted' && candidate.status !== 'retired'
+        && candidate.revision.previousTool === null).length;
+    if (!current && state.tools.size + pendingNewTools >= MAX_TOOLS) throw new Error(`tool limit ${MAX_TOOLS} reached`);
+    assertProspectiveGeometryFits(state, { tool });
+    const retainedOffer = validateDevelopmentalOffer(offer, tool);
+    const proposalId = this.id();
+    const authoredAt = this.clock().toISOString();
+    const revision = {
+      inferenceId: null,
+      soundingId: null,
+      projection: null,
+      interpretation,
+      evidence: boundedEvidence(proposal.evidence),
+      consequences: [],
+      previousTool: current ? toolModuleDigest(current) : null,
+      tool,
+      rollbackOf: null,
+    };
+    this.append('developmental_proposal_offered', {
+      proposalId,
+      kind: 'tool',
+      authoredAt,
+      offer: retainedOffer,
+      revision,
+      position: developmentalStandingSuccessor(state, {
+        kind: 'proposal-offered', proposalId, proposalKind: 'tool',
+        revisionDigest: digest(revision), offerDigest: digest(retainedOffer),
+      }),
+    });
+    return {
+      proposalId, kind: 'tool', status: 'authored', authoredAt,
+      offer: structuredClone(retainedOffer), revision: structuredClone(revision),
+    };
+  }
+
   authorToolRollbackProposal(inferenceId, soundingId, toolId, targetDigest, proposal = {}) {
     const state = this.state();
     requireActiveEncounter(state, inferenceId, soundingId);
@@ -1474,6 +1535,38 @@ function reduceEvents(events) {
         state.position = expectedPosition;
         break;
       }
+      case 'developmental_proposal_offered': {
+        requireSubject(state);
+        if (state.activeInferenceId || state.openSoundingId) {
+          throw new Error('developmental proposal offer overlaps an encounter');
+        }
+        if (typeof event.payload.proposalId !== 'string' || !event.payload.proposalId.trim()
+          || event.payload.proposalId.length > 128
+          || typeof event.payload.authoredAt !== 'string' || Number.isNaN(Date.parse(event.payload.authoredAt))) {
+          throw new Error('developmental proposal offer needs bounded identity and time');
+        }
+        if (state.developmentalProposals.has(event.payload.proposalId)) throw new Error('duplicate developmental proposal id');
+        if (event.payload.kind !== 'tool') throw new Error('unsupported developmental proposal offer kind');
+        const revision = validateOfferedRevision(event.payload.revision, state);
+        const offer = validateDevelopmentalOffer(event.payload.offer, revision.tool);
+        const expectedPosition = developmentalStandingSuccessor(state, {
+          kind: 'proposal-offered', proposalId: event.payload.proposalId,
+          proposalKind: 'tool', revisionDigest: digest(revision), offerDigest: digest(offer),
+        });
+        if (digest(event.payload.position) !== digest(expectedPosition)) throw new Error('proposal offer position mismatch');
+        state.developmentalProposals.set(event.payload.proposalId, {
+          proposalId: event.payload.proposalId,
+          kind: 'tool',
+          authoredAt: event.payload.authoredAt,
+          status: 'authored',
+          offer,
+          revision,
+          trials: [],
+          standing: [],
+        });
+        state.position = expectedPosition;
+        break;
+      }
       case 'developmental_trial_started': {
         const encounter = requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         const proposal = state.developmentalProposals.get(event.payload.proposalId);
@@ -2232,6 +2325,7 @@ function projectDevelopmentalProposal(proposal, includeSource) {
     status: proposal.status,
     trials: structuredClone(proposal.trials),
     standing: structuredClone(proposal.standing),
+    ...(proposal.offer === undefined ? {} : { offer: structuredClone(proposal.offer) }),
   };
   if (proposal.kind === 'tool') {
     const revision = proposal.revision;
@@ -2289,6 +2383,7 @@ function projectDevelopmentalFrontierProposal(proposal) {
       ? proposal.revision.interpretation : proposal.transition.interpretation,
     latestTrial: latestTrial === null ? null : structuredClone(latestTrial),
     admissionEligible: proposal.trials.some(trial => trial.status === 'completed'),
+    ...(proposal.offer === undefined ? {} : { offer: structuredClone(proposal.offer) }),
   };
   return proposal.kind === 'tool'
     ? {
@@ -3347,6 +3442,62 @@ function validateStagedRevision(payload, state) {
     tool,
     rollbackOf,
   };
+}
+
+function validateOfferedRevision(payload, state) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('developmental offer lacks a tool revision');
+  }
+  const tool = validateToolModule(payload.tool);
+  if (RESERVED_TOOL_IDS.has(tool.id)) throw new Error(`${tool.id} is reserved by the continuity kernel`);
+  const current = state.tools.get(tool.id);
+  const previousTool = current ? toolModuleDigest(current) : null;
+  if (payload.previousTool !== previousTool) throw new Error('offered tool revision ancestry mismatch');
+  if (current && (tool.version !== current.version + 1 || tool.parent !== previousTool)) {
+    throw new Error('offered tool revision does not succeed the active geometry');
+  }
+  if (!current && (tool.version !== 1 || tool.parent !== null)) throw new Error('offered new tool has invalid ancestry');
+  if (payload.inferenceId !== null || payload.soundingId !== null || payload.projection !== null) {
+    throw new Error('release-offered machinery cannot claim resident inference authorship');
+  }
+  if (payload.rollbackOf !== null) throw new Error('release-offered machinery cannot claim resident rollback authorship');
+  const interpretation = typeof payload.interpretation === 'string' ? payload.interpretation.trim() : '';
+  if (!interpretation || interpretation.length > 4_096) throw new Error('offered revision needs a bounded interpretation');
+  if (!Array.isArray(payload.consequences) || payload.consequences.length !== 0) {
+    throw new Error('release-offered machinery cannot claim resident consequence lineage');
+  }
+  return {
+    inferenceId: null,
+    soundingId: null,
+    projection: null,
+    interpretation,
+    evidence: boundedEvidence(payload.evidence),
+    consequences: [],
+    previousTool,
+    tool,
+    rollbackOf: null,
+  };
+}
+
+function validateDevelopmentalOffer(value, tool) {
+  const offer = jsonValue(value, 'developmental offer provenance');
+  if (!offer || typeof offer !== 'object' || Array.isArray(offer)
+    || offer.format !== 'music-developmental-offer-1'
+    || offer.authority !== 'release'
+    || !offer.release || typeof offer.release !== 'object' || Array.isArray(offer.release)
+    || typeof offer.release.commit !== 'string' || !/^[a-f0-9]{40,64}$/.test(offer.release.commit)
+    || typeof offer.release.version !== 'string' || !offer.release.version.trim() || offer.release.version.length > 128
+    || offer.release.workingTreeClean !== true
+    || typeof offer.release.workingTreeStateSha256 !== 'string'
+    || !/^[a-f0-9]{64}$/.test(offer.release.workingTreeStateSha256)
+    || !offer.tool || typeof offer.tool !== 'object' || Array.isArray(offer.tool)
+    || offer.tool.id !== tool.id || offer.tool.digest !== toolModuleDigest(tool)
+    || Object.keys(offer).some(key => !['format', 'authority', 'release', 'tool'].includes(key))
+    || Object.keys(offer.release).some(key => !['commit', 'version', 'workingTreeClean', 'workingTreeStateSha256'].includes(key))
+    || Object.keys(offer.tool).some(key => !['id', 'digest'].includes(key))) {
+    throw new Error('invalid developmental offer provenance');
+  }
+  return offer;
 }
 
 function validateInitialTools(tools) {

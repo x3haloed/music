@@ -129,6 +129,14 @@ reconstructs those retained lives or an explicit migration path is designed and
 reviewed. The fixtures are synthetic witnesses, never copies of the actual
 resident.
 
+Release upgrades likewise do not silently import new seed tools into a living
+subject. If a new causal path depends on an absent ordinary tool, a stopped
+habitat may receive that exact clean-release seed as an inactive
+`music-developmental-offer-1` proposal plus a world-contact fact. The offer
+changes the visible developmental frontier, not active tool geometry. Trial and
+admission remain acts of the one resident mind after restart; exact provenance
+prevents the release offer from being mistaken for resident authorship.
+
 ## Stable boundary
 
 The bootstrap currently owns only the irreducible continuity and mutation path:
@@ -219,6 +227,13 @@ edge to `tools/`: `music init` dynamically loads [`src/seeds.js`](./src/seeds.js
 while reconstruction of an existing subject loads its complete active modules
 from the ledger. An obsolete or broken seed implementation therefore cannot
 strand a living identity.
+
+A stopped existing resident can receive a missing or changed release seed only
+as an exact inactive developmental offer. `music-habitat offer-seed-tool` binds
+the clean release and tool digest, appends the proposal to the developmental
+frontier, and adds one instruction-free world fact announcing its availability.
+It does not activate the tool. The resident retains sole authority to inspect,
+trial, admit, deny, defer, contradict, or retire the offered machinery.
 
 Retained tool `source` is the body of an async function, not a complete function
 declaration: it receives `input` and `context` directly and must return a JSON

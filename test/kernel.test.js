@@ -1197,6 +1197,57 @@ test('format-12 reconstruction preserves the earlier optional heartbeat opportun
   );
 });
 
+test('a release can offer missing recurrence machinery without activating it for the resident', async () => {
+  const seeds = initialTools();
+  const selector = seeds.find(tool => tool.id === 'elect_trajectory');
+  const { kernel } = harness({}, seeds.filter(tool => tool.id !== 'elect_trajectory'));
+  const offered = kernel.offerToolProposal({
+    interpretation: 'Make the absent selector available for resident judgment without installing it.',
+    evidence: ['release:test'],
+    tool: selector,
+  }, {
+    format: 'music-developmental-offer-1',
+    authority: 'release',
+    release: {
+      commit: 'a'.repeat(40), version: '0.0.1', workingTreeClean: true,
+      workingTreeStateSha256: 'b'.repeat(64),
+    },
+    tool: { id: selector.id, digest: toolModuleDigest(selector) },
+  });
+
+  assert.equal(kernel.state().tools.has('elect_trajectory'), false);
+  const offeredState = kernel.state().developmentalProposals.get(offered.proposalId);
+  assert.equal(offeredState.status, 'authored');
+  assert.equal(offeredState.offer.authority, 'release');
+  const offeredSounding = kernel.openSounding('manual');
+  assert.equal(offeredSounding.development.proposals[0].offer.authority, 'release');
+  const offeredInference = begin(kernel, offeredSounding.id);
+  complete(kernel, offeredInference);
+
+  await exerciseAndAdmitProposal(kernel, offered.proposalId, {
+    candidates: [
+      {
+        id: 'quiet', description: 'Remain quiet.', action: { kind: 'quiet' },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 1, actionableRegret: 0, basis: 'Quiet wins this bounded trial.',
+        },
+      },
+      {
+        id: 'inspect', description: 'Inspect a retained file.',
+        action: { kind: 'tool', tool: 'read_file', input: { path: kernel.ledgerPath, limit: 1 } },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 0, actionableRegret: 0, basis: 'The trial retains an executable alternative.',
+        },
+      },
+    ],
+  });
+
+  assert.equal(kernel.state().tools.has('elect_trajectory'), true);
+  assert.equal(kernel.openSounding('heartbeat').trajectoryElection.entry, 'required');
+});
+
 test('recurrence cannot complete by bypassing election or offering only quiet narration', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding('heartbeat');

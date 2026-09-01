@@ -61,11 +61,17 @@ design unless later observation demonstrates that it is absolutely necessary.
 - **A live unresolved opening must be able to enter resident-owned selection
   without first depending on a fresh model encounter to volunteer that anything
   should happen.**
-  **Evidence:** The first resident received repeated instruction-free election
-  opportunities but invoked none, classified the empty world as requiring
-  nothing, and continued passive polling. OT-0120 through OT-0124 instead place
-  the retained executable selector in the causal path before the next world
-  surface opens.
+  **Evidence:** The first resident classified the empty world as requiring
+  nothing and continued passive polling; because it predated the selector seed,
+  no executable election machinery entered that live path at all. OT-0120
+  through OT-0124 instead place the retained executable selector in the causal
+  path before the next world surface opens.
+- **Release evolution may offer missing plastic machinery to a living subject,
+  but may not silently activate it or misattribute its authorship.**
+  **Evidence:** The first resident predates `elect_trajectory`, and correct seed
+  isolation left that tool absent after later release upgrades. A clean release
+  can now append an exact inactive proposal and instruction-free contact fact;
+  only the resident can trial and admit or reject that machinery.
 
 - **World consequence remains distinguishable from the subject's interpretation
   of it.**
@@ -326,10 +332,18 @@ cost $0.00097172 total.
 
 ## Prediction errors
 
-- The optional instruction-free election opportunity did not become an
-  expansion gradient. The live resident bypassed it in every observed
-  recurrence and all ordinary actions remained ad hoc. The unresolved question
-  is now narrower: once entry into election is structural, how much candidate
+- The first resident had no retained `elect_trajectory` tool. Earlier audits of
+  zero selector use were therefore not evidence that it repeatedly declined an
+  available election opportunity: the opportunity constructor correctly
+  returned nothing because the living subject predated that seed. Required
+  pre-deliberative entry now has a stopped-resident offer path that preserves
+  both seed isolation and resident admission authority.
+
+- The optional instruction-free election design did not become an expansion
+  gradient in the live resident: the living ledger contained no selector, so it
+  exposed no actual opportunity and all ordinary actions remained ad hoc. The
+  unresolved question is now narrower: after the resident chooses whether to
+  admit the offered selector and entry becomes structural, how much candidate
   generation should remain fresh same-mind inference versus retained executable
   contact-generation machinery.
 
