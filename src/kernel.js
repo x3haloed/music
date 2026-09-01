@@ -1199,7 +1199,7 @@ export class MusicKernel {
       selections: state.selectionCount,
       developmentalReviews: state.developmentalReviewIds.size,
       trajectoryElections: state.trajectoryElectionIds.size,
-      activeTrajectory: structuredClone([...state.trajectoryElections.values()].at(-1) ?? null),
+      activeTrajectory: structuredClone(state.currentTrajectory),
       electedActions: state.usedTrajectoryElectionIds.size,
       adHocActions: [...state.invocationHistory.values()]
         .filter(invocation => invocation.trajectoryBasis?.kind === 'ad-hoc').length,
@@ -1309,6 +1309,7 @@ function reduceEvents(events) {
     developmentalReviewIds: new Set(),
     developmentalReviewInvocationIds: new Set(),
     trajectoryElections: new Map(),
+    currentTrajectory: null,
     trajectoryElectionIds: new Set(),
     trajectoryElectionInvocationIds: new Set(),
     usedTrajectoryElectionIds: new Set(),
@@ -1827,7 +1828,7 @@ function reduceEvents(events) {
         }
         state.trajectoryElectionIds.add(event.payload.electionId);
         state.trajectoryElectionInvocationIds.add(event.payload.invocationId);
-        state.trajectoryElections.set(event.payload.electionId, {
+        const retainedElection = {
           electionId: event.payload.electionId,
           inferenceId: event.payload.inferenceId,
           soundingId: event.payload.soundingId,
@@ -1839,7 +1840,9 @@ function reduceEvents(events) {
             ? {}
             : { floorGrounding: structuredClone(event.payload.floorGrounding) }),
           ...election,
-        });
+        };
+        state.trajectoryElections.set(event.payload.electionId, retainedElection);
+        state.currentTrajectory = structuredClone(retainedElection);
         break;
       }
       case 'developmental_review_recorded': {
@@ -3065,7 +3068,7 @@ function trajectoryElectionOpportunity(state, trigger) {
     || (state.consequences instanceof Map && projectUnresolvedConsequences(state).length > 0)) return {};
   const selector = state.tools.get(TRAJECTORY_ELECTION_TOOL_ID);
   const reviewer = state.tools.get(DEVELOPMENTAL_REVIEW_TOOL_ID);
-  if (!selector || !reviewer) return {};
+  if (!supportsStructuredRecurrenceOrgan(reviewer, selector)) return {};
   return {
     trajectoryElection: {
       format: 'music-trajectory-election-opportunity-2',
@@ -3090,6 +3093,19 @@ function trajectoryElectionOpportunity(state, trigger) {
       },
     },
   };
+}
+
+function supportsStructuredRecurrenceOrgan(reviewer, selector) {
+  const reviewProperties = reviewer?.inputSchema?.properties;
+  const selectorProperties = selector?.inputSchema?.properties;
+  return Boolean(
+    reviewer && selector
+    && reviewProperties?.findings?.type === 'array'
+    && reviewProperties?.candidates?.type === 'array'
+    && selectorProperties?.reviewId?.type === 'string'
+    && selectorProperties?.assessments?.type === 'array'
+    && selectorProperties?.trajectory?.type === 'object',
+  );
 }
 
 // Event format 12 already contains the earlier, optional heartbeat opportunity.

@@ -1137,6 +1137,8 @@ test('instruction-free recurrence retains one plastic trajectory election throug
   const reconstructed = new MusicKernel(join(root, 'events.jsonl'));
   assert.equal(reconstructed.state().trajectoryElections.get(electionId).selected.id, 'compose_and_return');
   assert.equal(reconstructed.audit().trajectoryElections, 1);
+  assert.equal(reconstructed.audit().activeTrajectory.reviewId, elected.reviewId);
+  assert.equal(reconstructed.audit().activeTrajectory.trajectory.objective, elected.trajectory.objective);
   assert.equal(reconstructed.audit().electedActions, 1);
   const actionInvocationId = kernel.state().invocations.find(invocation => invocation.tool.id === 'schedule_wake').invocationId;
   const actionInvocation = reconstructed.state().invocationHistory.get(actionInvocationId);
@@ -1248,6 +1250,22 @@ test('a release can offer missing recurrence machinery without activating it for
 
   assert.equal(kernel.state().tools.has('elect_trajectory'), true);
   assert.equal(kernel.openSounding('heartbeat').trajectoryElection.entry, 'required');
+});
+
+test('a newly admitted reviewer does not deadlock recurrence against an incompatible retained selector', () => {
+  const tools = initialTools().map(tool => tool.id === 'elect_trajectory' ? {
+    ...tool,
+    inputSchema: {
+      type: 'object',
+      properties: { candidates: { type: 'array', minItems: 2, maxItems: 16, items: { type: 'object', additionalProperties: true } } },
+      required: ['candidates'], additionalProperties: false,
+    },
+  } : tool);
+  const { kernel } = harness({}, tools);
+
+  const sounding = kernel.openSounding('heartbeat');
+
+  assert.equal(sounding.trajectoryElection, undefined);
 });
 
 test('recurrence cannot complete by bypassing structured review and election or offering only quiet narration', async () => {
