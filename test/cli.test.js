@@ -1,33 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { resolve } from 'node:path';
 
-const cli = new URL('../src/cli.js', import.meta.url).pathname;
+const root = resolve(import.meta.dirname, '..');
 
-test('CLI keeps governance control distinct from exact inbox observation', t => {
-  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-cli-'));
-  t.after(() => rmSync(habitat, { recursive: true, force: true }));
-  const run = args => JSON.parse(execFileSync(process.execPath, [cli, ...args, '--habitat', habitat], { encoding: 'utf8' }));
-  const initialized = run(['init']);
-  assert.equal(initialized.subject.designation, null);
-  const grant = run(['grant', 'local.read', '--by', 'Chad acting as machine owner']);
-  assert.equal(grant.active, true);
-  const message = run(['message', '--from', 'Chad', '--content', 'Please inspect something.']);
-  assert.equal(message.content, 'Please inspect something.');
-  const status = run(['status']);
-  assert.equal(status.observations, 1);
-  assert.equal(status.grants[0].capability, 'local.read');
-  assert.equal(status.grants[0].grantedBy, 'Chad acting as machine owner');
-});
-
-test('CLI refuses an unapproved model before inference', t => {
-  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-cli-model-'));
-  t.after(() => rmSync(habitat, { recursive: true, force: true }));
-  execFileSync(process.execPath, [cli, 'init', '--habitat', habitat]);
-  assert.throws(() => execFileSync(process.execPath, [cli, 'step', '--model', 'anthropic/expensive', '--habitat', habitat], {
-    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-  }), error => error.stderr.includes('permits only z-ai/glm-5.3-flash'));
+test('doctor and template expose an executable sealed envelope', () => {
+  const doctor = JSON.parse(execFileSync(process.execPath, ['bin/music-doctor.js'], { cwd: root, encoding: 'utf8' }));
+  assert.equal(doctor.ready, true);
+  const worlds = JSON.parse(execFileSync(process.execPath, ['src/cli.js', 'worlds'], { cwd: root, encoding: 'utf8' }));
+  assert.ok(worlds.some(value => value.id === 'http-json' && /^[a-f0-9]{64}$/.test(value.identity)));
+  const template = JSON.parse(execFileSync(process.execPath, ['src/cli.js', 'template', 'http-json'], { cwd: root, encoding: 'utf8' }));
+  assert.equal(template.format, 'music-v3-run-spec-1');
+  assert.equal(template.worlds[0].adapterIdentity, worlds.find(value => value.id === 'http-json').identity);
 });

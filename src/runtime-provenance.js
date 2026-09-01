@@ -1,38 +1,42 @@
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { digest } from './canonical.js';
 
-export function runtimeProvenance(habitat, mode) {
-  const releaseRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-  const pkg = JSON.parse(readFileSync(resolve(releaseRoot, 'package.json'), 'utf8'));
-  const commit = git(releaseRoot, ['rev-parse', 'HEAD'], null);
-  const status = git(releaseRoot, ['status', '--porcelain', '--untracked-files=all'], '');
-  return {
-    kind: 'runtime.started',
-    mode,
-    habitat: resolve(habitat),
-    release: {
-      root: releaseRoot,
-      version: pkg.version,
-      commit: commit?.trim() || null,
-      workingTreeClean: status === '',
-      workingTreeStateSha256: createHash('sha256').update(status ?? 'not-a-git-checkout').digest('hex'),
-    },
-    runtime: {
-      node: process.version,
-      platform: process.platform,
-      architecture: process.arch,
-      pid: process.pid,
-    },
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const implementationFiles = [
+  'src/actor.js',
+  'src/builtin-worlds.js',
+  'src/canonical.js',
+  'src/constitution.js',
+  'src/kernel.js',
+  'src/predicate.js',
+  'src/protocol.js',
+  'src/residency.js',
+  'src/runtime-provenance.js',
+  'src/store.js',
+  'src/subject.js',
+  'src/world.js',
+];
+
+export function runtimeProvenance() {
+  const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
+  const sources = Object.fromEntries(implementationFiles.map(path => [path, sha256(readFileSync(resolve(root, path)))]));
+  const lockPath = resolve(root, 'package-lock.json');
+  const implementation = {
+    packageVersion: pkg.version,
+    sources,
+    dependencyLockSha256: existsSync(lockPath) ? sha256(readFileSync(lockPath)) : null,
   };
+  const body = {
+    format: 'music-v3-runtime-provenance-1',
+    node: process.version,
+    ...implementation,
+  };
+  return { ...body, implementationSha256: digest(implementation) };
 }
 
-function git(root, args, fallback) {
-  try {
-    return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  } catch {
-    return fallback;
-  }
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
 }

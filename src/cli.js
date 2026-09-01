@@ -1,235 +1,226 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import process from 'node:process';
-import { DevelopmentalOrgan } from './organ.js';
-import { MusicKernel } from './kernel.js';
-import { DEFAULT_MODEL, PerspectiveEngine } from './perspective.js';
-import { nextEncounterAt, retainedFailureBackoff } from './recurrence.js';
-import { readHabitat } from './habitat.js';
-import { runtimeProvenance } from './runtime-provenance.js';
-import { archiveOutboundMessage, drainInboundMessages, pendingOutboundMessages, submitInboundMessage } from './mailbox.js';
-import { acquireResidentLease, releaseResidentLease } from './resident-lease.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { isAbsolute, resolve } from 'node:path';
+import { CodexExecActor, OpenRouterActor } from './actor.js';
+import { builtinWorlds } from './builtin-worlds.js';
+import { DevelopmentalKernel } from './kernel.js';
+import { RunSpecSchema } from './protocol.js';
+import { runRehearsal } from './rehearsal.js';
 
-const { command, options, positionals } = parse(process.argv.slice(2));
+const [command = 'help', ...args] = process.argv.slice(2);
 
 try {
-  const habitat = resolve(options.habitat ?? process.env.MUSIC_HABITAT ?? '');
-  if (!options.habitat && !process.env.MUSIC_HABITAT) {
-    throw new Error('set MUSIC_HABITAT or pass --habitat');
-  }
-  if (existsSync(join(habitat, 'habitat.json'))) process.chdir(readHabitat(habitat).home);
-  const kernel = new MusicKernel(habitat);
-  const preparedHabitat = existsSync(join(habitat, 'habitat.json'));
-  if (command === 'init') {
-    const state = kernel.initialize(options.designation ?? null);
-    print({ subject: state.subject, position: state.position.id, habitat });
-  } else if (command === 'grant' || command === 'revoke') {
-    const capability = positionals[0];
-    if (!capability) throw new Error(`${command} requires a capability`);
-    const grants = kernel.governance.set(capability, command === 'grant', options.by ?? 'local operator');
-    print(grants.find(grant => grant.capability === capability));
-  } else if (command === 'message') {
-    const content = options.content ?? (options.stdin ? readFileSync(0, 'utf8') : null);
-    if (preparedHabitat) {
-      if (!kernel.state().subject) throw new Error('initialize the habitat first');
-      print(submitInboundMessage(habitat, {
-        sender: options.from, recipient: options.to ?? 'the entity', channel: options.channel ?? 'inbox',
-        content, authentication: options.authentication ?? null,
-      }));
-    } else {
-      print(kernel.receiveMessage({
-        sender: options.from, recipient: options.to ?? 'the entity', channel: options.channel ?? 'inbox',
-        content, authentication: options.authentication ?? null,
-      }));
-    }
-  } else if (command === 'observe') {
-    const value = JSON.parse(options.json ?? readFileSync(0, 'utf8'));
-    print(kernel.receiveObservation(value));
-  } else if (command === 'status') {
-    print(projectStatus(kernel.state(), kernel.governance.read()));
-  } else if (command === 'events') {
-    const count = Number(options.count ?? 20);
-    print(kernel.ledger.read().slice(-count));
-  } else if (command === 'outbox') {
-    print(preparedHabitat
-      ? pendingOutboundMessages(habitat).map(value => value.message)
-      : kernel.state().observations.filter(value => value.kind === 'message.outbound'));
-  } else if (command === 'ack') {
-    if (!preparedHabitat) throw new Error('ack requires a prepared habitat');
-    const messageId = positionals[0];
-    const selected = pendingOutboundMessages(habitat).find(value => value.message.messageId === messageId);
-    if (!selected) throw new Error(`unknown pending outbound message: ${messageId}`);
-    print({ messageId, archived: archiveOutboundMessage(habitat, selected.path) });
-  } else if (command === 'step') {
-    const lease = preparedHabitat ? acquireResidentLease(habitat, 'single-opening') : null;
-    try {
-      kernel.receiveObservation(runtimeProvenance(habitat, 'single-opening'));
-      print(await step(kernel, options));
-    } finally {
-      if (lease) releaseResidentLease(lease);
-    }
-  } else if (command === 'run') {
-    const lease = preparedHabitat ? acquireResidentLease(habitat, 'resident') : null;
-    try {
-      kernel.receiveObservation(runtimeProvenance(habitat, 'resident'));
-      await run(kernel, options);
-    } finally {
-      if (lease) releaseResidentLease(lease);
-    }
-  } else {
-    usage(command ? `unknown command: ${command}` : null);
-  }
+  if (command === 'init') await initialize(args);
+  else if (command === 'continue') await continueRun(args);
+  else if (command === 'hatch') await hatch(args);
+  else if (command === 'run') await run(args);
+  else if (command === 'reside') await reside(args);
+  else if (command === 'step') await step(args);
+  else if (command === 'audit') audit(args);
+  else if (command === 'snapshot') snapshot(args);
+  else if (command === 'observe') observe(args);
+  else if (command === 'grant') grant(args, true);
+  else if (command === 'revoke') grant(args, false);
+  else if (command === 'rehearse') await rehearse(args);
+  else if (command === 'worlds') worlds();
+  else if (command === 'template') template(args);
+  else if (command === 'help' || command === '--help' || command === '-h') help();
+  else throw new Error(`unknown command: ${command}`);
 } catch (error) {
-  process.stderr.write(`${error?.stack ?? error}\n`);
+  process.stderr.write(`music: ${error.message}\n`);
   process.exitCode = 1;
 }
 
-async function step(kernel, options) {
-  const state = kernel.state();
-  if (!state.subject) throw new Error('initialize the habitat first');
-  kernel.recoverInterruptedPerspectives();
-  const engine = new PerspectiveEngine(kernel, inferenceOptions(options));
-  const result = await new DevelopmentalOrgan(kernel, engine).open();
-  return {
-    wager: result.election?.output.selectedWagerId ?? result.wagerId,
-    outcome: result.realized.evaluation.kind,
-    position: (result.position ?? result.realized.position)?.id ?? kernel.state().position.id,
-    generation: kernel.state().position.generation,
-    assimilation: result.assimilation ? result.assimilation.output.disposition : null,
-  };
+async function initialize([rootArg, specArg, condition = 'active']) {
+  requireArgs(rootArg, specArg);
+  const root = absolute(rootArg);
+  const spec = RunSpecSchema.parse(JSON.parse(readFileSync(absolute(specArg), 'utf8')));
+  const worlds = builtinWorlds();
+  const actor = actorFor(spec);
+  const kernel = new DevelopmentalKernel(root, { actor, worlds });
+  const state = kernel.initialize(spec, { condition });
+  output({ runId: state.runId, specId: spec.id, condition, subjectId: state.subject.id, root });
 }
 
-async function run(kernel, options) {
-  const continuityMs = integerOption(options.continuityMs ?? process.env.MUSIC_CONTINUITY_MS ?? 30 * 60 * 1000, 1_000, 24 * 60 * 60 * 1000, 'continuityMs');
-  const minimumCycleMs = integerOption(options.minimumCycleMs ?? process.env.MUSIC_MINIMUM_CYCLE_MS ?? 60_000, 0, continuityMs, 'minimumCycleMs');
-  const pollMs = integerOption(options.pollMs ?? process.env.MUSIC_POLL_MS ?? 250, 50, 60_000, 'pollMs');
-  const failureBackoffMs = integerOption(options.failureBackoffMs ?? process.env.MUSIC_FAILURE_BACKOFF_MS ?? 5_000, 100, 60 * 60_000, 'failureBackoffMs');
-  const maximumFailureBackoffMs = integerOption(options.maximumFailureBackoffMs ?? process.env.MUSIC_MAXIMUM_FAILURE_BACKOFF_MS ?? 5 * 60_000, failureBackoffMs, 24 * 60 * 60_000, 'maximumFailureBackoffMs');
-  let stopping = false;
-  let lastEncounterAt = null;
-  const stop = () => { stopping = true; };
+async function continueRun([rootArg, specArg, priorRootArg, condition = 'active']) {
+  requireArgs(rootArg, specArg, priorRootArg);
+  const root = absolute(rootArg);
+  const prior = new DevelopmentalKernel(absolute(priorRootArg)).state();
+  if (!prior.initialized) throw new Error('predecessor run is not initialized');
+  if (prior.subject.continuation.kind === 'stop') throw new Error('predecessor subject chose closure');
+  const spec = RunSpecSchema.parse(JSON.parse(readFileSync(absolute(specArg), 'utf8')));
+  if (spec.inheritedSubjectId !== prior.subject.id) throw new Error('successor spec does not bind the predecessor subject id');
+  const kernel = new DevelopmentalKernel(root, { actor: actorFor(spec), worlds: builtinWorlds() });
+  const state = kernel.initialize(spec, {
+    condition,
+    inheritedSubject: prior.subject,
+    predecessor: { runId: prior.runId, head: prior.head, subjectId: prior.subject.id },
+  });
+  output({ runId: state.runId, specId: spec.id, condition, subjectId: state.subject.id, predecessor: state.predecessor, root });
+}
+
+async function hatch([rootArg, specArg, condition = 'active']) {
+  requireArgs(rootArg, specArg);
+  const root = absolute(rootArg);
+  const spec = RunSpecSchema.parse(JSON.parse(readFileSync(absolute(specArg), 'utf8')));
+  if (!['openrouter', 'codex-exec'].includes(spec.actor.adapter)) throw new Error('a hatch requires a hosted LLM actor');
+  const kernel = new DevelopmentalKernel(root, { actor: actorFor(spec), worlds: builtinWorlds() });
+  kernel.initialize(spec, { condition });
+  const controller = residentController();
+  try { await kernel.reside({ signal: controller.signal }); }
+  catch (error) { if (!controller.signal.aborted) throw error; }
+  output(kernel.audit());
+}
+
+async function run([rootArg]) {
+  requireArgs(rootArg);
+  const kernel = runtime(absolute(rootArg));
+  await kernel.run();
+  output(kernel.audit());
+}
+
+async function step([rootArg]) {
+  requireArgs(rootArg);
+  const kernel = runtime(absolute(rootArg));
+  await kernel.advance();
+  output(kernel.audit());
+}
+
+async function reside([rootArg]) {
+  requireArgs(rootArg);
+  const kernel = runtime(absolute(rootArg));
+  const controller = residentController();
+  try { await kernel.reside({ signal: controller.signal }); }
+  catch (error) { if (!controller.signal.aborted) throw error; }
+  output(kernel.audit());
+}
+
+function residentController() {
+  const controller = new AbortController();
+  const stop = () => controller.abort(new Error('resident loop stopped'));
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
-  while (!stopping) {
-    const state = kernel.state();
-    if (!state.subject) throw new Error('initialize the habitat first');
-    const now = Date.now();
-    const contact = existsSync(join(kernel.habitat, 'habitat.json'))
-      ? drainInboundMessages(kernel.habitat, kernel)
-      : [];
-    const backoff = retainedFailureBackoff(kernel.ledger.read(), now, failureBackoffMs, maximumFailureBackoffMs);
-    if (backoff) {
-      await interruptibleDelay(Math.min(pollMs, backoff.remainingMs), () => stopping);
-      continue;
-    }
-    if (contact.length === 0) {
-      const due = nextEncounterAt({
-        now, notBefore: state.position.activeOpening.notBefore, lastEncounterAt, minimumCycleMs, continuityMs,
-      });
-      if (due > now) {
-        await interruptibleDelay(Math.min(pollMs, due - now), () => stopping);
-        continue;
-      }
-    }
-    if (stopping) break;
-    const current = kernel.state();
-    const openingDue = current.position.activeOpening.notBefore === null ||
-      Date.parse(current.position.activeOpening.notBefore) <= Date.now();
-    if (contact.length === 0) {
-      kernel.receiveObservation({
-        kind: 'continuity.heartbeat', instruction: null, openingDue,
-        pendingOpening: current.position.activeOpening, provenance: { scheduler: 'music-v2-recurrence-1' },
-      });
-    }
-    try {
-      const result = await step(kernel, options);
-      process.stdout.write(`${JSON.stringify({ at: new Date().toISOString(), ...result })}\n`);
-    } catch (error) {
-      process.stderr.write(`${new Date().toISOString()} cycle failed: ${error?.message ?? error}\n`);
-    } finally {
-      lastEncounterAt = Date.now();
-    }
-  }
+  return controller;
 }
 
-function inferenceOptions(options) {
-  const keyFile = options.keyFile ?? process.env.MUSIC_OPENROUTER_KEY_FILE;
-  const apiKey = keyFile ? readFileSync(resolve(keyFile), 'utf8').trim() : process.env.OPENROUTER_API_KEY;
-  const model = options.model ?? process.env.MUSIC_MODEL ?? DEFAULT_MODEL;
-  if (model !== DEFAULT_MODEL) {
-    throw new Error(`this release permits only ${DEFAULT_MODEL}; model expansion requires an explicit governance change`);
-  }
-  return {
-    apiKey,
-    model,
-    maxOutputTokens: integerOption(options.maxOutputTokens ?? process.env.MUSIC_MAX_OUTPUT_TOKENS ?? 15_000, 256, 32_768, 'maxOutputTokens'),
-    timeoutMs: integerOption(options.inferenceTimeoutMs ?? process.env.MUSIC_INFERENCE_TIMEOUT_MS ?? 120_000, 1_000, 10 * 60_000, 'inferenceTimeoutMs'),
-    reasoningEffort: options.reasoningEffort ?? process.env.MUSIC_REASONING_EFFORT ?? 'low',
-  };
+function audit([rootArg]) {
+  requireArgs(rootArg);
+  const root = absolute(rootArg);
+  if (!existsSync(root)) throw new Error(`run does not exist: ${root}`);
+  output(new DevelopmentalKernel(root).audit());
 }
 
-function projectStatus(state, grants) {
-  return {
-    subject: state.subject,
-    succession: state.succession,
-    position: state.position && {
-      id: state.position.id,
-      parent: state.position.parent,
-      generation: state.position.generation,
-      activeOpening: state.position.activeOpening,
+function snapshot([rootArg, destinationArg]) {
+  requireArgs(rootArg, destinationArg);
+  const kernel = new DevelopmentalKernel(absolute(rootArg));
+  output({ destination: absolute(destinationArg), manifest: kernel.snapshot(absolute(destinationArg)) });
+}
+
+function observe([rootArg, contentArg, channel = 'operator', from = 'operator']) {
+  requireArgs(rootArg, contentArg);
+  const kernel = new DevelopmentalKernel(absolute(rootArg));
+  const content = contentArg.startsWith('@')
+    ? JSON.parse(readFileSync(absolute(contentArg.slice(1)), 'utf8'))
+    : parseJsonArgument(contentArg);
+  const state = kernel.receiveObservation({ channel, from, content });
+  output({ accepted: true, pendingObservations: state.pendingObservations.length, head: state.head });
+}
+
+function grant([rootArg, effect, ...reasonParts], active) {
+  requireArgs(rootArg, effect);
+  const kernel = new DevelopmentalKernel(absolute(rootArg));
+  const state = kernel.setGrant(effect, active, { reason: reasonParts.join(' ') || 'operator decision' });
+  output({ effect, active, effectiveGrants: state.effectiveGrants, head: state.head });
+}
+
+async function rehearse([rootArg]) {
+  const root = rootArg ? absolute(rootArg) : mkdtempSync(resolve(tmpdir(), 'music-v3-rehearsal-'));
+  if (!rootArg) {
+    // runRehearsal requires ownership of a not-yet-created path.
+    const { rmSync } = await import('node:fs');
+    rmSync(root, { recursive: true, force: true });
+  }
+  const report = await runRehearsal(root);
+  output({ root, report });
+}
+
+function runtime(root) {
+  const reader = new DevelopmentalKernel(root);
+  const state = reader.state();
+  if (!state.initialized) throw new Error(`run is not initialized: ${root}`);
+  return new DevelopmentalKernel(root, { actor: actorFor(state.spec), worlds: builtinWorlds() });
+}
+
+function actorFor(spec) {
+  if (spec.actor.adapter === 'openrouter') return new OpenRouterActor({ model: spec.actor.model, ...spec.actor.settings });
+  if (spec.actor.adapter === 'codex-exec') return new CodexExecActor({ model: spec.actor.model, reasoningEffort: spec.actor.settings.reasoningEffort });
+  throw new Error(`CLI cannot construct actor adapter: ${spec.actor.adapter}`);
+}
+
+function worlds() {
+  const registry = builtinWorlds();
+  output([...registry.adapters.values()].map(adapter => ({
+    id: adapter.id,
+    version: adapter.version,
+    identity: adapter.identity,
+    description: adapter.description,
+    effects: adapter.effects,
+    publicContract: adapter.publicContract,
+  })));
+}
+
+function template([adapterId = 'http-json', actorId = 'openrouter']) {
+  const registry = builtinWorlds();
+  const adapter = registry.get(adapterId);
+  if (!adapter) throw new Error(`unknown built-in world: ${adapterId}`);
+  if (!['openrouter', 'codex-exec'].includes(actorId)) throw new Error(`unknown built-in actor: ${actorId}`);
+  const actor = actorId === 'codex-exec'
+    ? new CodexExecActor({ model: 'gpt-5.4-mini', reasoningEffort: 'low' })
+    : new OpenRouterActor({ model: 'z-ai/glm-5.3-flash', apiKey: null });
+  output({
+    format: 'music-v3-run-spec-1',
+    id: 'replace-with-stable-observation-id',
+    title: 'Replace with the bounded developmental observation',
+    hypothesis: 'State the prospectively frozen causal hypothesis.',
+    cheapestFalsifier: 'State the cheapest result that ends this observation.',
+    actor: actor.describe(),
+    worlds: [{
+      id: 'primary-world',
+      adapter: adapter.id,
+      adapterIdentity: adapter.identity,
+      description: adapter.description,
+      publicContract: adapter.publicContract,
+    }],
+    grants: adapter.effects,
+    initialSubject: {
+      stakes: {}, mechanisms: {}, language: {}, authority: {}, memory: {}, floors: [],
+      continuation: { kind: 'continue', focus: 'Originate one bounded falsifiable contact with the available world.', notBefore: null },
     },
-    observations: state.observations.length,
-    perspectives: Object.fromEntries([...state.perspectives.values()].map(value => [value.status, 0]).map(([key]) => [key, [...state.perspectives.values()].filter(value => value.status === key).length])),
-    activeWager: state.election,
-    development: [...state.development.values()].map(value => ({ id: value.id, status: value.status, wagerId: value.wagerId })),
-    grants,
-    resources: state.resources,
-    ledgerHead: state.head,
-  };
+    conditions: [{ id: 'active', interventions: [] }],
+    limits: { maxCycles: 20, maxActorCalls: 80, maxChallengeAttempts: 3, maxContactAttempts: 8, residentRetryDelayMs: 5000 },
+    stoppingRule: 'Stop after twenty promoted cycles, subject-authored closure, or the first invalid transition.',
+  });
 }
 
-function parse(args) {
-  const [command, ...rest] = args;
-  const options = {};
-  const positionals = [];
-  for (let index = 0; index < rest.length; index += 1) {
-    const token = rest[index];
-    if (!token.startsWith('--')) {
-      positionals.push(token);
-      continue;
-    }
-    const name = token.slice(2).replace(/-([a-z])/g, (_, character) => character.toUpperCase());
-    if (name === 'stdin') options[name] = true;
-    else {
-      if (rest[index + 1] === undefined) throw new Error(`missing value for ${token}`);
-      options[name] = rest[++index];
-    }
-  }
-  return { command, options, positionals };
+function absolute(value) {
+  return isAbsolute(value) ? value : resolve(process.cwd(), value);
 }
 
-function integerOption(value, minimum, maximum, name) {
-  const number = Number(value);
-  if (!Number.isInteger(number) || number < minimum || number > maximum) {
-    throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`);
-  }
-  return number;
+function requireArgs(...values) {
+  if (values.some(value => !value)) throw new Error('missing required argument; run `music help`');
 }
 
-async function interruptibleDelay(milliseconds, stopped) {
-  const end = Date.now() + milliseconds;
-  while (!stopped() && Date.now() < end) {
-    await new Promise(resolveDelay => setTimeout(resolveDelay, Math.min(1_000, end - Date.now())));
-  }
-}
-
-function print(value) {
+function output(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-function usage(error) {
-  if (error) process.stderr.write(`${error}\n\n`);
-  process.stderr.write(`Usage: music <command> --habitat PATH\n\nCommands:\n  init [--designation NAME]\n  grant CAPABILITY [--by PRINCIPAL]\n  revoke CAPABILITY [--by PRINCIPAL]\n  message --from SENDER (--content TEXT | --stdin)\n  observe (--json JSON | stdin)\n  status\n  events [--count N]\n  outbox\n  ack MESSAGE_ID\n  step [--key-file PATH] [--model ID]\n  run [--continuity-ms N] [--minimum-cycle-ms N] [--poll-ms N] [inference options]\n`);
-  process.exitCode = 1;
+function parseJsonArgument(value) {
+  try { return JSON.parse(value); }
+  catch { return value; }
+}
+
+function help() {
+  process.stdout.write(`Music v3\n\nCommands:\n  init RUN SPEC [CONDITION]\n  hatch RUN SPEC [CONDITION]\n  continue RUN SPEC PREDECESSOR_RUN [CONDITION]\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  template [WORLD_ADAPTER] [openrouter|codex-exec]\n  rehearse [OUTPUT]\n`);
 }

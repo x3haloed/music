@@ -1,563 +1,640 @@
-import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { ArtifactStore } from './artifacts.js';
-import { canonical, digest } from './canonical.js';
-import { admitWager } from './constitution.js';
-import { Governance } from './governance.js';
-import { Ledger } from './ledger.js';
-import { applyTransition, initialPosition, withEarnedFloor } from './position.js';
-import { affectedPaths, pathsOverlap, TransitionSchema, verifyPosition } from './position.js';
-import { reconstruct } from './state.js';
-import { executeTool, starterTools, ToolArtifactSchema } from './tools.js';
-import { classifyReceipt, evaluatePredicate } from './predicate.js';
+import { classify } from './predicate.js';
+import { clone, digest, identifier } from './canonical.js';
+import { admitWager, validateAssimilation } from './constitution.js';
+import { RoleSchemas, RoleTasks, RunSpecSchema } from './protocol.js';
+import { applyTransition, createSubject, eraseProjection, verifySubject } from './subject.js';
+import { RunStore } from './store.js';
+import { ResidentLease } from './residency.js';
+import { IdentifierSchema } from './subject.js';
+import { runtimeProvenance } from './runtime-provenance.js';
 
-export class MusicKernel {
-  constructor(habitat, { clock = () => new Date(), id = () => randomUUID() } = {}) {
-    this.habitat = habitat;
+export class DevelopmentalKernel {
+  constructor(root, { actor, worlds, clock = () => new Date(), id = identifier, provenance = runtimeProvenance } = {}) {
+    this.store = new RunStore(root, { clock, id });
+    this.actor = actor;
+    this.worlds = worlds;
     this.clock = clock;
     this.id = id;
-    this.ledger = new Ledger(join(habitat, 'state', 'ledger.jsonl'), { clock, id });
-    this.artifacts = new ArtifactStore(join(habitat, 'state', 'artifacts'));
-    this.governance = new Governance(join(habitat, 'governance', 'grants.json'), { clock });
+    this.provenance = provenance;
+  }
+
+  initialize(specValue, { condition = 'active', inheritedSubject = null, predecessor = null } = {}) {
+    if (this.store.readEvents().length > 0) throw new Error('run store is already initialized');
+    const spec = RunSpecSchema.parse(specValue);
+    const selected = spec.conditions.find(value => value.id === condition);
+    if (!selected) throw new Error(`unknown sealed condition: ${condition}`);
+    this.requireRuntime(spec);
+    const subject = inheritedSubject === null
+      ? createSubject(spec.initialSubject, this.clock().toISOString())
+      : verifySubject(inheritedSubject);
+    if (spec.inheritedSubjectId !== subject.id) {
+      if (inheritedSubject !== null || spec.inheritedSubjectId !== null) {
+        throw new Error(`inherited subject mismatch: expected ${spec.inheritedSubjectId}, got ${subject.id}`);
+      }
+    }
+    const specRef = this.store.put(spec);
+    const subjectRef = this.store.put(subject);
+    this.store.append('run.created', {
+      runId: this.id('run'),
+      spec: specRef,
+      condition,
+      subject: subjectRef,
+      actor: this.actor.describe(),
+      runtime: this.provenance(),
+      predecessor: predecessor === null ? null : clone(predecessor),
+    });
+    return this.state();
   }
 
   state() {
-    return reconstruct(this.ledger.read());
-  }
-
-  recoverInterruptedPerspectives() {
-    const state = this.state();
-    const interrupted = [...state.perspectives.values()].filter(value => value.status === 'started');
-    for (const invocation of interrupted) {
-      this.ledger.append('perspective.failed', {
-        invocationId: invocation.id,
-        failure: {
-          name: 'InterruptedPerspective',
-          message: 'The process ended before this perspective retained a terminal receipt.',
-          quarantined: true,
-          failedAt: this.clock().toISOString(),
-        },
-      });
-    }
-    return interrupted.map(value => value.id);
-  }
-
-  initialize(designation = null) {
-    if (this.state().subject) throw new Error('Music subject already exists');
-    const at = this.clock().toISOString();
-    const mechanisms = {};
-    for (const tool of starterTools()) {
-      const artifact = this.artifacts.putJson(tool);
-      mechanisms[tool.manifest.id] = {
-        kind: 'tool',
-        artifact,
-        manifest: tool.manifest,
-        standing: 'available',
-      };
-    }
-    const subject = {
-      id: this.id(),
-      designation: normalizeDesignation(designation),
-      bornAt: at,
-    };
-    const position = initialPosition(at, {
-      mechanisms,
-      authority: {
-        inference: {
-          model: 'z-ai/glm-5.3-flash',
-          reasoningEffort: 'low',
-          providerOrder: ['z-ai', 'deepinfra', 'baseten'],
-          budgets: {
-            orientation: 15_000,
-            challenge: 15_000,
-            election: 15_000,
-            assimilation: 15_000,
-            disposition: 15_000,
-          },
-          timeoutMs: 120_000,
-        },
-      },
-    });
-    this.ledger.append('subject.born', { subject, position });
-    return this.state();
-  }
-
-  initializeSuccessor({ subject: sourceSubject, succession, position: initial, tools = [], observations = [] }) {
-    if (this.state().subject) throw new Error('Music subject already exists');
-    const subject = successorSubject(sourceSubject);
-    const retainedSuccession = successorReceipt(succession, subject);
-    const mechanisms = {};
-    for (const tool of starterTools()) {
-      const artifact = this.artifacts.putJson(tool);
-      mechanisms[tool.manifest.id] = {
-        kind: 'tool', artifact, manifest: tool.manifest, standing: 'available',
-        provenance: { kind: 'music-v2-seed' },
-      };
-    }
-    for (const entry of tools) {
-      const tool = ToolArtifactSchema.parse(entry.tool);
-      if (mechanisms[tool.manifest.id]) throw new Error(`successor tool collides with a v2 seed: ${tool.manifest.id}`);
-      const artifact = this.artifacts.putJson(tool);
-      mechanisms[tool.manifest.id] = {
-        kind: 'tool', artifact, manifest: tool.manifest, standing: 'available',
-        provenance: structuredClone(entry.provenance),
-      };
-    }
-    const retainedObservations = observations.map(successorObservation);
-    const position = initialPosition(retainedSuccession.succeededAt, {
-      mechanisms,
-      stakes: structuredClone(initial.stakes ?? {}),
-      authority: structuredClone(initial.authority ?? {}),
-      memory: structuredClone(initial.memory ?? {}),
-      floors: structuredClone(initial.floors ?? []),
-      activeOpening: structuredClone(initial.activeOpening),
-    });
-    this.ledger.append('subject.succeeded', {
-      subject, succession: retainedSuccession, position, observations: retainedObservations,
-    });
-    return this.state();
-  }
-
-  receiveMessage({ id = null, sender, recipient = 'the entity', channel = 'inbox', content, authentication = null, observedAt = null, delivery = null }) {
-    const state = this.state();
-    requireSubject(state);
-    if (typeof sender !== 'string' || sender.trim() === '') throw new Error('message sender is required');
-    if (typeof content !== 'string' || content.length === 0) throw new Error('message content is required');
-    const observation = {
-      id: id ?? this.id(),
-      kind: 'message.received',
-      sender: sender.trim(),
-      recipient,
-      channel,
-      observedAt: observedAt ?? this.clock().toISOString(),
-      content,
-      authentication,
-      delivery: delivery ?? { adapter: 'music.cli', transformed: false },
-    };
-    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(observation.id)) throw new Error('invalid message observation id');
-    if (state.observations.some(value => value.id === observation.id)) throw new Error(`duplicate observation id: ${observation.id}`);
-    canonical(observation);
-    this.ledger.append('observation.received', { observation });
-    return observation;
-  }
-
-  receiveObservation(observationValue) {
-    const state = this.state();
-    requireSubject(state);
-    const observation = {
-      ...structuredClone(observationValue),
-      id: this.id(),
-      observedAt: this.clock().toISOString(),
-    };
-    canonical(observation);
-    this.ledger.append('observation.received', { observation });
-    return observation;
-  }
-
-  bindWager(wagerValue, electionReceipt = null) {
-    const state = this.state();
-    requireSubject(state);
-    if (state.election) throw new Error(`wager is already active: ${state.election.wagerId}`);
-    if (state.wagers.has(wagerValue?.id)) throw new Error(`duplicate wager id: ${wagerValue.id}`);
-    const grants = this.governance.read();
-    const admission = admitWager(wagerValue, {
-      position: state.position,
-      grants,
-      artifactExists: id => this.artifacts.has(id),
-      toolContract: id => {
-        const manifest = ToolArtifactSchema.parse(this.artifacts.readJson(id)).manifest;
-        return { effects: manifest.effects, outputSchema: manifest.outputSchema };
-      },
-    });
-    if (!admission.admissible) throw new Error(`wager is inadmissible:\n- ${admission.reasons.join('\n- ')}`);
-    this.ledger.append('wager.bound', {
-      wager: admission.wager,
-      position: state.position.id,
-      electionReceipt,
-      admission: {
-        constitution: 'music-v2-constitution-1',
-        derivedFloors: admission.derivedFloors,
-      },
-    });
-    return admission.wager;
-  }
-
-  async realize(wagerId) {
-    let state = this.state();
-    requireSubject(state);
-    const bound = state.wagers.get(wagerId);
-    if (!bound) throw new Error(`unknown wager: ${wagerId}`);
-    if (bound.position !== state.position.id) throw new Error('wager parent position is no longer active');
-    const wager = bound.wager;
-    let receipt = state.realizations.get(wagerId);
-    if (!receipt) {
-      const tool = ToolArtifactSchema.parse(this.artifacts.readJson(wager.contact.tool));
-      const startedAt = this.clock().toISOString();
-      const realizationId = this.id();
-      let output;
-      let failure = null;
-      try {
-        output = await executeTool(tool, wager.contact.input, {
-          grants: this.governance.read(),
-          habitat: this.habitat,
-          invocationId: realizationId,
-          wagerId,
-          environment: this.toolEnvironment(),
-          emitObservation: value => this.receiveObservation(value),
-        });
-      } catch (error) {
-        failure = {
-          name: error?.name ?? 'Error',
-          message: String(error?.message ?? error).slice(0, 16_384),
-        };
-      }
-      receipt = {
-        id: realizationId,
-        kind: failure ? 'tool.failure' : 'tool.result',
-        tool: { artifact: wager.contact.tool, id: tool.manifest.id },
-        input: structuredClone(wager.contact.input),
-        ...(failure ? { failure } : { output }),
-        startedAt,
-        completedAt: this.clock().toISOString(),
-        capture: { runtime: 'music-v2-tool-runtime-1', transformed: false },
-      };
-      this.ledger.append('realization.completed', { wagerId, receipt });
-      state = this.state();
-    }
-    let evaluationReceipt = state.evaluations.get(wagerId);
-    if (!evaluationReceipt) {
-      const evaluation = classifyReceipt(receipt, wager.classifiers);
-      evaluationReceipt = {
-        ...evaluation,
-        evaluator: 'music-v2-predicate-1',
-        receipt: digest(receipt),
-        evaluatedAt: this.clock().toISOString(),
-      };
-      this.ledger.append('predicate.evaluated', { wagerId, evaluation: evaluationReceipt });
-    }
-    if (evaluationReceipt.kind === 'support' || evaluationReceipt.kind === 'contradiction') {
-      const operation = wager.continuations[evaluationReceipt.kind];
-      const position = applyTransition(state.position, operation, this.clock().toISOString());
-      this.ledger.append('transition.applied', {
-        wagerId,
-        outcome: evaluationReceipt.kind,
-        operation,
-        position,
-      });
-      return { receipt, evaluation: evaluationReceipt, position };
-    }
-    if (!this.state().pendingAssimilation) {
-      this.ledger.append('consequence.underdetermined', {
-        wagerId,
-        evaluation: evaluationReceipt,
-        position: state.position.id,
-      });
-    }
-    return { receipt, evaluation: evaluationReceipt, position: null };
-  }
-
-  proposeDevelopment({ wagerId, invocationId, proposal }) {
-    const state = this.state();
-    const bound = state.wagers.get(wagerId);
-    if (!bound) throw new Error(`unknown wager: ${wagerId}`);
-    const transition = this.developmentTransition(proposal);
-    if (proposal.proposedDevelopment?.kind === 'position') {
-      for (const path of affectedPaths(transition)) {
-        if (pathsOverlap('/mechanisms', path) || pathsOverlap('/authority', path)) {
-          throw new Error('position development cannot bypass an exercised mechanism or authority trial');
-        }
-      }
-    }
-    for (const path of affectedPaths(transition)) {
-      if (!bound.wager.revisionScope.some(scope => pathsOverlap(scope.replace(/\/$/, ''), path))) {
-        throw new Error(`development path is outside the bound wager scope: ${path}`);
-      }
-    }
-    const id = digest({ parentPosition: state.position.id, wagerId, invocationId, proposal });
-    this.ledger.append('development.proposed', {
-      id,
-      parentPosition: state.position.id,
-      wagerId,
-      invocationId,
-      proposal,
-      proposedAt: this.clock().toISOString(),
-    });
-    return id;
-  }
-
-  async trialDevelopment(id) {
-    const state = this.state();
-    const development = state.development.get(id);
-    if (!development || development.status !== 'proposed') throw new Error(`development is not proposed: ${id}`);
-    if (development.parentPosition !== state.position.id) throw new Error('development parent is no longer active');
-    if (development.proposal.proposedDevelopment.kind === 'tool-authority') {
-      throw new Error('tool authority requires a later selection exercise');
-    }
-    const transition = this.developmentTransition(development.proposal);
-    let candidate = this.developmentCandidate(id);
-    const requiredFloorIds = state.position.floors
-      .filter(floor => affectedPaths(transition).some(path => pathsOverlap(floor.scope, path)))
-      .map(floor => floor.id);
-    const passedFloorIds = [];
-    const probeReceipts = [];
-    for (const floor of state.position.floors.filter(value => requiredFloorIds.includes(value.id))) {
-      if (floor.kind !== 'tool.behavior') {
-        if (evaluatePredicate(candidate, floor.predicate)) passedFloorIds.push(floor.id);
+    const events = this.store.readEvents();
+    if (events.length === 0) return { initialized: false };
+    const genesis = events[0];
+    if (genesis.type !== 'run.created') throw new Error('ledger does not begin with run genesis');
+    const spec = RunSpecSchema.parse(this.store.get(genesis.payload.spec));
+    let subject = verifySubject(this.store.get(genesis.payload.subject));
+    let completed = null;
+    let hatched = null;
+    const cycles = new Map();
+    const invocations = [];
+    const observations = [];
+    const effectiveGrants = new Set(spec.grants);
+    const grantHistory = [];
+    for (const event of events.slice(1)) {
+      const cycleId = event.payload.cycleId;
+      if (event.type === 'observation.received') {
+        observations.push({ sequence: event.sequence, at: event.at, ...clone(event.payload) });
         continue;
       }
-      const mechanism = candidate.mechanisms[floor.toolId];
-      if (!mechanism?.artifact) continue;
-      const tool = ToolArtifactSchema.parse(this.artifacts.readJson(mechanism.artifact));
-      let passed = true;
-      for (const probe of floor.probes) {
-        const receipt = await this.executeDevelopmentProbe({ tool, probe, id, wagerId: development.wagerId, index: probeReceipts.length, floorId: floor.id });
-        probeReceipts.push(receipt);
-        if (!receipt.passed) passed = false;
+      if (event.type === 'grant.changed') {
+        if (!spec.grants.includes(event.payload.effect)) throw new Error(`grant event is outside genesis envelope: ${event.payload.effect}`);
+        if (event.payload.active) effectiveGrants.add(event.payload.effect);
+        else effectiveGrants.delete(event.payload.effect);
+        grantHistory.push({ sequence: event.sequence, at: event.at, ...clone(event.payload) });
+        continue;
       }
-      if (passed) passedFloorIds.push(floor.id);
+      if (event.type === 'subject.hatched') {
+        if (hatched) throw new Error('duplicate subject hatch event');
+        hatched = clone(event.payload);
+        continue;
+      }
+      if (event.type === 'cycle.opened') {
+        if (cycles.has(cycleId)) throw new Error(`duplicate cycle: ${cycleId}`);
+        cycles.set(cycleId, {
+          id: cycleId,
+          generation: event.payload.generation,
+          openedAt: event.at,
+          observedThrough: event.payload.observedThrough ?? 0,
+        });
+        continue;
+      }
+      if (event.type.startsWith('actor.')) {
+        invocations.push(clone(event.payload));
+        if (event.type === 'actor.completed') {
+          const cycle = requiredCycle(cycles, cycleId);
+          cycle[event.payload.role] = event.payload.output;
+        }
+        continue;
+      }
+      const cycle = cycleId ? requiredCycle(cycles, cycleId) : null;
+      if (event.type === 'frontier.rejected') {
+        cycle.frontierRejections ??= [];
+        cycle.frontierRejections.push(event.payload.frontier);
+      }
+      else if (event.type === 'frontier.admitted') cycle.frontier = event.payload.frontier;
+      else if (event.type === 'wager.bound') cycle.binding = event.payload;
+      else if (event.type === 'contact.blocked') cycle.contactBlocked = event.payload;
+      else if (event.type === 'contact.failed') {
+        cycle.contactFailures ??= [];
+        cycle.contactFailures.push(event.payload);
+      }
+      else if (event.type === 'contact.started') cycle.contactStarted = event.payload;
+      else if (event.type === 'contact.completed') cycle.contact = event.payload;
+      else if (event.type === 'consequence.evaluated') cycle.evaluation = event.payload.evaluation;
+      else if (event.type === 'transition.applied') {
+        const next = verifySubject(this.store.get(event.payload.subject));
+        if (next.parent !== subject.id) throw new Error('transition does not descend from current subject');
+        subject = next;
+        cycle.transition = event.payload;
+      } else if (event.type === 'run.completed') completed = clone(event.payload);
+      else throw new Error(`unsupported event type: ${event.type}`);
     }
-    if (development.proposal.proposedDevelopment.kind === 'tool') {
-      const tool = development.proposal.proposedDevelopment.tool;
-      for (const probe of development.proposal.proposedDevelopment.probes) {
-        probeReceipts.push(await this.executeDevelopmentProbe({
-          tool, probe, id, wagerId: development.wagerId, index: probeReceipts.length, floorId: null,
+    const orderedCycles = [...cycles.values()].sort((left, right) => left.generation - right.generation);
+    const openingAt = subject.continuation.notBefore === null ? null : Date.parse(subject.continuation.notBefore);
+    const lastObservedThrough = orderedCycles.filter(cycle => cycle.transition).at(-1)?.observedThrough ?? 0;
+    const pendingObservations = observations.filter(value => value.sequence > lastObservedThrough);
+    const waitingForObservation = !completed && subject.continuation.kind === 'seclusion' && pendingObservations.length === 0;
+    return {
+      initialized: true,
+      runId: genesis.payload.runId,
+      condition: genesis.payload.condition,
+      predecessor: genesis.payload.predecessor ?? null,
+      runtime: genesis.payload.runtime ?? null,
+      spec,
+      subject,
+      cycles: orderedCycles,
+      currentCycle: orderedCycles.find(cycle => !cycle.transition) ?? null,
+      invocations,
+      observations,
+      pendingObservations,
+      effectiveGrants: [...effectiveGrants].sort(),
+      grantHistory,
+      hatched,
+      completed,
+      waitingUntil: !completed && Number.isFinite(openingAt) && openingAt > this.clock().getTime() ? subject.continuation.notBefore : null,
+      waitingForObservation,
+      head: events.at(-1).hash,
+    };
+  }
+
+  async advance({ lease = true } = {}) {
+    if (lease) {
+      const resident = new ResidentLease(this.store.root, { clock: this.clock }).acquire();
+      try { return await this.advance({ lease: false }); }
+      finally { resident.release(); }
+    }
+    let state = this.state();
+    if (!state.initialized) throw new Error('run is not initialized');
+    if (state.completed) return state;
+    if (!state.hatched) {
+      const firstCompleted = state.cycles.find(value => value.transition);
+      if (firstCompleted) {
+        this.markHatched(state, firstCompleted);
+        state = this.state();
+      }
+    }
+    this.requireRuntime(state.spec, state.runtime);
+    if (state.waitingUntil || state.waitingForObservation) return state;
+    if (state.subject.continuation.kind === 'stop') {
+      this.complete('subject-stop', state);
+      return this.state();
+    }
+    if (state.cycles.filter(cycle => cycle.transition).length >= state.spec.limits.maxCycles) {
+      this.complete('observer-cycle-limit', state);
+      return this.state();
+    }
+    if (!state.currentCycle) {
+      this.store.append('cycle.opened', {
+        cycleId: this.id('cycle'),
+        generation: state.subject.generation,
+        subjectId: state.subject.id,
+        observedThrough: this.store.readEvents().at(-1)?.sequence ?? 0,
+      });
+      state = this.state();
+    }
+    const cycle = state.currentCycle;
+    if (!cycle.orient) {
+      await this.invoke('orient', cycle.id, this.projection(state, 'orient'));
+      state = this.state();
+    }
+    if (!state.currentCycle.frontier) {
+      const projection = this.projection(state, 'challenge', {
+        orientation: this.readOutput(state.currentCycle.orient),
+        priorRejections: (state.currentCycle.frontierRejections ?? []).map(reference => this.store.get(reference)),
+      });
+      const challenge = await this.invoke('challenge', cycle.id, projection);
+      const admissions = challenge.wagers.map(value => admitWager(value, {
+        subject: state.subject,
+        spec: state.spec,
+        worlds: this.worlds,
+        grants: state.effectiveGrants,
+      }));
+      const admitted = admissions.filter(value => value.admissible).map(value => value.wager);
+      const frontier = this.store.put({
+        wagers: admitted,
+        admissions: admissions.map(value => ({ id: value.wager.id, admissible: value.admissible, reasons: value.reasons, derivedFloors: value.derivedFloors })),
+      });
+      if (admitted.length === 0) {
+        this.store.append('frontier.rejected', { cycleId: cycle.id, frontier });
+        const attempts = (state.currentCycle.frontierRejections?.length ?? 0) + 1;
+        if (attempts >= state.spec.limits.maxChallengeAttempts) {
+          this.complete('challenge-attempt-limit', this.state(), { observerDisposition: 'rejected', subjectDisposition: 'open' });
+        }
+        return this.state();
+      }
+      this.store.append('frontier.admitted', { cycleId: cycle.id, frontier });
+      state = this.state();
+    }
+    if (!state.currentCycle.binding) {
+      const frontier = this.store.get(state.currentCycle.frontier);
+      const election = await this.invoke('elect', cycle.id, this.projection(state, 'elect', { frontier }));
+      const wager = frontier.wagers.find(value => value.id === election.wagerId);
+      if (!wager) throw new Error(`election selected outside frozen frontier: ${election.wagerId}`);
+      this.store.append('wager.bound', {
+        cycleId: cycle.id,
+        wager: this.store.put(wager),
+        election: this.store.put(election),
+        subjectId: state.subject.id,
+      });
+      state = this.state();
+    }
+    const wager = this.store.get(state.currentCycle.binding.wager);
+    if (!state.currentCycle.contactStarted) {
+      const declared = state.spec.worlds.find(value => value.id === wager.contact.world);
+      const missing = wager.effectRequirements.filter(effect => !state.effectiveGrants.includes(effect));
+      if (missing.length > 0) {
+        const last = state.currentCycle.contactBlocked;
+        if (!last || JSON.stringify(last.missing) !== JSON.stringify(missing)) {
+          this.store.append('contact.blocked', { cycleId: cycle.id, wagerId: wager.id, missing });
+        }
+        return this.state();
+      }
+      this.store.append('contact.started', {
+        cycleId: cycle.id,
+        wagerId: wager.id,
+        world: declared.id,
+        adapter: declared.adapter,
+        adapterIdentity: declared.adapterIdentity,
+        input: this.store.put(wager.contact.input),
+        idempotencyKey: digest({ runId: state.runId, cycleId: cycle.id, wagerId: wager.id, subjectId: state.subject.id }),
+      });
+      state = this.state();
+    }
+    if (!state.currentCycle.contact) {
+      const started = state.currentCycle.contactStarted;
+      const adapter = this.worlds.get(started.adapter);
+      if (!adapter || adapter.identity !== started.adapterIdentity) throw new Error('bound world adapter is unavailable or changed');
+      const input = this.store.get(started.input);
+      const errors = adapter.conform(input);
+      if (errors.length > 0) throw new Error(`bound contact no longer conforms: ${errors.join('; ')}`);
+      let output;
+      try {
+        output = await adapter.execute(clone(input), Object.freeze({
+          idempotencyKey: started.idempotencyKey,
+          runId: state.runId,
+          cycleId: cycle.id,
+          subjectId: state.subject.id,
+          runRoot: this.store.root,
         }));
+        const outputErrors = adapter.conformOutput(output);
+        if (outputErrors.length > 0) throw new Error(`world output violates its sealed contract: ${outputErrors.join('; ')}`);
+      } catch (error) {
+        const attempts = (state.currentCycle.contactFailures?.length ?? 0) + 1;
+        this.store.append('contact.failed', {
+          cycleId: cycle.id,
+          wagerId: wager.id,
+          idempotencyKey: started.idempotencyKey,
+          attempt: attempts,
+          effectCertainty: 'unknown',
+          failure: { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384), quarantined: true },
+        });
+        if (attempts >= state.spec.limits.maxContactAttempts) {
+          this.complete('contact-attempt-limit', this.state(), { observerDisposition: 'rejected', subjectDisposition: 'open' });
+        }
+        throw error;
       }
+      const outputRef = this.store.put(output);
+      this.store.append('contact.completed', {
+        cycleId: cycle.id,
+        wagerId: wager.id,
+        idempotencyKey: started.idempotencyKey,
+        world: started.world,
+        adapterIdentity: started.adapterIdentity,
+        output: outputRef,
+      });
+      state = this.state();
     }
-    const eligible = requiredFloorIds.length === passedFloorIds.length && probeReceipts.every(value => value.passed);
-    if (eligible && development.proposal.proposedDevelopment.kind === 'tool') {
-      const toolId = development.proposal.proposedDevelopment.tool.manifest.id;
-      candidate = withEarnedFloor(candidate, {
-        kind: 'tool.behavior',
-        id: `tool-floor:${digest({ development: id, toolId, probes: development.proposal.proposedDevelopment.probes }).slice(0, 32)}`,
-        scope: `/mechanisms/${escapePointer(toolId)}`,
-        toolId,
-        probes: development.proposal.proposedDevelopment.probes,
-        earnedBy: id,
+    if (!state.currentCycle.evaluation) {
+      const output = this.store.get(state.currentCycle.contact.output);
+      const evaluation = classify({ output }, wager.predicates);
+      this.store.append('consequence.evaluated', {
+        cycleId: cycle.id,
+        wagerId: wager.id,
+        receipt: state.currentCycle.contact.output,
+        evaluation,
+      });
+      state = this.state();
+    }
+    if (!state.currentCycle.transition) {
+      const kind = state.currentCycle.evaluation.kind;
+      let transition = kind === 'underdetermined' ? null : wager.continuations[kind];
+      let authority = 'bound-predicate';
+      if (!transition) {
+        const receipt = this.store.get(state.currentCycle.contact.output);
+        const result = await this.invoke('assimilate', cycle.id, this.projection(state, 'assimilate', {
+          wager,
+          receipt,
+          evaluation: state.currentCycle.evaluation,
+        }));
+        transition = validateAssimilation(result.transition, wager, state.subject);
+        authority = 'fresh-assimilation';
+      }
+      const next = applyTransition(state.subject, transition, this.clock().toISOString());
+      this.store.append('transition.applied', {
+        cycleId: cycle.id,
+        wagerId: wager.id,
+        classification: state.currentCycle.evaluation.kind,
+        authority,
+        priorSubjectId: state.subject.id,
+        subject: this.store.put(next),
+        floors: next.floors.map(floor => ({ id: floor.id, passed: true })),
       });
     }
-    const trial = {
-      candidate,
-      transition,
-      requiredFloorIds,
-      passedFloorIds,
-      probeReceipts,
-      eligible,
-      runtime: development.proposal.proposedDevelopment.kind === 'tool'
-        ? 'music-v2-tool-trial-1'
-        : 'music-v2-transition-trial-1',
-      completedAt: this.clock().toISOString(),
-    };
-    this.ledger.append('development.trialed', { id, trial });
-    return trial;
+    state = this.state();
+    if (!state.hatched) {
+      this.markHatched(state, state.cycles.find(value => value.id === cycle.id));
+      state = this.state();
+    }
+    if (state.subject.continuation.kind === 'stop') this.complete('subject-stop', state);
+    else if (state.cycles.filter(value => value.transition).length >= state.spec.limits.maxCycles) this.complete('observer-cycle-limit', state);
+    return this.state();
   }
 
-  async executeDevelopmentProbe({ tool, probe, id, wagerId, index, floorId }) {
-    let output;
-    let failure = null;
+  async run() {
+    const lease = new ResidentLease(this.store.root, { clock: this.clock }).acquire();
     try {
-      output = await executeTool(tool, probe.input, {
-        grants: this.governance.read(), habitat: this.habitat,
-        invocationId: `${id}:probe:${index}`, wagerId, environment: this.toolEnvironment(),
-        emitObservation: value => this.receiveObservation(value),
-      });
-    } catch (error) {
-      failure = { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384) };
-    }
-    return {
-      kind: failure ? 'tool.failure' : 'tool.result',
-      source: floorId === null ? 'proposal' : 'retained-floor',
-      floorId,
-      input: structuredClone(probe.input),
-      ...(failure ? { failure } : { output }),
-      expectation: probe.expectation,
-      passed: !failure && evaluatePredicate({ output }, probe.expectation),
-    };
-  }
-
-  developmentTransition(proposal) {
-    const development = proposal.proposedDevelopment;
-    if (development?.kind === 'position') return TransitionSchema.parse(development.transition);
-    if (development?.kind === 'tool-authority') {
-      return TransitionSchema.parse({
-        kind: 'position.transition',
-        set: { '/authority/toolSelection': { kind: 'allow-list', allowedToolIds: [...new Set(development.allowedToolIds)].sort() } },
-        remove: [],
-        opening: development.opening,
-      });
-    }
-    if (development?.kind === 'inference-policy') {
-      return TransitionSchema.parse({
-        kind: 'position.transition',
-        set: {
-          '/authority/inference/budgets/orientation': development.selectionBudgets.orientation,
-          '/authority/inference/budgets/challenge': development.selectionBudgets.challenge,
-          '/authority/inference/budgets/election': development.selectionBudgets.election,
-          '/authority/inference/reasoningEffort': development.reasoningEffort,
-          '/authority/inference/providerOrder': [...new Set(development.providerOrder)],
-        },
-        remove: [],
-        opening: development.opening,
-      });
-    }
-    if (development?.kind !== 'tool') throw new Error('unknown proposed development kind');
-    const tool = ToolArtifactSchema.parse(development.tool);
-    const artifact = this.artifacts.putJson(tool);
-    const key = escapePointer(tool.manifest.id);
-    return TransitionSchema.parse({
-      kind: 'position.transition',
-      set: {
-        [`/mechanisms/${key}`]: {
-          kind: 'tool', artifact, manifest: tool.manifest, standing: 'available',
-        },
-      },
-      remove: [],
-      opening: development.opening,
-    });
-  }
-
-  developmentCandidate(id) {
-    const state = this.state();
-    const development = state.development.get(id);
-    if (!development || development.status !== 'proposed') throw new Error(`development is not proposed: ${id}`);
-    if (development.parentPosition !== state.position.id) throw new Error('development parent is no longer active');
-    return applyTransition(state.position, this.developmentTransition(development.proposal), development.proposedAt);
-  }
-
-  trialAuthorityDevelopment(id, evidence) {
-    const state = this.state();
-    const development = state.development.get(id);
-    if (!development || development.status !== 'proposed') throw new Error(`development is not proposed: ${id}`);
-    if (!['tool-authority', 'inference-policy'].includes(development.proposal.proposedDevelopment.kind)) throw new Error('development is not an authority proposal');
-    const candidate = this.developmentCandidate(id);
-    if (evidence.candidatePosition !== candidate.id) throw new Error('authority exercise used the wrong candidate position');
-    const selectedTool = ToolArtifactSchema.parse(this.artifacts.readJson(evidence.selectedWager.contact.tool)).manifest.id;
-    const requiredFloorIds = state.position.floors.filter(floor => pathsOverlap(floor.scope, '/authority/toolSelection')).map(floor => floor.id);
-    const passedFloorIds = state.position.floors.filter(floor => requiredFloorIds.includes(floor.id) && evaluatePredicate(candidate, floor.predicate)).map(floor => floor.id);
-    const proposed = development.proposal.proposedDevelopment;
-    let authorityEvidence;
-    let authorityEligible;
-    if (proposed.kind === 'tool-authority') {
-      const allowed = candidate.authority.toolSelection.allowedToolIds;
-      authorityEvidence = { allowedToolIds: allowed, selectedTool };
-      authorityEligible = allowed.includes(selectedTool);
-    } else {
-      const phases = ['orientation', 'challenge', 'election'];
-      const invocations = {};
-      authorityEligible = true;
-      for (const phase of phases) {
-        const invocation = state.perspectives.get(evidence.perspectiveReceipts[phase].invocation);
-        const expectedBudget = candidate.authority.inference.budgets[phase];
-        const conforms = invocation?.status === 'completed' && invocation.kind === phase &&
-          invocation.maxOutputTokens === expectedBudget &&
-          invocation.reasoningEffort === candidate.authority.inference.reasoningEffort &&
-          JSON.stringify(invocation.providerOrder) === JSON.stringify(candidate.authority.inference.providerOrder);
-        invocations[phase] = { id: invocation?.id ?? null, conforms };
-        if (!conforms) authorityEligible = false;
+      let state = this.state();
+      while (!state.completed && !state.waitingUntil && !state.waitingForObservation) {
+        const priorHead = state.head;
+        state = await this.advance({ lease: false });
+        if (state.head === priorHead) break;
       }
-      authorityEvidence = { inferencePolicy: structuredClone(candidate.authority.inference), invocations, selectedTool };
+      return state;
+    } finally {
+      lease.release();
     }
-    const trial = {
-      candidate,
-      transition: this.developmentTransition(development.proposal),
-      requiredFloorIds,
-      passedFloorIds,
-      probeReceipts: [],
-      authorityExercise: {
-        candidatePosition: candidate.id,
-        ...authorityEvidence,
-        selectedWager: structuredClone(evidence.selectedWager),
-        perspectiveReceipts: structuredClone(evidence.perspectiveReceipts),
-      },
-      eligible: authorityEligible && requiredFloorIds.length === passedFloorIds.length,
-      runtime: proposed.kind === 'tool-authority'
-        ? 'music-v2-tool-authority-trial-1'
-        : 'music-v2-inference-policy-trial-1',
-      completedAt: this.clock().toISOString(),
-    };
-    this.ledger.append('development.trialed', { id, trial });
-    return trial;
   }
 
-  toolEnvironment() {
-    const prepared = existsSync(join(this.habitat, 'habitat.json'));
-    return {
-      home: prepared ? join(this.habitat, 'home') : this.habitat,
-      inbox: prepared ? join(this.habitat, 'mailbox', 'inbound') : join(this.habitat, 'inbox'),
-      outbox: prepared ? join(this.habitat, 'mailbox', 'outbound', 'pending') : join(this.habitat, 'outbox'),
-      dependencies: join(this.habitat, 'dependencies'),
-    };
+  async reside({ signal = null, maximumSleepMs = 60_000 } = {}) {
+    const lease = new ResidentLease(this.store.root, { clock: this.clock }).acquire();
+    try {
+      let state = this.state();
+      while (!state.completed) {
+        if (signal?.aborted) return state;
+        if (state.waitingUntil || state.waitingForObservation) {
+          const remaining = state.waitingUntil ? Date.parse(state.waitingUntil) - this.clock().getTime() : maximumSleepMs;
+          await delay(Math.max(1, Math.min(remaining, maximumSleepMs)), signal);
+        }
+        try { state = await this.advance({ lease: false }); }
+        catch (error) {
+          state = this.state();
+          if (state.completed || signal?.aborted) continue;
+          await delay(Math.min(state.spec.limits.residentRetryDelayMs, maximumSleepMs), signal);
+        }
+      }
+      return state;
+    } finally {
+      lease.release();
+    }
   }
 
-  disposeDevelopment(id, disposition, receipt) {
+  receiveObservation({ channel = 'operator', from = 'operator', content, id = this.id('observation') }) {
     const state = this.state();
-    const development = state.development.get(id);
-    if (!development || development.status !== 'trialed') throw new Error(`development is not trialed: ${id}`);
-    if (development.parentPosition !== state.position.id) throw new Error('development parent is no longer active');
-    if (!['admit', 'retain-parent', 'surrender'].includes(disposition.choice)) throw new Error('invalid development disposition');
-    let position;
-    if (disposition.choice === 'admit') {
-      if (!development.trial.eligible) throw new Error('ineligible development cannot be admitted');
-      position = verifyPosition(development.trial.candidate);
-    } else {
-      position = applyTransition(state.position, {
-        kind: 'position.transition',
-        set: {},
-        remove: [],
-        opening: disposition.opening,
-      }, this.clock().toISOString());
-    }
-    this.ledger.append('development.disposed', {
-      id,
-      disposition: disposition.choice,
-      receipt,
-      position,
+    if (!state.initialized) throw new Error('run is not initialized');
+    if (state.completed?.subjectDisposition === 'closed') throw new Error('subject is closed');
+    const observation = {
+      id: IdentifierSchema.parse(id),
+      channel: IdentifierSchema.parse(channel),
+      from: String(from).slice(0, 256),
+      content: jsonData(content),
+    };
+    if (state.observations.some(value => value.id === observation.id)) throw new Error(`duplicate observation: ${observation.id}`);
+    this.store.append('observation.received', observation);
+    return this.state();
+  }
+
+  setGrant(effectValue, active, { reason = 'operator decision' } = {}) {
+    const state = this.state();
+    if (!state.initialized) throw new Error('run is not initialized');
+    const effect = IdentifierSchema.parse(effectValue);
+    if (!state.spec.grants.includes(effect)) throw new Error(`effect is outside genesis grant envelope: ${effect}`);
+    if (state.effectiveGrants.includes(effect) === Boolean(active)) return state;
+    this.store.append('grant.changed', {
+      effect,
+      active: Boolean(active),
+      reason: String(reason).slice(0, 4096),
+      authority: 'machine-owner',
     });
-    return position;
+    return this.state();
+  }
+
+  audit() {
+    const state = this.state();
+    if (!state.initialized) return state;
+    return {
+      format: 'music-v3-audit-1',
+      runId: state.runId,
+      specId: state.spec.id,
+      condition: state.condition,
+      predecessor: state.predecessor,
+      runtime: state.runtime,
+      head: state.head,
+      subject: { id: state.subject.id, generation: state.subject.generation, continuation: state.subject.continuation },
+      waitingUntil: state.waitingUntil,
+      waitingForObservation: state.waitingForObservation,
+      pendingObservations: state.pendingObservations.length,
+      effectiveGrants: state.effectiveGrants,
+      hatched: state.hatched,
+      cycles: state.cycles.map(cycle => ({
+        id: cycle.id,
+        generation: cycle.generation,
+        wagerId: cycle.binding ? this.store.get(cycle.binding.wager).id : null,
+        world: cycle.contactStarted?.world ?? null,
+        classification: cycle.evaluation?.kind ?? null,
+        transitionAuthority: cycle.transition?.authority ?? null,
+        complete: Boolean(cycle.transition),
+        rejectedFrontiers: cycle.frontierRejections?.length ?? 0,
+      })),
+      actorInvocations: state.invocations.filter(value => value.invocationId).map(value => ({
+        invocationId: value.invocationId,
+        role: value.role,
+        contextId: value.contextId,
+        responseChain: value.responseChain,
+        workspaceContinuity: value.workspaceContinuity,
+        status: value.status,
+      })),
+      completed: state.completed,
+      evidence: this.store.verifyObjectGraph(),
+    };
+  }
+
+  snapshot(destination) {
+    const state = this.state();
+    if (!state.initialized) throw new Error('run is not initialized');
+    return this.store.snapshot(destination);
+  }
+
+  requireRuntime(spec, expectedProvenance = null) {
+    if (!this.actor || !this.worlds) throw new Error('actor and world registry are required');
+    const actual = this.actor.describe();
+    if (JSON.stringify(actual) !== JSON.stringify(spec.actor)) {
+      throw new Error(`actor condition mismatch: expected ${JSON.stringify(spec.actor)}, got ${JSON.stringify(actual)}`);
+    }
+    if (expectedProvenance && this.provenance().implementationSha256 !== expectedProvenance.implementationSha256) {
+      throw new Error('runtime implementation differs from sealed genesis provenance');
+    }
+    this.worlds.verifySpec(spec);
+  }
+
+  projection(state, role, additions = {}) {
+    const history = state.cycles.filter(cycle => cycle.transition).slice(-32).map(cycle => ({
+      generation: cycle.generation,
+      wager: this.store.get(cycle.binding.wager),
+      world: cycle.contactStarted.world,
+      receipt: this.store.get(cycle.contact.output),
+      evaluation: cycle.evaluation,
+      successor: this.store.get(cycle.transition.subject),
+    }));
+    let projection = {
+      format: 'music-v3-fresh-projection-1',
+      role,
+      run: {
+        id: state.runId,
+        specId: state.spec.id,
+        hypothesis: state.spec.hypothesis,
+        cheapestFalsifier: state.spec.cheapestFalsifier,
+        limits: state.spec.limits,
+      },
+      subject: state.subject,
+      worlds: state.spec.worlds.map(({ id, description, publicContract }) => ({ id, description, publicContract })),
+      capabilities: { effectiveGrants: state.effectiveGrants },
+      observations: this.observationsFor(state),
+      history,
+      ...additions,
+    };
+    const condition = state.spec.conditions.find(value => value.id === state.condition);
+    for (const intervention of condition.interventions.filter(value => value.generation === state.subject.generation)) {
+      projection = eraseProjection(projection, intervention.erase, intervention.replace);
+      const stateErase = intervention.erase.map(pointer => pointer.replace(/^\/subject/, '')).filter(Boolean);
+      const stateReplace = Object.fromEntries(Object.entries(intervention.replace).map(([pointer, value]) => [pointer.replace(/^\/subject/, ''), value]).filter(([pointer]) => pointer));
+      projection.history = projection.history.map(entry => ({
+        ...entry,
+        successor: eraseProjection(entry.successor, stateErase, stateReplace),
+      }));
+    }
+    return projection;
+  }
+
+  observationsFor(state) {
+    const cycle = state.currentCycle;
+    if (!cycle) return [];
+    const prior = state.cycles.filter(value => value.transition && value.generation < cycle.generation).at(-1)?.observedThrough ?? 0;
+    return state.observations
+      .filter(value => value.sequence > prior && value.sequence <= cycle.observedThrough)
+      .map(({ sequence, ...value }) => value);
+  }
+
+  markHatched(state, cycle) {
+    if (!cycle?.transition || state.hatched || state.predecessor) return;
+    const completed = state.invocations.filter(value => value.cycleId === cycle.id && value.status === 'completed');
+    if (!['openrouter', 'codex-exec'].includes(state.spec.actor.adapter) || completed.length < 3 || completed.some(value => typeof value.model !== 'string' || value.model.length === 0)) return;
+    this.store.append('subject.hatched', {
+      cycleId: cycle.id,
+      generation: state.subject.generation,
+      subjectId: state.subject.id,
+      actor: clone(state.spec.actor),
+      criterion: 'first independently completed consequence transition through fresh hosted-model perspectives',
+    });
+  }
+
+  async invoke(role, cycleId, projection) {
+    const state = this.state();
+    const startedCalls = state.invocations.filter(value => value.status === 'started').length;
+    if (startedCalls >= state.spec.limits.maxActorCalls) {
+      this.complete('actor-call-limit', state, { observerDisposition: 'rejected', subjectDisposition: 'open' });
+      throw new Error('frozen actor-call limit reached');
+    }
+    const terminal = new Set(state.invocations.filter(value => ['completed', 'failed', 'abandoned'].includes(value.status)).map(value => value.invocationId));
+    for (const pending of state.invocations.filter(value => value.status === 'started' && value.role === role && value.cycleId === cycleId && !terminal.has(value.invocationId))) {
+      this.store.append('actor.abandoned', {
+        cycleId,
+        invocationId: pending.invocationId,
+        role,
+        contextId: pending.contextId,
+        projection: pending.projection,
+        reason: 'no terminal receipt survived process boundary',
+        responseChain: null,
+        workspaceContinuity: null,
+        status: 'abandoned',
+      });
+    }
+    const schema = RoleSchemas[role];
+    const invocationId = this.id('actor');
+    const contextId = this.id('context');
+    const projectionRef = this.store.put(projection);
+    this.store.append('actor.started', {
+      cycleId,
+      invocationId,
+      role,
+      contextId,
+      projection: projectionRef,
+      responseChain: null,
+      workspaceContinuity: null,
+      status: 'started',
+    });
+    try {
+      const result = await this.actor.invoke({ role, projection: clone(projection), schema, task: RoleTasks[role] });
+      const output = schema.parse(result.output);
+      const outputRef = this.store.put(output);
+      this.store.append('actor.completed', {
+        cycleId,
+        invocationId,
+        role,
+        contextId,
+        projection: projectionRef,
+        output: outputRef,
+        model: result.model ?? null,
+        responseId: result.responseId ?? null,
+        usage: jsonData(result.usage ?? null),
+        responseChain: null,
+        workspaceContinuity: null,
+        status: 'completed',
+      });
+      return output;
+    } catch (error) {
+      const raw = typeof error?.rawOutput === 'string' ? this.store.put({ raw: error.rawOutput }) : null;
+      this.store.append('actor.failed', {
+        cycleId,
+        invocationId,
+        role,
+        contextId,
+        projection: projectionRef,
+        failure: { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384), raw, quarantined: true },
+        responseChain: null,
+        workspaceContinuity: null,
+        status: 'failed',
+      });
+      throw error;
+    }
+  }
+
+  readOutput(reference) { return this.store.get(reference); }
+
+  complete(reason, state, overrides = {}) {
+    if (this.state().completed) return;
+    this.store.append('run.completed', {
+      reason,
+      observerDisposition: overrides.observerDisposition ?? 'completed',
+      subjectDisposition: overrides.subjectDisposition ?? (state.subject.continuation.kind === 'stop' ? 'closed' : 'open'),
+      finalSubjectId: state.subject.id,
+      completedCycles: state.cycles.filter(cycle => cycle.transition).length,
+    });
   }
 }
 
-function normalizeDesignation(value) {
-  if (value === null || value === undefined || value === '') return null;
-  if (typeof value !== 'string' || value.length > 128) throw new Error('designation must be at most 128 characters');
-  return value;
+function requiredCycle(cycles, id) {
+  const cycle = cycles.get(id);
+  if (!cycle) throw new Error(`event references unknown cycle: ${id}`);
+  return cycle;
 }
 
-function successorSubject(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('successor subject is required');
-  if (typeof value.id !== 'string' || value.id.length < 1 || value.id.length > 128) throw new Error('invalid successor subject id');
-  if (typeof value.bornAt !== 'string' || !Number.isFinite(Date.parse(value.bornAt))) throw new Error('invalid successor birth time');
-  return { id: value.id, designation: normalizeDesignation(value.designation ?? value.name ?? null), bornAt: value.bornAt };
+function jsonData(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
-function successorReceipt(value, subject) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('succession receipt is required');
-  if (value.format !== 'music-v1-to-v2-succession-1') throw new Error('unsupported succession receipt');
-  if (value.subjectId !== subject.id) throw new Error('succession subject id does not match');
-  for (const field of ['sourceHead', 'sourceLedgerSha256', 'sourceSnapshotManifestSha256', 'sourcePositionRoot']) {
-    if (!/^[a-f0-9]{64}$/.test(value[field] ?? '')) throw new Error(`invalid succession ${field}`);
-  }
-  if (value.sourceFormat !== 'music-event-12') throw new Error('successor requires a music-event-12 source');
-  if (!Number.isInteger(value.sourceEventCount) || value.sourceEventCount < 1) throw new Error('invalid succession event count');
-  if (typeof value.succeededAt !== 'string' || !Number.isFinite(Date.parse(value.succeededAt))) throw new Error('invalid succession time');
-  canonical(value);
-  return structuredClone(value);
-}
-
-function successorObservation(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid successor observation');
-  if (typeof value.id !== 'string' || value.id.length < 1 || value.id.length > 128) throw new Error('invalid successor observation id');
-  if (typeof value.kind !== 'string' || value.kind.length < 1) throw new Error('invalid successor observation kind');
-  if (typeof value.observedAt !== 'string' || !Number.isFinite(Date.parse(value.observedAt))) throw new Error('invalid successor observation time');
-  canonical(value);
-  return structuredClone(value);
-}
-
-function requireSubject(state) {
-  if (!state.subject) throw new Error('Music subject does not exist');
-}
-
-function escapePointer(value) {
-  return value.replaceAll('~', '~0').replaceAll('/', '~1');
+function delay(milliseconds, signal) {
+  return new Promise((resolve, reject) => {
+    let abort = null;
+    const timer = setTimeout(() => {
+      if (abort) signal.removeEventListener('abort', abort);
+      resolve();
+    }, milliseconds);
+    if (!signal) return;
+    abort = () => {
+      clearTimeout(timer);
+      reject(signal.reason ?? new Error('resident loop aborted'));
+    };
+    if (signal.aborted) abort();
+    else signal.addEventListener('abort', abort, { once: true });
+  });
 }
