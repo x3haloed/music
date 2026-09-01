@@ -47,6 +47,17 @@ design unless later observation demonstrates that it is absolutely necessary.
   alternative geometry: saturation can pivot selection across world surfaces,
   or reopen challenge of the subject's own executable when no attractive new
   surface exists.
+- **In instruction-free recurrence, the same subject must encounter a live
+  opportunity to improve future election through world contact, and resulting
+  consequence must remain addressable to the election and machinery that
+  produced it.**
+  **Evidence:** The first resident could retain and execute supplied trajectories
+  but repeatedly returned to passive mailbox observation after that surface
+  saturated. Open Trajectory OT-0096 through OT-0100 instead retained exact
+  election machinery across fresh actors, let objective contact expose its
+  allocation errors, and successively corrected that machinery until it governed
+  a later admitted action. The remaining OT-0100 failure was in assimilation
+  protocol rather than election, consequence, or execution.
 
 - **World consequence remains distinguishable from the subject's interpretation
   of it.**
