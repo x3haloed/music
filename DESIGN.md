@@ -462,13 +462,15 @@ becomes active continuity. Files can embody larger memory while active
 continuity supplies whatever pointers and interpretation the subject chooses.
 The kernel does not summarize, replay, or decide what deserves remembrance.
 
-The seed `inference_policy` component begins at 120 steps, 2 MiB per retained
-inference event, and a 30-minute timeout. `tune_inference` can author a complete
-provisional successor within physical ceilings of 10,000 steps, 64 MiB, and 24
-hours. Policy is sealed into the Sounding, so a proposal cannot alter its current
-encounter. A policy trial seals the provisional policy into a later Sounding, so
-its step, event-size, and timeout geometry governs real inference before explicit
-admission can make it active.
+The seed `inference_policy` component begins at 120 steps, 15,000 output tokens
+per model call, 2 MiB per retained inference event, and a 30-minute timeout.
+`tune_inference` can author a complete provisional successor within physical
+ceilings of 10,000 steps, 131,072 output tokens, 64 MiB, and 24 hours. Policy is
+sealed into the Sounding, so a proposal cannot alter its current encounter. A
+policy trial seals the provisional policy into a later Sounding, so its step,
+output, event-size, and timeout geometry governs real inference before explicit
+admission can make it active. Deployment model configuration may impose a lower
+output-token ceiling.
 
 ## Plastic recurrence
 

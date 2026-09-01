@@ -222,7 +222,7 @@ export function defaultModelConfig() {
     apiKeyEnv: 'OPENROUTER_API_KEY',
     appName: 'Music',
     modelSettings: { extraBody: { reasoning: { effort: 'minimal' } } },
-    maxOutputTokens: 2_048,
+    maxOutputTokens: 15_000,
     maxRetries: 0,
   };
 }

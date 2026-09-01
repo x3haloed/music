@@ -1,8 +1,6 @@
 import { Output, ToolLoopAgent, isStepCount, jsonSchema, tool } from 'ai';
 import { toolModuleDigest } from './tool-module.js';
 
-const MAX_OUTPUT_TOKENS = 2_048;
-
 export class MusicMind {
   constructor(kernel, {
     model,
@@ -12,7 +10,7 @@ export class MusicMind {
     preflight = async () => ({ tools: true, source: 'injected' }),
   }, {
     maxSteps,
-    maxOutputTokens = MAX_OUTPUT_TOKENS,
+    maxOutputTokens,
     maxRetries = 0,
   } = {}) {
     if (!model) throw new Error('MusicMind needs an AI SDK language model');
@@ -24,7 +22,7 @@ export class MusicMind {
     this.retainedRequests = retainedRequests;
     this.preflight = preflight;
     this.maxStepsCeiling = maxSteps;
-    this.maxOutputTokens = maxOutputTokens;
+    this.maxOutputTokensCeiling = maxOutputTokens;
     this.maxRetries = maxRetries;
   }
 
@@ -35,6 +33,9 @@ export class MusicMind {
     const sounding = this.kernel.getSounding(soundingId);
     const recurrenceEntryRequired = sounding.trajectoryElection?.entry === 'required';
     const maxSteps = this.maxStepsCeiling === undefined ? policy.maxSteps : Math.min(policy.maxSteps, this.maxStepsCeiling);
+    const maxOutputTokens = this.maxOutputTokensCeiling === undefined
+      ? policy.maxOutputTokens
+      : Math.min(policy.maxOutputTokens, this.maxOutputTokensCeiling);
     if (recurrenceEntryRequired && maxSteps < 3) {
       throw new Error('recurrence policy needs at least 3 model steps: developmental review, trajectory election, and action');
     }
@@ -74,7 +75,7 @@ export class MusicMind {
             isStepCount(remaining),
             () => this.kernel.pendingSteeringDeltas(inferenceId).length > 0,
           ],
-          maxOutputTokens: this.maxOutputTokens,
+          maxOutputTokens,
           maxRetries: this.maxRetries,
           onStepEnd: retainStep,
         });
@@ -102,7 +103,7 @@ export class MusicMind {
             description: manifest.description,
           }),
           stopWhen: isStepCount(1),
-          maxOutputTokens: this.maxOutputTokens,
+          maxOutputTokens,
           maxRetries: this.maxRetries,
           onStepEnd: retainStep,
         });
@@ -139,6 +140,9 @@ export class MusicMind {
         );
       }
       if (!result) throw new Error('Music inference produced no model step');
+      if (finishReasonIsLength(result.finishReason)) {
+        throw new Error(`model exhausted the ${maxOutputTokens}-token output allowance before completing the encounter`);
+      }
       this.kernel.completeInference(inferenceId, {
         responseMessages: [],
         text: result.text,
@@ -162,6 +166,12 @@ export class MusicMind {
       throw error;
     }
   }
+}
+
+function finishReasonIsLength(finishReason) {
+  return finishReason === 'length'
+    || finishReason?.unified === 'length'
+    || finishReason?.raw === 'length';
 }
 
 export function createTools(kernel, inferenceId, soundingId, { excludeOrgans = false } = {}) {

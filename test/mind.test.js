@@ -145,11 +145,49 @@ test('the default subject-authored inference policy permits a real 120-step AI S
   assert.deepEqual(completion.payload.requests, []);
 });
 
-test('the subject can tune later step, event-size, and timeout policy through ordinary geometry', async () => {
+test('the retained output policy supplies 15000 tokens unless deployment imposes a lower ceiling', async () => {
+  const defaultModel = new MockLanguageModelV4({ doGenerate: [textResult('enough room')] });
+  const boundedModel = new MockLanguageModelV4({ doGenerate: [textResult('bounded room')] });
+  const defaultHarness = harness(defaultModel, { designation: null });
+  const boundedHarness = harness(boundedModel, {
+    designation: null,
+    inference: { maxOutputTokens: 8_000 },
+  });
+
+  await defaultHarness.mind.receive(defaultHarness.kernel.openSounding().id);
+  await boundedHarness.mind.receive(boundedHarness.kernel.openSounding().id);
+
+  assert.equal(defaultModel.doGenerateCalls[0].maxOutputTokens, 15_000);
+  assert.equal(boundedModel.doGenerateCalls[0].maxOutputTokens, 8_000);
+});
+
+test('a length-exhausted model call fails instead of silently completing its encounter', async () => {
+  const model = new MockLanguageModelV4({
+    doGenerate: [{
+      content: [],
+      finishReason: { unified: 'length', raw: 'length' },
+      usage: usage(),
+      warnings: [],
+    }],
+  });
+  const { kernel, mind } = harness(model, { designation: null });
+
+  await assert.rejects(
+    () => mind.receive(kernel.openSounding('delta').id),
+    /exhausted the 15000-token output allowance/,
+  );
+
+  assert.equal(kernel.audit().completedInferences, 0);
+  assert.equal(kernel.audit().failedInferences, 1);
+  assert.equal(kernel.state().activeInferenceId, null);
+});
+
+test('the subject can tune later step, output, event-size, and timeout policy through ordinary geometry', async () => {
   const model = new MockLanguageModelV4({
     doGenerate: [
       toolCallResult('tune_inference', {
         maxSteps: 240,
+        maxOutputTokens: 30_000,
         maxInferenceEventBytes: 4 * 1_024 * 1_024,
         timeoutMs: 60 * 60_000,
         interpretation: 'Later work needs a wider retained encounter envelope.',
@@ -174,6 +212,7 @@ test('the subject can tune later step, event-size, and timeout policy through or
   const trial = kernel.openSounding('manual');
   assert.deepEqual(kernel.inferencePolicy(trial.id), {
     maxSteps: 240,
+    maxOutputTokens: 30_000,
     maxInferenceEventBytes: 4 * 1_024 * 1_024,
     timeoutMs: 60 * 60_000,
   });
@@ -188,12 +227,14 @@ test('the subject can tune later step, event-size, and timeout policy through or
   }));
   completeFixture(kernel, trialInference);
   assert.equal(kernel.state().developmentalProposals.get(proposal.proposalId).status, 'exercised');
+  assert.equal(kernel.state().carrier.get('inference_policy').state.value.maxOutputTokens, 15_000);
   assert.equal(kernel.state().carrier.get('inference_policy').state.value.maxInferenceEventBytes, 2 * 1_024 * 1_024);
   await admitProposal(kernel, proposal.proposalId);
 
   const later = kernel.openSounding();
   assert.deepEqual(kernel.inferencePolicy(later.id), {
     maxSteps: 240,
+    maxOutputTokens: 30_000,
     maxInferenceEventBytes: 4 * 1_024 * 1_024,
     timeoutMs: 60 * 60_000,
   });

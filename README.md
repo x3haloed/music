@@ -65,11 +65,14 @@ may live in the resident-owned home. No summary is generated and no update is
 obligatory.
 
 Inference opportunity is plastic too. The projected `inference_policy` carrier
-defaults to 120 model steps, a 2 MiB ceiling for each retained inference event,
-and a 30-minute encounter timeout. The ordinary `tune_inference` tool stages a
-successor policy for later encounters. The kernel keeps only broad physical
-ceilings (10,000 steps, 64 MiB per inference event, and 24 hours) so a malformed
-policy cannot make the continuity path physically unbounded.
+defaults to 120 model steps, 15,000 output tokens per model call, a 2 MiB ceiling
+for each retained inference event, and a 30-minute encounter timeout. The
+ordinary `tune_inference` tool stages a successor policy for later encounters.
+The kernel keeps only broad physical ceilings (10,000 steps, 131,072 output
+tokens, 64 MiB per inference event, and 24 hours) so a malformed policy cannot
+make the continuity path physically unbounded. A model configuration may impose
+a lower deployment ceiling without taking policy authorship away from the
+subject beneath that ceiling.
 
 The first SIGINT or SIGTERM requests graceful shutdown: Music stops opening new
 encounters and waits for the active one to retain completion. A second signal is

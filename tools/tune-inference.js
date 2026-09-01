@@ -5,11 +5,12 @@ export function initialTuneInferenceTool() {
     id: 'tune_inference',
     version: 1,
     parent: null,
-    description: 'Author a provisional inference policy for later encounters: maximum model steps, retained-event bytes, and total timeout. Supply a complete policy. It becomes active only after developmental exercise and explicit admission; broad physical ceilings remain in the kernel.',
+    description: 'Author a provisional inference policy for later encounters: maximum model steps, output tokens per model call, retained-event bytes, and total timeout. Supply a complete policy. It becomes active only after developmental exercise and explicit admission; broad physical ceilings remain in the kernel.',
     inputSchema: {
       type: 'object',
       properties: {
         maxSteps: { type: 'integer', minimum: 1, maximum: 10_000 },
+        maxOutputTokens: { type: 'integer', minimum: 1, maximum: 131_072 },
         maxInferenceEventBytes: { type: 'integer', minimum: 65_536, maximum: 67_108_864 },
         timeoutMs: { type: 'integer', minimum: 1_000, maximum: 86_400_000 },
         interpretation: { type: 'string', minLength: 1, maxLength: 4_096 },
@@ -22,7 +23,7 @@ export function initialTuneInferenceTool() {
           items: { type: 'string', minLength: 1, maxLength: 128 },
         },
       },
-      required: ['maxSteps', 'maxInferenceEventBytes', 'timeoutMs', 'interpretation'],
+      required: ['maxSteps', 'maxOutputTokens', 'maxInferenceEventBytes', 'timeoutMs', 'interpretation'],
       additionalProperties: false,
     },
     source: sourceBody(tuneInference),
@@ -34,6 +35,7 @@ async function tuneInference(input, context) {
     componentId: 'inference_policy',
     value: {
       maxSteps: input.maxSteps,
+      maxOutputTokens: input.maxOutputTokens,
       maxInferenceEventBytes: input.maxInferenceEventBytes,
       timeoutMs: input.timeoutMs,
     },
