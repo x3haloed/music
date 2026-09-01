@@ -180,7 +180,7 @@ test('a future subject opening is bounded by the continuity floor without early 
   const kernel = new DevelopmentalKernel(value.root, { ...value, clock: () => now });
   kernel.initialize(value.spec);
   const state = await kernel.run();
-  assert.equal(state.waitingUntil, '2026-09-01T01:30:00.000Z');
+  assert.equal(state.waitingUntil, '2026-09-01T00:05:00.000Z');
   assert.equal(state.invocations.length, 0);
   assert.equal(state.completed, null);
 });

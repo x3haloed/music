@@ -10,7 +10,7 @@ improve its selector indefinitely.
 ## Evidence
 
 The final immutable runtime is implementation digest
-`62b24a47bec43a7b426a7290cf85054f72ec37e170e598465bc0536887abe148`.
+`fa55b1cf96fb8faaa120a66bfed68980d5a9da917cc16a6ac86fb6cbe0023dc8`.
 Its predecessor was exercised from an installation outside the checkout using
 only `z-ai/glm-5.3-flash` at low reasoning effort; the current delta bounds
 file-tool allocation and has production-shaped sparse-file coverage without

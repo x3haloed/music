@@ -18,7 +18,7 @@ and leave replayable snapshots.
 
 Seclusion is real but not annihilation. External observations wake the subject
 immediately, subject-requested openings wake it when due, and the sealed
-`continuityPulseMs` floor (90 minutes by default) eventually delivers an
+`continuityPulseMs` floor (five minutes by default) eventually delivers an
 ordinary retained observation shaped as
 `{kind: "continuity-pulse", instructions: []}`. A far-future opening therefore
 cannot silence the resident indefinitely, and continuity does not smuggle in a
