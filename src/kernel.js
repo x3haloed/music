@@ -18,6 +18,7 @@ const FORMAT = MUSIC_EVENT_FORMAT;
 const READABLE_FORMATS = new Set(['music-event-10', 'music-event-11', FORMAT]);
 const WRITER_FORMAT = 'music-writer-1';
 const ENCOUNTER_SHAPE_TOOL_ID = 'shape_encounter';
+const DEVELOPMENTAL_REVIEW_TOOL_ID = 'review_developmental_position';
 const TRAJECTORY_ELECTION_TOOL_ID = 'elect_trajectory';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
@@ -498,6 +499,10 @@ export class MusicKernel {
           selectToolAction: (selectedToolId, frontier) => previewToolSelection(selectedToolId, frontier),
           recordTrajectoryElection: frontier => previewTrajectoryElection(frontier, state),
           executeTrajectoryElection: frontier => previewTrajectoryElection(frontier, state),
+          recordDevelopmentalReview: frontier => ({
+            format: 'music-developmental-review-preview-1',
+            ...validateDevelopmentalReview(frontier, encounter),
+          }),
           stageConsequenceTransition: candidate => previewConsequenceTransition(candidate, state, encounter),
           stageCarrierTransition: candidate => createCarrierTransition(state.carrier, candidate),
           stageWakeTransition: candidate => previewOpeningTransition(candidate, this.clock),
@@ -680,7 +685,7 @@ export class MusicKernel {
       || invocation.tool.id !== TRAJECTORY_ELECTION_TOOL_ID) {
       throw new Error('trajectory election requires its active ordinary selector invocation');
     }
-    const election = validateTrajectoryElectionFrontier(frontier);
+    const election = validateTrajectoryElectionFrontier(frontier, state);
     const floorGrounding = groundTrajectoryFloors(election.candidates, state);
     const electionId = this.id();
     this.append('trajectory_election_recorded', {
@@ -695,13 +700,65 @@ export class MusicKernel {
       ...election,
     });
     return {
-      format: 'music-trajectory-election-1',
+      format: election.reviewId ? 'music-trajectory-election-2' : 'music-trajectory-election-1',
       trajectoryElectionReceipt: electionId,
+      ...(election.reviewId ? {
+        reviewId: election.reviewId,
+        reviewDigest: election.reviewDigest,
+        trajectory: structuredClone(election.trajectory),
+      } : {}),
       candidates: structuredClone(election.candidates),
       selectedCandidateId: election.selectedCandidateId,
       selected: structuredClone(election.selected),
       floorGrounding: structuredClone(floorGrounding),
     };
+  }
+
+  recordDevelopmentalReview(inferenceId, soundingId, invocationId, frontier) {
+    const state = this.state();
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    const invocation = state.activeToolInvocations.get(invocationId);
+    if (!invocation || invocation.inferenceId !== inferenceId || invocation.soundingId !== soundingId
+      || invocation.tool.id !== DEVELOPMENTAL_REVIEW_TOOL_ID) {
+      throw new Error('developmental review requires its active ordinary review invocation');
+    }
+    const review = validateDevelopmentalReview(frontier, encounter);
+    const reviewId = this.id();
+    this.append('developmental_review_recorded', {
+      reviewId,
+      inferenceId,
+      soundingId,
+      projection: encounter.projection,
+      carrierRoot: encounter.sounding.carrier.root,
+      reviewer: structuredClone(invocation.tool),
+      invocationId,
+      ...review,
+    });
+    return {
+      format: 'music-developmental-review-1',
+      reviewId,
+      findings: structuredClone(review.findings),
+      candidates: structuredClone(review.candidates),
+    };
+  }
+
+  deliverTrajectoryContext(inferenceId) {
+    const state = this.state();
+    if (state.activeInferenceId !== inferenceId || !state.activeEncounter) {
+      throw new Error(`inference is not active: ${inferenceId}`);
+    }
+    const elections = [...state.trajectoryElections.values()].filter(election => election.inferenceId === inferenceId);
+    if (elections.length !== 1) throw new Error('trajectory context requires exactly one election in this inference');
+    const election = elections[0];
+    const message = trajectoryContextMessage(election);
+    this.append('trajectory_context_delivered', {
+      inferenceId,
+      soundingId: state.activeEncounter.sounding.id,
+      projection: state.activeEncounter.projection,
+      electionId: election.electionId,
+      message,
+    });
+    return structuredClone(message);
   }
 
   async executeTrajectoryElection(inferenceId, soundingId, invocationId, frontier) {
@@ -799,6 +856,9 @@ export class MusicKernel {
         environment: structuredClone(this.toolEnvironment),
         selectToolAction: (selectedToolId, frontier) => this.selectToolAction(inferenceId, soundingId, selectedToolId, frontier),
         recordTrajectoryElection: frontier => this.recordTrajectoryElection(
+          inferenceId, soundingId, invocationId, frontier,
+        ),
+        recordDevelopmentalReview: frontier => this.recordDevelopmentalReview(
           inferenceId, soundingId, invocationId, frontier,
         ),
         executeTrajectoryElection: frontier => this.executeTrajectoryElection(
@@ -1137,7 +1197,9 @@ export class MusicKernel {
       uncertainInvocationsWithoutWorldContact: [...state.invocationHistory.entries()]
         .filter(([invocationId, invocation]) => invocation.status === 'uncertain' && !state.contactedInvocationIds.has(invocationId)).length,
       selections: state.selectionCount,
+      developmentalReviews: state.developmentalReviewIds.size,
       trajectoryElections: state.trajectoryElectionIds.size,
+      activeTrajectory: structuredClone([...state.trajectoryElections.values()].at(-1) ?? null),
       electedActions: state.usedTrajectoryElectionIds.size,
       adHocActions: [...state.invocationHistory.values()]
         .filter(invocation => invocation.trajectoryBasis?.kind === 'ad-hoc').length,
@@ -1243,10 +1305,14 @@ function reduceEvents(events) {
     selections: new Map(),
     usedSelectionIds: new Set(),
     selectionCount: 0,
+    developmentalReviews: new Map(),
+    developmentalReviewIds: new Set(),
+    developmentalReviewInvocationIds: new Set(),
     trajectoryElections: new Map(),
     trajectoryElectionIds: new Set(),
     trajectoryElectionInvocationIds: new Set(),
     usedTrajectoryElectionIds: new Set(),
+    deliveredTrajectoryContextIds: new Set(),
     inferenceIds: new Set(),
     completedInferences: 0,
     failedInferences: 0,
@@ -1752,7 +1818,7 @@ function reduceEvents(events) {
         if (event.payload.carrierRoot !== encounter.sounding.carrier.root) {
           throw new Error('trajectory election carrier binding mismatch');
         }
-        const election = validateTrajectoryElectionFrontier(event.payload);
+        const election = validateTrajectoryElectionFrontier(event.payload, state);
         if (event.payload.floorGrounding !== undefined) {
           const grounding = groundTrajectoryFloors(election.candidates, state);
           if (digest(event.payload.floorGrounding) !== digest(grounding)) {
@@ -1773,6 +1839,42 @@ function reduceEvents(events) {
             ? {}
             : { floorGrounding: structuredClone(event.payload.floorGrounding) }),
           ...election,
+        });
+        break;
+      }
+      case 'developmental_review_recorded': {
+        requireSubject(state);
+        const encounter = requireActiveEncounter(
+          state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection,
+        );
+        if (typeof event.payload.reviewId !== 'string' || !event.payload.reviewId.trim()
+          || event.payload.reviewId.length > 128) throw new Error('developmental review needs a bounded id');
+        if (state.developmentalReviewIds.has(event.payload.reviewId)) throw new Error('duplicate developmental review id');
+        if (state.developmentalReviewInvocationIds.has(event.payload.invocationId)) {
+          throw new Error('one review invocation cannot retain multiple developmental reviews');
+        }
+        const invocation = state.activeToolInvocations.get(event.payload.invocationId);
+        if (!invocation || invocation.tool.id !== DEVELOPMENTAL_REVIEW_TOOL_ID
+          || event.payload.reviewer?.id !== invocation.tool.id
+          || invocation.tool.digest !== event.payload.reviewer?.digest
+          || invocation.tool.version !== event.payload.reviewer?.version) {
+          throw new Error('developmental review is not bound to its active review invocation');
+        }
+        if (event.payload.carrierRoot !== encounter.sounding.carrier.root) {
+          throw new Error('developmental review carrier binding mismatch');
+        }
+        const review = validateDevelopmentalReview(event.payload, encounter);
+        state.developmentalReviewIds.add(event.payload.reviewId);
+        state.developmentalReviewInvocationIds.add(event.payload.invocationId);
+        state.developmentalReviews.set(event.payload.reviewId, {
+          reviewId: event.payload.reviewId,
+          inferenceId: event.payload.inferenceId,
+          soundingId: event.payload.soundingId,
+          projection: event.payload.projection,
+          carrierRoot: event.payload.carrierRoot,
+          reviewer: structuredClone(event.payload.reviewer),
+          invocationId: event.payload.invocationId,
+          ...review,
         });
         break;
       }
@@ -1881,6 +1983,25 @@ function reduceEvents(events) {
         state.activeTurnMessages.push(...retained);
         state.messages.push(...retained);
         state.inferenceCheckpointCount += 1;
+        break;
+      }
+      case 'trajectory_context_delivered': {
+        const encounter = requireActiveEncounter(
+          state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection,
+        );
+        const election = state.trajectoryElections.get(event.payload.electionId);
+        if (!election || election.inferenceId !== event.payload.inferenceId
+          || election.soundingId !== encounter.sounding.id) {
+          throw new Error('trajectory context is not bound to its active election');
+        }
+        if (state.deliveredTrajectoryContextIds.has(event.payload.electionId)) {
+          throw new Error('trajectory context was delivered more than once');
+        }
+        const expected = trajectoryContextMessage(election);
+        if (digest(event.payload.message) !== digest(expected)) throw new Error('trajectory context message mismatch');
+        state.activeTurnMessages.push(structuredClone(expected));
+        state.messages.push(structuredClone(expected));
+        state.deliveredTrajectoryContextIds.add(event.payload.electionId);
         break;
       }
       case 'inference_steered': {
@@ -2245,7 +2366,7 @@ function previewToolSelection(toolId, frontier) {
 }
 
 function previewTrajectoryElection(frontier, state) {
-  const election = validateTrajectoryElectionFrontier(frontier);
+  const election = validateTrajectoryElectionFrontier(frontier, state);
   const floorGrounding = groundTrajectoryFloors(election.candidates, state);
   return {
     format: 'music-provisional-trajectory-election-1',
@@ -2943,11 +3064,17 @@ function trajectoryElectionOpportunity(state, trigger) {
   if ((state.pendingDeltas?.length ?? 0) > 0
     || (state.consequences instanceof Map && projectUnresolvedConsequences(state).length > 0)) return {};
   const selector = state.tools.get(TRAJECTORY_ELECTION_TOOL_ID);
-  if (!selector) return {};
+  const reviewer = state.tools.get(DEVELOPMENTAL_REVIEW_TOOL_ID);
+  if (!selector || !reviewer) return {};
   return {
     trajectoryElection: {
-      format: 'music-trajectory-election-opportunity-1',
+      format: 'music-trajectory-election-opportunity-2',
       occasion: trigger === 'heartbeat' ? 'instruction-free-recurrence' : 'subject-opening-recurrence',
+      reviewer: {
+        id: reviewer.id,
+        version: reviewer.version,
+        digest: toolModuleDigest(reviewer),
+      },
       selector: {
         id: selector.id,
         version: selector.version,
@@ -2990,10 +3117,21 @@ function legacyTrajectoryElectionOpportunity(state, trigger) {
 function requireRecurrenceElection(state, inferenceId) {
   const opportunity = state.activeEncounter?.sounding?.trajectoryElection;
   if (opportunity?.entry !== 'required') return;
+  const reviews = [...state.developmentalReviews.values()]
+    .filter(review => review.inferenceId === inferenceId);
+  if (reviews.length !== 1) {
+    throw new Error(`recurrence inference requires exactly one retained developmental review; found ${reviews.length}`);
+  }
   const elections = [...state.trajectoryElections.values()]
     .filter(election => election.inferenceId === inferenceId);
   if (elections.length !== 1) {
     throw new Error(`recurrence inference requires exactly one retained trajectory election; found ${elections.length}`);
+  }
+  if (elections[0].reviewId !== reviews[0].reviewId) {
+    throw new Error('recurrence trajectory election must judge the retained developmental review');
+  }
+  if (!state.deliveredTrajectoryContextIds.has(elections[0].electionId)) {
+    throw new Error('recurrence inference must receive its retained trajectory context before completion');
   }
   if (!elections[0].candidates.some(candidate => candidate?.action?.kind === 'tool')) {
     throw new Error('recurrence trajectory frontier requires at least one executable contact candidate');
@@ -3567,9 +3705,142 @@ function validateSelectionFrontier(manifest, frontier) {
   return { candidates, selectedCandidateId: frontier.selectedCandidateId, selected };
 }
 
-function validateTrajectoryElectionFrontier(frontier) {
+function validateDevelopmentalReview(frontier, encounter) {
+  const value = jsonValue(frontier, 'developmental review');
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || !Array.isArray(value.findings) || value.findings.length < 1 || value.findings.length > 24
+    || !Array.isArray(value.candidates) || value.candidates.length < 2
+    || value.candidates.length > MAX_SELECTION_CANDIDATES) {
+    throw new Error('developmental review needs bounded findings and candidates');
+  }
+  if (Buffer.byteLength(canonical({ findings: value.findings, candidates: value.candidates })) > MAX_SELECTION_BYTES) {
+    throw new Error(`developmental review exceeds ${MAX_SELECTION_BYTES} bytes`);
+  }
+  const findingIds = new Set();
+  const findings = value.findings.map(finding => {
+    if (!finding || typeof finding !== 'object' || Array.isArray(finding)
+      || typeof finding.id !== 'string' || !/^[a-z][a-z0-9_-]{0,47}$/.test(finding.id)
+      || findingIds.has(finding.id)
+      || !['harm', 'constraint', 'unresolved-stake', 'opportunity', 'maintenance'].includes(finding.class)
+      || !['critical', 'high', 'medium', 'low', 'background'].includes(finding.severity)
+      || !['immediate', 'near', 'eventual', 'none'].includes(finding.urgency)
+      || !['critical', 'high', 'medium', 'low', 'none', 'unknown'].includes(finding.costOfDelay)
+      || typeof finding.condition !== 'string' || !finding.condition.trim() || finding.condition.length > 2_048
+      || !Array.isArray(finding.evidence) || finding.evidence.length < 1 || finding.evidence.length > 16
+      || finding.evidence.some(item => typeof item !== 'string' || !item.trim() || item.length > 512)) {
+      throw new Error('invalid developmental review finding');
+    }
+    findingIds.add(finding.id);
+    return structuredClone(finding);
+  });
+  const candidateIds = new Set();
+  let executable = 0;
+  const candidates = value.candidates.map(candidate => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)
+      || typeof candidate.id !== 'string' || !/^[a-z][a-z0-9_-]{0,47}$/.test(candidate.id)
+      || candidateIds.has(candidate.id)
+      || typeof candidate.description !== 'string' || !candidate.description.trim() || candidate.description.length > 2_048
+      || !Array.isArray(candidate.addressesFindingIds) || candidate.addressesFindingIds.length < 1
+      || candidate.addressesFindingIds.length > 24
+      || new Set(candidate.addressesFindingIds).size !== candidate.addressesFindingIds.length
+      || candidate.addressesFindingIds.some(id => !findingIds.has(id))) {
+      throw new Error('invalid developmental review candidate');
+    }
+    candidateIds.add(candidate.id);
+    const action = candidate.action;
+    if (!action || typeof action !== 'object' || Array.isArray(action) || !['tool', 'quiet'].includes(action.kind)) {
+      throw new Error(`review candidate ${candidate.id} needs a typed action`);
+    }
+    if (action.kind === 'tool') {
+      if (typeof action.tool !== 'string' || !action.tool
+        || !action.input || typeof action.input !== 'object' || Array.isArray(action.input)
+        || [DEVELOPMENTAL_REVIEW_TOOL_ID, TRAJECTORY_ELECTION_TOOL_ID].includes(action.tool)
+        || !encounter.toolBindings.has(action.tool)) {
+        throw new Error(`review candidate ${candidate.id} needs an available non-organ tool action`);
+      }
+      executable += 1;
+    } else if (action.tool !== undefined || action.input !== undefined) {
+      throw new Error(`quiet review candidate ${candidate.id} cannot carry a tool action`);
+    }
+    return structuredClone(candidate);
+  });
+  if (executable < 1) throw new Error('developmental review needs at least one executable contact candidate');
+  return { findings, candidates };
+}
+
+function validateTrajectoryEnvelope(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || typeof value.objective !== 'string' || !value.objective.trim() || value.objective.length > 2_048
+    || typeof value.direction !== 'string' || !value.direction.trim() || value.direction.length > 2_048
+    || !['immediate', 'near', 'open-ended'].includes(value.horizon)
+    || !Array.isArray(value.successSignals) || value.successSignals.length < 1 || value.successSignals.length > 8
+    || value.successSignals.some(item => typeof item !== 'string' || !item.trim() || item.length > 512)
+    || !Array.isArray(value.reconsiderWhen) || value.reconsiderWhen.length < 1 || value.reconsiderWhen.length > 8
+    || value.reconsiderWhen.some(item => typeof item !== 'string' || !item.trim() || item.length > 512)) {
+    throw new Error('invalid trajectory envelope');
+  }
+  return structuredClone(value);
+}
+
+function validateTrajectoryElectionFrontier(frontier, state = null) {
   if (!frontier || typeof frontier !== 'object' || Array.isArray(frontier)) {
     throw new Error('trajectory election frontier must be an object');
+  }
+  if (frontier.reviewId !== undefined) {
+    if (!state) throw new Error('review-bound trajectory election needs retained state');
+    const review = state.developmentalReviews.get(frontier.reviewId);
+    if (!review) throw new Error(`trajectory election cites unknown developmental review: ${frontier.reviewId}`);
+    if (review.inferenceId !== state.activeInferenceId
+      || review.soundingId !== state.activeEncounter?.sounding?.id
+      || review.projection !== state.activeEncounter?.projection) {
+      throw new Error('trajectory election review is not bound to the active encounter');
+    }
+    if (!Array.isArray(frontier.assessments) || frontier.assessments.length !== review.candidates.length) {
+      throw new Error('trajectory election must assess every frozen review candidate exactly once');
+    }
+    const assessments = new Map();
+    for (const assessment of frontier.assessments) {
+      if (!assessment || typeof assessment !== 'object' || Array.isArray(assessment)
+        || typeof assessment.candidateId !== 'string' || assessments.has(assessment.candidateId)
+        || !review.candidates.some(candidate => candidate.id === assessment.candidateId)
+        || typeof assessment.worldValid !== 'boolean' || typeof assessment.reversible !== 'boolean'
+        || typeof assessment.heldRepeat !== 'boolean'
+        || !Array.isArray(assessment.completedFloors) || assessment.completedFloors.length > 16
+        || !Number.isInteger(assessment.predictedExpansion) || !Number.isInteger(assessment.actionableRegret)
+        || typeof assessment.basis !== 'string' || !assessment.basis.trim() || assessment.basis.length > 2_048) {
+        throw new Error('invalid trajectory candidate assessment');
+      }
+      assessments.set(assessment.candidateId, structuredClone(assessment));
+    }
+    const candidates = review.candidates.map(candidate => {
+      const assessment = assessments.get(candidate.id);
+      return {
+        ...structuredClone(candidate),
+        geometry: {
+          worldValid: assessment.worldValid,
+          reversible: assessment.reversible,
+          heldRepeat: assessment.heldRepeat,
+          completedFloors: structuredClone(assessment.completedFloors),
+          predictedExpansion: assessment.predictedExpansion,
+          actionableRegret: assessment.actionableRegret,
+          basis: assessment.basis,
+        },
+      };
+    });
+    if (typeof frontier.selectedCandidateId !== 'string'
+      || !candidates.some(candidate => candidate.id === frontier.selectedCandidateId)) {
+      throw new Error('selected trajectory candidate is absent from frozen review');
+    }
+    const selected = candidates.find(candidate => candidate.id === frontier.selectedCandidateId);
+    return {
+      reviewId: review.reviewId,
+      reviewDigest: digest({ findings: review.findings, candidates: review.candidates }),
+      assessments: structuredClone(frontier.assessments),
+      candidates,
+      selectedCandidateId: frontier.selectedCandidateId,
+      selected,
+      trajectory: validateTrajectoryEnvelope(frontier.trajectory),
+    };
   }
   if (!Array.isArray(frontier.candidates) || frontier.candidates.length < 2
     || frontier.candidates.length > MAX_SELECTION_CANDIDATES) {
@@ -3594,6 +3865,33 @@ function validateTrajectoryElectionFrontier(frontier) {
   }
   const selected = candidates.find(candidate => candidate.id === frontier.selectedCandidateId);
   return { candidates, selectedCandidateId: frontier.selectedCandidateId, selected };
+}
+
+function trajectoryContextMessage(election) {
+  const envelope = {
+    format: 'music-trajectory-envelope-1',
+    authority: 'resident-trajectory-elector',
+    trajectoryId: election.electionId,
+    actionBinding: {
+      receiptField: 'trajectoryElectionReceipt',
+      receipt: election.electionId,
+      appliesTo: 'the exact selected tool action',
+    },
+    review: election.reviewId ? { id: election.reviewId, digest: election.reviewDigest } : null,
+    selectedCandidateId: election.selectedCandidateId,
+    selected: structuredClone(election.selected),
+    trajectory: election.trajectory ? structuredClone(election.trajectory) : {
+      objective: election.selected?.description ?? 'Continue under the elected candidate.',
+      direction: election.selected?.geometry?.basis ?? 'Let later world contact correct this selection.',
+      horizon: 'near',
+      successSignals: ['The selected contact bears observable consequence.'],
+      reconsiderWhen: ['World contact contradicts the elected basis.'],
+    },
+  };
+  return {
+    role: 'user',
+    content: `<music_trajectory_context>${canonical(envelope)}</music_trajectory_context>`,
+  };
 }
 
 function trajectoryToolSelectionFrontier(manifest, election) {

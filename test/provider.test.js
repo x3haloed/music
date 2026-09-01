@@ -104,7 +104,8 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.get('message').required.includes('selectionReceipt'));
     assert.equal(tools.get('message').properties.trajectoryElectionReceipt.type, 'string');
     assert.equal(tools.get('elect_trajectory').properties.trajectoryElectionReceipt, undefined);
-    assert.equal(tools.get('elect_trajectory').properties.candidates.minItems, 2);
+    assert.equal(tools.get('review_developmental_position').properties.findings.minItems, 1);
+    assert.equal(tools.get('elect_trajectory').properties.assessments.minItems, 2);
     assert.equal(tools.get('select_tool_action').properties.candidates.items.properties.input.type, 'object');
     assert.deepEqual(tools.get('shape_encounter').properties.phase.enum, ['sounding', 'steering']);
     assert.deepEqual(tools.get('shape_encounter').properties.trigger.enum, ['delta', 'continuation', 'opening', 'scheduled', 'heartbeat', 'manual']);
@@ -125,12 +126,11 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
   }
 });
 
-test('OpenRouter receives a named first-step selector for instruction-free recurrence', async () => {
+test('OpenRouter receives named structured review and election phases before unrestricted recurrence', async () => {
   const previous = process.env.MUSIC_TEST_OPENROUTER_KEY;
   process.env.MUSIC_TEST_OPENROUTER_KEY = 'secret-test-key';
   let generation = 0;
-  const election = {
-    candidates: [
+  const candidates = [
       {
         id: 'quiet', description: 'Remain secluded.', action: { kind: 'quiet' },
         geometry: {
@@ -146,27 +146,60 @@ test('OpenRouter receives a named first-step selector for instruction-free recur
           predictedExpansion: 0, actionableRegret: 0, basis: 'An executable alternative remains in the frontier.',
         },
       },
-    ],
+    ];
+  const review = {
+    findings: [{
+      id: 'current_position', class: 'unresolved-stake', severity: 'medium', urgency: 'near',
+      costOfDelay: 'medium', condition: 'The recurrence needs an explicitly judged direction.',
+      evidence: ['sounding:heartbeat'],
+    }],
+    candidates: candidates.map(({ geometry: ignored, ...candidate }) => ({
+      ...candidate, addressesFindingIds: ['current_position'],
+    })),
   };
-  const fetch = async url => {
+  const fetch = async (url, init = {}) => {
     if (String(url).includes('/api/v1/model/')) {
       return jsonResponse({ data: { id: 'z-ai/glm-5.3-flash', supported_parameters: ['tools', 'tool_choice'] } });
     }
     generation += 1;
-    return jsonResponse(generation === 1
-      ? completion({
+    if (generation === 1) return jsonResponse(completion({
           content: null,
           tool_calls: [{
-            id: 'election-call', type: 'function',
-            function: { name: 'elect_trajectory', arguments: JSON.stringify(election) },
+            id: 'review-call', type: 'function',
+            function: { name: 'review_developmental_position', arguments: JSON.stringify(review) },
           }],
-        }, 'tool_calls')
-      : completion({ content: 'Quiet was selected through the retained organ.' }, 'stop'));
+        }, 'tool_calls'));
+    if (generation === 2) {
+      const body = JSON.parse(init.body);
+      const match = JSON.stringify(body.messages).match(/\\?"reviewId\\?":\\?"([^"\\]+)/);
+      assert.ok(match, 'review result should be present in the election request');
+      return jsonResponse(completion({
+        content: null,
+        tool_calls: [{
+          id: 'election-call', type: 'function',
+          function: {
+            name: 'elect_trajectory',
+            arguments: JSON.stringify({
+              reviewId: match[1],
+              assessments: candidates.map(candidate => ({ candidateId: candidate.id, ...candidate.geometry })),
+              trajectory: {
+                objective: 'Preserve seclusion while keeping a contact alternative explicit.',
+                direction: 'Follow the selected candidate until consequence changes the basis.',
+                horizon: 'near',
+                successSignals: ['The elected disposition has an observable consequence.'],
+                reconsiderWhen: ['World contact changes the current developmental position.'],
+              },
+            }),
+          },
+        }],
+      }, 'tool_calls'));
+    }
+    return jsonResponse(completion({ content: 'Quiet was selected through the retained organ.' }, 'stop'));
   };
   try {
     const configured = createConfiguredModel({
       provider: 'openrouter', model: 'z-ai/glm-5.3-flash', apiKeyEnv: 'MUSIC_TEST_OPENROUTER_KEY',
-      maxSteps: 2, maxOutputTokens: 256, maxRetries: 0,
+      maxSteps: 3, maxOutputTokens: 256, maxRetries: 0,
       modelSettings: { extraBody: { reasoning: { effort: 'minimal' } } },
     }, { fetch });
     const root = mkdtempSync(join(tmpdir(), 'music-provider-recurrence-test-'));
@@ -176,14 +209,19 @@ test('OpenRouter receives a named first-step selector for instruction-free recur
     await new MusicMind(kernel, configured, configured.inference).receive(kernel.openSounding('heartbeat').id);
 
     const requests = configured.requests();
-    assert.equal(requests.length, 2);
+    assert.equal(requests.length, 3);
     assert.deepEqual(requests[0].body.tool_choice, {
+      type: 'function', function: { name: 'review_developmental_position' },
+    });
+    assert.deepEqual(requests[0].body.tools.map(tool => tool.function.name), ['review_developmental_position']);
+    assert.deepEqual(requests[1].body.tool_choice, {
       type: 'function', function: { name: 'elect_trajectory' },
     });
-    assert.deepEqual(requests[0].body.tools.map(tool => tool.function.name), ['elect_trajectory']);
-    assert.equal(requests[1].body.tool_choice, 'auto');
-    assert.equal(requests[1].body.tools.length > 1, true);
-    const trialTool = requests[1].body.tools.find(tool => tool.function.name === 'trial_development');
+    assert.deepEqual(requests[1].body.tools.map(tool => tool.function.name), ['elect_trajectory']);
+    assert.equal(requests[2].body.tool_choice, 'auto');
+    assert.equal(requests[2].body.tools.length > 1, true);
+    assert.equal(requests[2].body.tools.some(tool => tool.function.name === 'elect_trajectory'), false);
+    const trialTool = requests[2].body.tools.find(tool => tool.function.name === 'trial_development');
     assert.equal(trialTool.function.parameters.properties.input.type, 'string');
     assert.equal(kernel.audit().trajectoryElections, 1);
     assert.equal(kernel.audit().electedActions, 0);

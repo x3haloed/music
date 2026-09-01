@@ -106,8 +106,9 @@ The current causal path is:
 world Delta -> Sounding -> active carrier
             -> exact fact envelopes -> revisable encounter shape
             -> exact prior invocation reference
-            -> required recurrence-election entry (action may still be quiet)
-            -> revisable election geometry -> exact elected action receipt
+            -> typed non-acting developmental review
+            -> required recurrence election (action may still be quiet)
+            -> authoritative trajectory context -> unrestricted action
             -> actor-authored alternatives -> selected executable input
             -> unrestricted tool module -> retained invocation
             -> provisional source -> real execution trial -> explicit admission
@@ -141,18 +142,30 @@ every other ordinary tool.
 continuity and inference-envelope policy through the same ordinary, revisable
 tool path.
 
-`elect_trajectory` is the seed general election organ. On an instruction-free
+`review_developmental_position` and `elect_trajectory` are the seed recurrence
+organ. On an instruction-free
 heartbeat, scheduled recurrence, or due subject opening with no competing world
-contact or unresolved consequence, the Sounding carries an exact election
-opportunity bound to the active selector digest. Entry into that resident-owned
-selection is required before ordinary deliberation; taking an action is not.
-The provider's first step exposes only the selector, and the one resident
-authors a bounded frontier containing quiet plus at least one executable tool
-action, including
-its current factual basis for validity, reversibility, held repetition,
-completed-floor composition, predicted expansion, and actionable regret. The
-ordinary selector body—not the kernel—computes the winner and asks Music to
-execute that exact winner within the same invocation. Quiet executes nothing.
+contact or unresolved consequence, the Sounding carries an exact opportunity
+bound to both active tool digests. The provider first exposes only the review
+tool. It must retain a bounded typed record: findings classified as harm,
+constraint, unresolved stake, opportunity, or maintenance; explicit severity,
+urgency, and cost-of-delay ratings; evidence; and quiet or concrete tool-contact
+candidates. It cannot act or set a trajectory. The provider then exposes only
+the elector. It must assess every frozen candidate and is the sole authority
+that may create or replace the trajectory record.
+
+Neither organ phase accepts assistant prose as its result. After election,
+Music injects the exact retained trajectory as a distinct user-role
+`music_trajectory_context` envelope, analogous to a durable goal envelope, and
+removes both organs from the action surface. The same resident mind then regains
+all ordinary tools and may act, inspect, revise, communicate, or remain quiet
+under that context. The elected contact is not executed inside selection.
+
+The review must contain quiet plus at least one executable tool action. Election
+assessments carry the current factual basis for validity, reversibility, held
+repetition, completed-floor composition, predicted expansion, and actionable
+regret. The
+ordinary selector body—not the kernel—computes the winner.
 Its seed ordering rejects invalid and held-repeat candidates, then prefers a
 Boolean threshold of at least two composed completed floors, greater predicted
 expansion, greater actionable regret, reversibility, and a stable id tie-break.
@@ -163,13 +176,11 @@ admit, or roll back a replacement like any other ordinary tool. Completed
 floors are exact retained references; Music verifies their existence and current
 status without endorsing the resident's expansion, regret, or validity judgments.
 
-The retained `trajectoryElectionReceipt` authorizes only the elected tool and
-exact input in that encounter. If the elected tool has its own selection gate,
-Music derives that nested complete frontier from the trajectory candidates for
-the same tool, so a selected message can execute without a second volunteered
-election. Invoking the seed selector records the election
-and performs that action directly instead of relying on another model step to
-honor an optional receipt. Every ordinary invocation is retained as `elected`,
+The trajectory envelope names the retained `trajectoryElectionReceipt`, which
+authorizes only the elected tool and exact input in that encounter. If the
+elected tool has its own selection gate, the resident first constructs that
+tool's complete frontier and then supplies both receipts to the exact action.
+Every ordinary invocation is retained as `elected`,
 `ad-hoc`, or `selector`. The resulting invocation retains the receipt, so
 ordinary consequence bearing on the action also derives exact ancestry to the
 election that selected it. Soundings carry that derived lineage beside the

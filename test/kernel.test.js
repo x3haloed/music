@@ -1100,8 +1100,7 @@ test('instruction-free recurrence retains one plastic trajectory election throug
     closureStatus: 'elected-contact',
     content: { trajectory: 'elected-world-contact' },
   };
-  const elected = await kernel.invokeTool(inferenceId, sounding.id, 'elect_trajectory', {
-    candidates: [
+  const elected = await reviewAndElect(kernel, inferenceId, sounding.id, [
       {
         id: 'remain_quiet',
         description: 'Remain quiet for this recurrence.',
@@ -1124,11 +1123,14 @@ test('instruction-free recurrence retains one plastic trajectory election throug
           predictedExpansion: 1, actionableRegret: 0, basis: 'This composes two retained capacities.',
         },
       },
-    ],
-  });
+    ]);
   assert.equal(elected.selectedCandidateId, 'compose_and_return');
-  assert.equal(elected.action.kind, 'tool');
-  assert.equal(elected.action.tool, 'schedule_wake');
+  assert.equal(elected.selected.action.kind, 'tool');
+  assert.equal(elected.selected.action.tool, 'schedule_wake');
+  kernel.deliverTrajectoryContext(inferenceId);
+  const action = await kernel.invokeTool(
+    inferenceId, sounding.id, 'schedule_wake', wakeInput, null, elected.trajectoryElectionReceipt,
+  );
   complete(kernel, inferenceId);
 
   const electionId = elected.trajectoryElectionReceipt;
@@ -1136,7 +1138,7 @@ test('instruction-free recurrence retains one plastic trajectory election throug
   assert.equal(reconstructed.state().trajectoryElections.get(electionId).selected.id, 'compose_and_return');
   assert.equal(reconstructed.audit().trajectoryElections, 1);
   assert.equal(reconstructed.audit().electedActions, 1);
-  const actionInvocationId = elected.action.invocationId;
+  const actionInvocationId = kernel.state().invocations.find(invocation => invocation.tool.id === 'schedule_wake').invocationId;
   const actionInvocation = reconstructed.state().invocationHistory.get(actionInvocationId);
   assert.equal(actionInvocation.trajectoryBasis.kind, 'elected');
   assert.equal(actionInvocation.trajectoryBasis.electionId, electionId);
@@ -1248,17 +1250,16 @@ test('a release can offer missing recurrence machinery without activating it for
   assert.equal(kernel.openSounding('heartbeat').trajectoryElection.entry, 'required');
 });
 
-test('recurrence cannot complete by bypassing election or offering only quiet narration', async () => {
+test('recurrence cannot complete by bypassing structured review and election or offering only quiet narration', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding('heartbeat');
   const inferenceId = begin(kernel, sounding.id);
-  assert.throws(() => complete(kernel, inferenceId), /requires exactly one retained trajectory election/);
+  assert.throws(() => complete(kernel, inferenceId), /requires exactly one retained developmental review/);
   kernel.failInference(inferenceId, new Error('The required recurrence election was absent.'));
 
   const retry = kernel.openSounding('heartbeat');
   const retryInference = begin(kernel, retry.id);
-  await assert.rejects(() => kernel.invokeTool(retryInference, retry.id, 'elect_trajectory', {
-    candidates: [
+  await assert.rejects(() => reviewAndElect(kernel, retryInference, retry.id, [
       {
         id: 'quiet_one', description: 'Quiet one.', action: { kind: 'quiet' },
         geometry: {
@@ -1273,9 +1274,8 @@ test('recurrence cannot complete by bypassing election or offering only quiet na
           predictedExpansion: 0, actionableRegret: 0, basis: 'Second quiet candidate.',
         },
       },
-    ],
-  }), /at least one executable alternative/);
-  assert.throws(() => complete(kernel, retryInference), /requires exactly one retained trajectory election/);
+    ]), /at least one executable contact candidate/);
+  assert.throws(() => complete(kernel, retryInference), /requires exactly one retained developmental review/);
   kernel.failInference(retryInference, new Error('The all-quiet frontier was refused.'));
 });
 
@@ -1283,8 +1283,7 @@ test('one trajectory frontier derives nested selection for an elected selection-
   const { kernel } = harness();
   const sounding = kernel.openSounding('heartbeat');
   const inferenceId = begin(kernel, sounding.id);
-  const result = await kernel.invokeTool(inferenceId, sounding.id, 'elect_trajectory', {
-    candidates: [
+  const result = await reviewAndElect(kernel, inferenceId, sounding.id, [
       {
         id: 'quiet', description: 'Remain quiet.', action: { kind: 'quiet' },
         geometry: {
@@ -1308,15 +1307,26 @@ test('one trajectory frontier derives nested selection for an elected selection-
           predictedExpansion: 1, actionableRegret: 0, basis: 'A statement is the alternate message action.',
         },
       },
-    ],
-  });
+    ]);
   assert.equal(result.selectedCandidateId, 'ask');
-  assert.equal(result.action.tool, 'message');
+  assert.equal(result.selected.action.tool, 'message');
+  kernel.deliverTrajectoryContext(inferenceId);
+  const selectedInput = result.selected.action.input;
+  const selection = kernel.selectToolAction(inferenceId, sounding.id, 'message', {
+    candidates: result.candidates
+      .filter(candidate => candidate.action.kind === 'tool' && candidate.action.tool === 'message')
+      .map(candidate => ({ id: candidate.id, input: candidate.action.input })),
+    selectedCandidateId: result.selectedCandidateId,
+  }, result.trajectoryElectionReceipt);
+  await kernel.invokeTool(
+    inferenceId, sounding.id, 'message', selectedInput,
+    selection.selectionReceipt, result.trajectoryElectionReceipt,
+  );
   const election = kernel.events().findLast(event => event.type === 'trajectory_election_recorded').payload;
-  const selection = kernel.events().findLast(event => event.type === 'tool_selection_recorded').payload;
-  assert.equal(selection.trajectoryElectionReceipt, election.electionId);
-  assert.equal(selection.selectedCandidateId, 'ask');
-  assert.equal(selection.candidates.length, 2);
+  const retainedSelection = kernel.events().findLast(event => event.type === 'tool_selection_recorded').payload;
+  assert.equal(retainedSelection.trajectoryElectionReceipt, election.electionId);
+  assert.equal(retainedSelection.selectedCandidateId, 'ask');
+  assert.equal(retainedSelection.candidates.length, 2);
   complete(kernel, inferenceId);
   assert.equal(kernel.audit().trajectoryElections, 1);
   assert.equal(kernel.audit().electedActions, 1);
@@ -1544,6 +1554,30 @@ test('a migration checkpoint preserves rollback history, active contact, and fut
     bearsOn: [{ kind: 'tool-invocation', invocationId }], payload: { observation: 'Lineage remains live.' },
   }));
 });
+
+async function reviewAndElect(kernel, inferenceId, soundingId, candidates) {
+  const reviewed = await kernel.invokeTool(inferenceId, soundingId, 'review_developmental_position', {
+    findings: [{
+      id: 'whole_position', class: 'unresolved-stake', severity: 'medium', urgency: 'near',
+      costOfDelay: 'medium', condition: 'The current recurrence needs an explicitly judged direction.',
+      evidence: [`sounding:${soundingId}`],
+    }],
+    candidates: candidates.map(({ geometry: ignored, ...candidate }) => ({
+      ...candidate, addressesFindingIds: ['whole_position'],
+    })),
+  });
+  return kernel.invokeTool(inferenceId, soundingId, 'elect_trajectory', {
+    reviewId: reviewed.reviewId,
+    assessments: candidates.map(candidate => ({ candidateId: candidate.id, ...candidate.geometry })),
+    trajectory: {
+      objective: 'Move the current developmental position toward consequence-bearing contact.',
+      direction: 'Use the selected candidate and let resulting world contact correct the choice.',
+      horizon: 'near',
+      successSignals: ['The selected direction produces an observable consequence.'],
+      reconsiderWhen: ['The selected basis is contradicted or its cost of delay changes.'],
+    },
+  });
+}
 
 function begin(kernel, soundingId) {
   return kernel.beginInference(soundingId, { provider: 'test-provider', model: 'test-model' }, { role: 'user', content: `Sounding ${soundingId}` });

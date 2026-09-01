@@ -94,16 +94,21 @@ For a snapshot or upgrade:
 6. Audit again and verify the same subject, tool digests, carrier root, recorded
    lineage head/digest/count, retained tool-version count, pending contact and
    unresolved-consequence counts, and a valid current position.
-7. If the release needs an ordinary seed tool absent from this resident, offer
-   it while stopped. This records inactive provisional machinery and one exact
+7. If the release needs an ordinary seed tool absent from or changed within this
+   resident, offer it while stopped. This records inactive provisional machinery and one exact
    world-contact fact; it does not activate or silently install the tool:
 
    ```sh
    /Users/chad/.local/share/music/installations/releases/NEW_COMMIT/bin/music-habitat.js \
+     offer-seed-tool /Users/chad/.local/share/music/residents/RESIDENT review_developmental_position
+
+   /Users/chad/.local/share/music/installations/releases/NEW_COMMIT/bin/music-habitat.js \
      offer-seed-tool /Users/chad/.local/share/music/residents/RESIDENT elect_trajectory
    ```
 
-   The resident must inspect, trial, and explicitly admit (or reject) it.
+   The resident must inspect, trial, and explicitly admit (or reject) each. The
+   two-phase recurrence organ becomes active only when both tools are active;
+   upgrading the stable release never silently changes either policy organ.
 8. Audit once more, then start residence from that new exact release path.
 
 ```sh

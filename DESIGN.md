@@ -166,11 +166,14 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
 - staged consequence deferral and settlement mechanics;
 - due-opening presentation and interruption restoration;
 - the receipt primitive used by selection modules.
-- exact required entry into resident-owned trajectory election on recurrence
-  without competing world contact, while action and quiet remain outcomes of
-  that election, plus generic durable election and action-binding receipts; the
-  candidate ontology, ranking policy, and election implementation remain
-  ordinary resident-revisable machinery.
+- exact required entry into a resident-owned, non-acting typed developmental
+  review and then resident-owned trajectory election on recurrence without
+  competing world contact; only the elector can set the retained trajectory;
+  the kernel delivers that exact record as a distinct context envelope before
+  unrestricted action, while both organ phases reject prose output. Generic
+  review, election, and action-binding receipts remain stable facts; finding
+  ontology, ratings, candidate construction, ranking, and election implementation
+  remain ordinary resident-revisable machinery.
 
 The JavaScript loader is not a capability filter. A tool body receives `input`
 and an encounter context, but it can also use normal globals and dynamically
