@@ -5,7 +5,7 @@ export function initialTrajectoryElectionTool() {
     id: 'elect_trajectory',
     version: 1,
     parent: null,
-    description: 'Run the resident\'s current general trajectory-election geometry over a complete actor-authored frontier. The ordinary module computes the winner; Music retains the exact election so selected action and later consequence can cite it. Quiet is a valid candidate, not a default imposed by the harness.',
+    description: 'Run the resident\'s current general trajectory-election geometry over a complete actor-authored frontier. The ordinary module computes the winner and directly asks Music to execute that exact selected action before returning; quiet executes nothing. Completed floors are exact retained references whose existence and current status Music verifies without interpreting them.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -22,6 +22,7 @@ export function initialTrajectoryElectionTool() {
                   kind: { type: 'string', enum: ['tool', 'quiet'] },
                   tool: { type: 'string', pattern: '^[a-z][a-z0-9_-]{0,47}$' },
                   input: { type: 'object', additionalProperties: true },
+                  selectionReceipt: { type: 'string', minLength: 1, maxLength: 128 },
                   observation: { type: 'string', minLength: 1, maxLength: 2_048 },
                 },
                 required: ['kind'], additionalProperties: false,
@@ -34,7 +35,21 @@ export function initialTrajectoryElectionTool() {
                   heldRepeat: { type: 'boolean' },
                   completedFloors: {
                     type: 'array', maxItems: 16,
-                    items: { type: 'string', minLength: 1, maxLength: 128 },
+                    items: {
+                      type: 'object',
+                      properties: {
+                        kind: {
+                          type: 'string',
+                          enum: [
+                            'world-delta', 'tool-invocation', 'trajectory-election',
+                            'developmental-proposal', 'active-tool',
+                          ],
+                        },
+                        id: { type: 'string', minLength: 1, maxLength: 128 },
+                        digest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+                      },
+                      required: ['kind', 'id'], additionalProperties: false,
+                    },
                   },
                   predictedExpansion: { type: 'integer', minimum: -1_000_000, maximum: 1_000_000 },
                   actionableRegret: { type: 'integer', minimum: -1_000_000, maximum: 1_000_000 },
@@ -63,7 +78,7 @@ async function electTrajectory(input, context) {
     if (ids.has(candidate.id)) throw new Error(`trajectory frontier repeats candidate id: ${candidate.id}`);
     ids.add(candidate.id);
     const floors = candidate.geometry.completedFloors;
-    if (new Set(floors).size !== floors.length) {
+    if (new Set(floors.map(floor => `${floor.kind}:${floor.id}`)).size !== floors.length) {
       throw new Error(`trajectory candidate ${candidate.id} repeats a completed floor`);
     }
     if (candidate.action.kind === 'tool') {
@@ -73,7 +88,8 @@ async function electTrajectory(input, context) {
       if (candidate.action.tool === context.tool.id) {
         throw new Error('a trajectory election cannot recursively select itself');
       }
-    } else if (candidate.action.tool !== undefined || candidate.action.input !== undefined) {
+    } else if (candidate.action.tool !== undefined || candidate.action.input !== undefined
+      || candidate.action.selectionReceipt !== undefined) {
       throw new Error(`quiet trajectory candidate ${candidate.id} cannot carry a tool action`);
     }
     return candidate;
@@ -91,7 +107,7 @@ async function electTrajectory(input, context) {
       || right.geometry.actionableRegret - left.geometry.actionableRegret
       || right.id.localeCompare(left.id);
   });
-  return context.recordTrajectoryElection({
+  return context.executeTrajectoryElection({
     candidates,
     selectedCandidateId: eligible[0].id,
   });

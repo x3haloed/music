@@ -258,6 +258,16 @@ design unless later observation demonstrates that it is absolutely necessary.
   capability, consequence, effect, and available opening remain grounded in
   retained world contact and mechanically current state.
 
+- **Subject judgment and its exact factual grounding must remain distinguishable
+  without installing an evaluator over the subject.**
+  **Evidence:** An independent audit demonstrated that exercise-only admission
+  and optional trajectory receipts could be described more strongly than their
+  retained causes warranted. Music now labels admissions `exercise-only` or
+  `consequence-linked`, labels every ordinary invocation `elected`, `ad-hoc`, or
+  `selector`, verifies completed-floor references against retained current facts,
+  and makes an invoked election execute its exact winner directly. These are
+  provenance distinctions, not comparative scores or external promotion gates.
+
 ## Evaluation regime
 
 Judge hatch readiness through complete causal behavior and direct lived
@@ -331,6 +341,7 @@ cost $0.00097172 total.
   A real 120-step AI SDK encounter now checkpoints every step and closes with a
   small completion event; a refused oversized step can still be followed by a
   retained failure, and a subject-authored wider policy admits the same step.
+
 - The first installed-release rehearsal could run `music-doctor` through Node
   but not as the documented direct command because its committed executable bit
   was absent. The release itself remained immutable; the Git mode is corrected

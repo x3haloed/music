@@ -3,6 +3,7 @@ import {
 } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
+import { join } from 'node:path';
 import { canonical, digest } from './canonical.js';
 import { applyCarrierTransition, createCarrierTransition, initialCarrier, projectCarrier, readCarrier, serializeCarrier } from './carrier.js';
 import { inferencePolicyFromCarrier, inferencePolicyFromProjection } from './inference-policy.js';
@@ -425,6 +426,7 @@ export class MusicKernel {
     this.append('developmental_trial_started', {
       trialId, proposalId, inferenceId, soundingId, projection: encounter.projection,
       binding, input: retainedInput,
+      executionEnvironmentBefore: executionEnvironmentReceipt(this.toolEnvironment),
     });
     try {
       const output = await executeToolModule(proposal.revision.tool, input, {
@@ -433,7 +435,8 @@ export class MusicKernel {
           ledgerPath: this.ledgerPath,
           environment: structuredClone(this.toolEnvironment),
           selectToolAction: (selectedToolId, frontier) => previewToolSelection(selectedToolId, frontier),
-          recordTrajectoryElection: frontier => previewTrajectoryElection(frontier),
+          recordTrajectoryElection: frontier => previewTrajectoryElection(frontier, state),
+          executeTrajectoryElection: frontier => previewTrajectoryElection(frontier, state),
           stageConsequenceTransition: candidate => previewConsequenceTransition(candidate, state, encounter),
           stageCarrierTransition: candidate => createCarrierTransition(state.carrier, candidate),
           stageWakeTransition: candidate => previewOpeningTransition(candidate, this.clock),
@@ -442,6 +445,7 @@ export class MusicKernel {
       this.append('developmental_trial_completed', {
         trialId,
         output,
+        executionEnvironmentAfter: executionEnvironmentReceipt(this.toolEnvironment),
         position: developmentalStandingSuccessor(current, {
           kind: 'proposal-exercised', proposalId, trialId, outcome: 'completed', outputDigest: digest(output),
         }),
@@ -453,6 +457,7 @@ export class MusicKernel {
       this.append('developmental_trial_failed', {
         trialId,
         error: failure,
+        executionEnvironmentAfter: executionEnvironmentReceipt(this.toolEnvironment),
         position: developmentalStandingSuccessor(current, {
           kind: 'proposal-exercised', proposalId, trialId, outcome: 'failed', error: failure,
         }),
@@ -614,6 +619,7 @@ export class MusicKernel {
       throw new Error('trajectory election requires its active ordinary selector invocation');
     }
     const election = validateTrajectoryElectionFrontier(frontier);
+    const floorGrounding = groundTrajectoryFloors(election.candidates, state);
     const electionId = this.id();
     this.append('trajectory_election_recorded', {
       electionId,
@@ -623,6 +629,7 @@ export class MusicKernel {
       carrierRoot: encounter.sounding.carrier.root,
       selector: structuredClone(invocation.tool),
       invocationId,
+      floorGrounding,
       ...election,
     });
     return {
@@ -630,10 +637,57 @@ export class MusicKernel {
       trajectoryElectionReceipt: electionId,
       selectedCandidateId: election.selectedCandidateId,
       selected: structuredClone(election.selected),
+      floorGrounding: structuredClone(floorGrounding),
+    };
+  }
+
+  async executeTrajectoryElection(inferenceId, soundingId, invocationId, frontier) {
+    const election = this.recordTrajectoryElection(inferenceId, soundingId, invocationId, frontier);
+    const action = election.selected?.action;
+    if (!action || action.kind === 'quiet') {
+      return {
+        ...election,
+        action: {
+          kind: 'quiet',
+          observation: action?.observation ?? null,
+        },
+      };
+    }
+    if (action.kind !== 'tool' || typeof action.tool !== 'string' || !action.tool
+      || !action.input || typeof action.input !== 'object' || Array.isArray(action.input)) {
+      throw new Error('elected trajectory action is not a concrete tool input');
+    }
+    if (action.tool === TRAJECTORY_ELECTION_TOOL_ID) {
+      throw new Error('a trajectory election cannot recursively select itself');
+    }
+    const invoked = await this.invokeToolRetained(
+      inferenceId,
+      soundingId,
+      action.tool,
+      action.input,
+      action.selectionReceipt ?? null,
+      election.trajectoryElectionReceipt,
+    );
+    return {
+      ...election,
+      action: {
+        kind: 'tool',
+        tool: action.tool,
+        input: structuredClone(action.input),
+        invocationId: invoked.invocationId,
+        output: structuredClone(invoked.output),
+      },
     };
   }
 
   async invokeTool(inferenceId, soundingId, toolId, input, selectionReceipt = null, trajectoryElectionReceipt = null) {
+    const invocation = await this.invokeToolRetained(
+      inferenceId, soundingId, toolId, input, selectionReceipt, trajectoryElectionReceipt,
+    );
+    return invocation.output;
+  }
+
+  async invokeToolRetained(inferenceId, soundingId, toolId, input, selectionReceipt = null, trajectoryElectionReceipt = null) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
     const binding = encounter.toolBindings.get(toolId);
@@ -644,6 +698,7 @@ export class MusicKernel {
       state, encounter, tool, input, trajectoryElectionReceipt,
     );
     const invocationId = this.id();
+    const executionEnvironmentBefore = executionEnvironmentReceipt(this.toolEnvironment);
     this.append('tool_invocation_started', {
       invocationId,
       inferenceId,
@@ -652,6 +707,8 @@ export class MusicKernel {
       tool: { id: tool.id, version: tool.version, digest: toolModuleDigest(tool) },
       selectionReceipt: selection?.selectionId ?? null,
       trajectoryElectionReceipt: trajectoryElection?.electionId ?? null,
+      trajectoryBasis: trajectoryBasis(tool.id, trajectoryElection?.electionId ?? null),
+      executionEnvironmentBefore,
       input: structuredClone(input),
     });
     const proposalIdsBeforeInvocation = new Set(state.developmentalProposals.keys());
@@ -667,6 +724,9 @@ export class MusicKernel {
         recordTrajectoryElection: frontier => this.recordTrajectoryElection(
           inferenceId, soundingId, invocationId, frontier,
         ),
+        executeTrajectoryElection: frontier => this.executeTrajectoryElection(
+          inferenceId, soundingId, invocationId, frontier,
+        ),
         stageConsequenceTransition: proposal => this.stageConsequenceTransition(inferenceId, soundingId, proposal),
         stageCarrierTransition: proposal => {
           const authored = this.authorCarrierProposal(inferenceId, soundingId, proposal);
@@ -679,10 +739,15 @@ export class MusicKernel {
         [...this.state().developmentalProposals.values()]
           .filter(proposal => !proposalIdsBeforeInvocation.has(proposal.proposalId)),
       );
-      this.append('tool_invocation_completed', { invocationId, output });
-      return output;
+      const executionEnvironmentAfter = executionEnvironmentReceipt(this.toolEnvironment);
+      this.append('tool_invocation_completed', { invocationId, output, executionEnvironmentAfter });
+      return { invocationId, output };
     } catch (error) {
-      this.append('tool_invocation_failed', { invocationId, error: errorRecord(error) });
+      this.append('tool_invocation_failed', {
+        invocationId,
+        error: errorRecord(error),
+        executionEnvironmentAfter: executionEnvironmentReceipt(this.toolEnvironment),
+      });
       throw error;
     }
   }
@@ -996,6 +1061,22 @@ export class MusicKernel {
       selections: state.selectionCount,
       trajectoryElections: state.trajectoryElectionIds.size,
       electedActions: state.usedTrajectoryElectionIds.size,
+      adHocActions: [...state.invocationHistory.values()]
+        .filter(invocation => invocation.trajectoryBasis?.kind === 'ad-hoc').length,
+      selectorInvocations: [...state.invocationHistory.values()]
+        .filter(invocation => invocation.trajectoryBasis?.kind === 'selector').length,
+      developmentalAdmissions: [...state.developmentalProposals.values()]
+        .flatMap(proposal => proposal.standing)
+        .filter(standing => standing.disposition === 'admit' || standing.disposition === 'rollback')
+        .reduce((counts, standing) => {
+          const basis = standing.admissionBasis ?? 'exercise-only';
+          counts[basis] = (counts[basis] ?? 0) + 1;
+          return counts;
+        }, {}),
+      executionEnvironmentChanges: [...state.invocationHistory.values()]
+        .filter(invocation => invocation.executionEnvironmentBefore?.digest
+          && invocation.executionEnvironmentAfter?.digest
+          && invocation.executionEnvironmentBefore.digest !== invocation.executionEnvironmentAfter.digest).length,
       completedInferences: state.completedInferences,
       failedInferences: state.failedInferences,
       activeInferenceId: state.activeInferenceId,
@@ -1382,6 +1463,7 @@ function reduceEvents(events) {
           ? { kind: 'tool', id: proposal.revision.tool.id, digest: toolModuleDigest(proposal.revision.tool) }
           : { kind: 'carrier', id: proposal.transition.component.id, digest: proposal.transition.successorRoot };
         if (digest(event.payload.binding) !== digest(expectedBinding)) throw new Error('developmental trial binding mismatch');
+        validateExecutionEnvironmentReceipt(event.payload.executionEnvironmentBefore, { optional: true });
         state.developmentalTrials.set(event.payload.trialId, {
           ...structuredClone(event.payload), encounter: encounter.sounding.id, status: 'started',
         });
@@ -1420,6 +1502,7 @@ function reduceEvents(events) {
         const trial = state.developmentalTrials.get(event.payload.trialId);
         if (!trial || !['started', 'presented'].includes(trial.status)) throw new Error('completed developmental trial is not active');
         const output = jsonValue(event.payload.output, 'developmental trial output');
+        validateExecutionEnvironmentReceipt(event.payload.executionEnvironmentAfter, { optional: true });
         if (trial.binding.kind === 'carrier' && trial.status === 'presented') {
           validateCarrierTrialOutcome(output, trial, state);
         }
@@ -1430,6 +1513,9 @@ function reduceEvents(events) {
         if (digest(event.payload.position) !== digest(expectedPosition)) throw new Error('completed trial position mismatch');
         trial.status = 'completed';
         trial.output = output;
+        if (event.payload.executionEnvironmentAfter !== undefined) {
+          trial.executionEnvironmentAfter = structuredClone(event.payload.executionEnvironmentAfter);
+        }
         const proposal = state.developmentalProposals.get(trial.proposalId);
         proposal.status = 'exercised';
         updateProposalTrial(proposal, trial.trialId, 'completed');
@@ -1443,9 +1529,13 @@ function reduceEvents(events) {
           kind: 'proposal-exercised', proposalId: trial.proposalId, trialId: trial.trialId,
           outcome: 'failed', error: event.payload.error,
         });
+        validateExecutionEnvironmentReceipt(event.payload.executionEnvironmentAfter, { optional: true });
         if (digest(event.payload.position) !== digest(expectedPosition)) throw new Error('failed trial position mismatch');
         trial.status = 'failed';
         trial.error = structuredClone(event.payload.error);
+        if (event.payload.executionEnvironmentAfter !== undefined) {
+          trial.executionEnvironmentAfter = structuredClone(event.payload.executionEnvironmentAfter);
+        }
         const proposal = state.developmentalProposals.get(trial.proposalId);
         proposal.status = 'contradicted';
         updateProposalTrial(proposal, trial.trialId, 'failed');
@@ -1536,6 +1626,12 @@ function reduceEvents(events) {
           throw new Error('trajectory election carrier binding mismatch');
         }
         const election = validateTrajectoryElectionFrontier(event.payload);
+        if (event.payload.floorGrounding !== undefined) {
+          const grounding = groundTrajectoryFloors(election.candidates, state);
+          if (digest(event.payload.floorGrounding) !== digest(grounding)) {
+            throw new Error('trajectory election floor grounding mismatch');
+          }
+        }
         state.trajectoryElectionIds.add(event.payload.electionId);
         state.trajectoryElectionInvocationIds.add(event.payload.invocationId);
         state.trajectoryElections.set(event.payload.electionId, {
@@ -1546,6 +1642,9 @@ function reduceEvents(events) {
           carrierRoot: event.payload.carrierRoot,
           selector: structuredClone(event.payload.selector),
           invocationId: event.payload.invocationId,
+          ...(event.payload.floorGrounding === undefined
+            ? {}
+            : { floorGrounding: structuredClone(event.payload.floorGrounding) }),
           ...election,
         });
         break;
@@ -1570,23 +1669,46 @@ function reduceEvents(events) {
         if (event.payload.trajectoryElectionReceipt) {
           state.usedTrajectoryElectionIds.add(event.payload.trajectoryElectionReceipt);
         }
+        const basis = trajectoryBasis(binding.manifest.id, event.payload.trajectoryElectionReceipt ?? null);
+        if (event.payload.trajectoryBasis !== undefined && digest(event.payload.trajectoryBasis) !== digest(basis)) {
+          throw new Error('tool invocation trajectory basis mismatch');
+        }
+        validateExecutionEnvironmentReceipt(event.payload.executionEnvironmentBefore, { optional: true });
+        const retainedInvocation = { ...structuredClone(event.payload), trajectoryBasis: basis };
         state.invocationIds.add(event.payload.invocationId);
-        state.activeToolInvocations.set(event.payload.invocationId, structuredClone(event.payload));
-        state.invocationHistory.set(event.payload.invocationId, { ...structuredClone(event.payload), status: 'started' });
+        state.activeToolInvocations.set(event.payload.invocationId, retainedInvocation);
+        state.invocationHistory.set(event.payload.invocationId, { ...retainedInvocation, status: 'started' });
         break;
       }
       case 'tool_invocation_completed': {
         const invocation = state.activeToolInvocations.get(event.payload.invocationId);
         if (!invocation) throw new Error('completed tool invocation is not active');
-        state.invocations.push({ ...invocation, output: jsonValue(event.payload.output, 'tool invocation output') });
-        state.invocationHistory.set(event.payload.invocationId, { ...invocation, status: 'completed', output: jsonValue(event.payload.output, 'tool invocation output') });
+        validateExecutionEnvironmentReceipt(event.payload.executionEnvironmentAfter, { optional: true });
+        const completed = {
+          ...invocation,
+          status: 'completed',
+          output: jsonValue(event.payload.output, 'tool invocation output'),
+          ...(event.payload.executionEnvironmentAfter === undefined ? {} : {
+            executionEnvironmentAfter: structuredClone(event.payload.executionEnvironmentAfter),
+          }),
+        };
+        state.invocations.push(completed);
+        state.invocationHistory.set(event.payload.invocationId, completed);
         state.activeToolInvocations.delete(event.payload.invocationId);
         break;
       }
       case 'tool_invocation_failed': {
         const invocation = state.activeToolInvocations.get(event.payload.invocationId);
         if (!invocation) throw new Error('failed tool invocation is not active');
-        state.invocationHistory.set(event.payload.invocationId, { ...invocation, status: 'failed', error: structuredClone(event.payload.error) });
+        validateExecutionEnvironmentReceipt(event.payload.executionEnvironmentAfter, { optional: true });
+        state.invocationHistory.set(event.payload.invocationId, {
+          ...invocation,
+          status: 'failed',
+          error: structuredClone(event.payload.error),
+          ...(event.payload.executionEnvironmentAfter === undefined ? {} : {
+            executionEnvironmentAfter: structuredClone(event.payload.executionEnvironmentAfter),
+          }),
+        });
         state.activeToolInvocations.delete(event.payload.invocationId);
         break;
       }
@@ -1902,8 +2024,26 @@ function validateDevelopmentalDecisions(value, state, { allowEmpty = false } = {
     }
     const interpretation = typeof raw.interpretation === 'string' ? raw.interpretation.trim() : '';
     if (!interpretation || interpretation.length > 4_096) throw new Error('developmental decision needs a bounded interpretation');
-    return { proposalId, disposition, interpretation };
+    const admissionBasis = (disposition === 'admit' || disposition === 'rollback')
+      ? developmentalAdmissionBasis(proposal)
+      : null;
+    if (raw.admissionBasis !== undefined && raw.admissionBasis !== admissionBasis) {
+      throw new Error(`developmental proposal ${proposalId} admission basis mismatch`);
+    }
+    return {
+      proposalId,
+      disposition,
+      interpretation,
+      ...(admissionBasis === null ? {} : { admissionBasis }),
+    };
   });
+}
+
+function developmentalAdmissionBasis(proposal) {
+  const consequences = proposal.kind === 'tool'
+    ? proposal.revision.consequences
+    : proposal.transition.consequences;
+  return consequences.length > 0 ? 'consequence-linked' : 'exercise-only';
 }
 
 function validateProposedOpening(raw, state, id, clock) {
@@ -1976,13 +2116,23 @@ function previewToolSelection(toolId, frontier) {
   };
 }
 
-function previewTrajectoryElection(frontier) {
+function previewTrajectoryElection(frontier, state) {
   const election = validateTrajectoryElectionFrontier(frontier);
+  const floorGrounding = groundTrajectoryFloors(election.candidates, state);
   return {
     format: 'music-provisional-trajectory-election-1',
     trajectoryElectionReceipt: null,
     selectedCandidateId: election.selectedCandidateId,
     selected: structuredClone(election.selected),
+    floorGrounding,
+    action: election.selected.action?.kind === 'quiet'
+      ? { kind: 'quiet', observation: election.selected.action.observation ?? null }
+      : {
+        kind: 'preview',
+        tool: election.selected.action?.tool ?? null,
+        input: structuredClone(election.selected.action?.input ?? null),
+        meaning: 'A provisional selector trial does not execute or govern an active ordinary action.',
+      },
   };
 }
 
@@ -2034,6 +2184,7 @@ function applyDevelopmentalTransaction(state, transaction) {
       transactionId: transaction.transactionId,
       disposition: decision.disposition,
       interpretation: decision.interpretation,
+      ...(decision.admissionBasis === undefined ? {} : { admissionBasis: decision.admissionBasis }),
     });
   }
 }
@@ -2139,6 +2290,7 @@ function attachDevelopmentalEffects(output, proposals) {
         ? 'trial_development must arm this proposal; it must then govern a fresh encounter to become exercised'
         : 'trial_development must execute this provisional tool to make its behavior part of retained standing',
       admission: 'advance_development must explicitly admit an exercised proposal before it becomes active',
+      prospectiveAdmissionBasis: developmentalAdmissionBasis(proposal),
     })),
   };
 }
@@ -2496,6 +2648,59 @@ function boundedEvidence(evidence) {
     throw new Error('revision evidence must be at most 32 bounded references');
   }
   return [...evidence];
+}
+
+function executionEnvironmentReceipt(environment) {
+  const dependencyRoot = typeof environment?.dependencyRoot === 'string'
+    ? environment.dependencyRoot.trim()
+    : '';
+  const files = dependencyRoot
+    ? ['package.json', 'package-lock.json', 'npm-shrinkwrap.json'].map(name => {
+      const path = join(dependencyRoot, name);
+      try {
+        const bytes = readFileSync(path);
+        return {
+          name,
+          status: 'present',
+          bytes: bytes.length,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+        };
+      } catch (error) {
+        if (error?.code === 'ENOENT') return { name, status: 'absent' };
+        return {
+          name,
+          status: 'unreadable',
+          code: typeof error?.code === 'string' ? error.code.slice(0, 64) : 'unknown',
+        };
+      }
+    })
+    : [];
+  const dependencyHabitat = dependencyRoot
+    ? { root: dependencyRoot, files }
+    : null;
+  const unsealed = {
+    format: 'music-execution-environment-1',
+    scope: 'declared-resident-dependency-manifests-not-arbitrary-files-or-external-state',
+    dependencyHabitat,
+  };
+  return { ...unsealed, digest: digest(unsealed) };
+}
+
+function validateExecutionEnvironmentReceipt(value, { optional = false } = {}) {
+  if (value === undefined && optional) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || value.format !== 'music-execution-environment-1'
+    || typeof value.scope !== 'string'
+    || typeof value.digest !== 'string') {
+    throw new Error('invalid execution environment receipt');
+  }
+  const unsealed = {
+    format: value.format,
+    scope: value.scope,
+    dependencyHabitat: value.dependencyHabitat ?? null,
+  };
+  if (digest(unsealed) !== value.digest) throw new Error('execution environment receipt digest mismatch');
+  return structuredClone(value);
 }
 
 function mergeDevelopmentalEvidence(left, right) {
@@ -3162,6 +3367,66 @@ function validateTrajectoryElectionFrontier(frontier) {
   return { candidates, selectedCandidateId: frontier.selectedCandidateId, selected };
 }
 
+function groundTrajectoryFloors(candidates, state) {
+  const grounded = candidates.map(candidate => {
+    const floors = candidate?.geometry?.completedFloors;
+    if (!Array.isArray(floors) || floors.length > 16) {
+      throw new Error(`trajectory candidate ${candidate?.id ?? '<unknown>'} needs 0-16 completed floor references`);
+    }
+    const seen = new Set();
+    const references = floors.map(reference => {
+      if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
+        throw new Error(`trajectory candidate ${candidate.id} completed floors must be exact retained references`);
+      }
+      const kind = reference.kind;
+      const id = typeof reference.id === 'string' ? reference.id.trim() : '';
+      if (!['world-delta', 'tool-invocation', 'trajectory-election', 'developmental-proposal', 'active-tool'].includes(kind)
+        || !id || id.length > 128) {
+        throw new Error(`trajectory candidate ${candidate.id} has an invalid completed floor reference`);
+      }
+      const key = `${kind}:${id}`;
+      if (seen.has(key)) throw new Error(`trajectory candidate ${candidate.id} repeats a completed floor`);
+      seen.add(key);
+      if (kind === 'world-delta' && !state.deltaIds.has(id)) {
+        throw new Error(`trajectory candidate ${candidate.id} cites unknown world Delta floor: ${id}`);
+      }
+      if (kind === 'tool-invocation' && state.invocationHistory.get(id)?.status !== 'completed') {
+        throw new Error(`trajectory candidate ${candidate.id} cites an incomplete tool invocation floor: ${id}`);
+      }
+      if (kind === 'trajectory-election' && !state.trajectoryElections.has(id)) {
+        throw new Error(`trajectory candidate ${candidate.id} cites unknown trajectory election floor: ${id}`);
+      }
+      if (kind === 'developmental-proposal') {
+        const proposal = state.developmentalProposals.get(id);
+        if (!proposal || !['admitted', 'rolled-back'].includes(proposal.status)) {
+          throw new Error(`trajectory candidate ${candidate.id} cites an unadmitted developmental floor: ${id}`);
+        }
+      }
+      let digestValue;
+      if (kind === 'active-tool') {
+        const tool = state.tools.get(id);
+        digestValue = typeof reference.digest === 'string' ? reference.digest : '';
+        if (!tool || digestValue !== toolModuleDigest(tool)) {
+          throw new Error(`trajectory candidate ${candidate.id} cites a non-current active tool floor: ${id}`);
+        }
+      } else if (reference.digest !== undefined) {
+        throw new Error(`trajectory candidate ${candidate.id} ${kind} floor cannot carry a digest`);
+      }
+      return {
+        kind,
+        id,
+        ...(kind === 'active-tool' ? { digest: digestValue } : {}),
+      };
+    });
+    return { candidateId: candidate.id, references };
+  });
+  return {
+    format: 'music-trajectory-floor-grounding-1',
+    scope: 'reference-existence-and-current-status-not-subject-interpretation',
+    candidates: grounded,
+  };
+}
+
 function authorizeSelection(state, encounter, manifest, input, selectionReceipt) {
   if (!manifest.selection) {
     if (selectionReceipt !== null && selectionReceipt !== undefined) throw new Error(`tool ${manifest.id} does not accept a selection receipt`);
@@ -3206,6 +3471,15 @@ function authorizeTrajectoryElection(state, encounter, manifest, input, election
     throw new Error('tool invocation does not match the elected trajectory action');
   }
   return election;
+}
+
+function trajectoryBasis(toolId, electionId) {
+  if (toolId === TRAJECTORY_ELECTION_TOOL_ID) {
+    return { kind: 'selector', electionId: null };
+  }
+  return electionId
+    ? { kind: 'elected', electionId }
+    : { kind: 'ad-hoc', electionId: null };
 }
 
 function projectTool(tool) {

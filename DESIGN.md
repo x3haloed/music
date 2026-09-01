@@ -184,10 +184,14 @@ under [`tools/`](./tools):
 - `select_tool_action` invokes the stable receipt primitive, but its interface,
   sequencing, and executable source are themselves ordinary revisable geometry;
 - `elect_trajectory` computes a general election over a complete resident-authored
-  contact frontier. Its seed geometry prefers composed retained floors,
-  predicted expansion, and actionable regret after excluding invalid,
-  irreversible, and held-repeat candidates. Both that ordering and the fields it
-  asks the resident to expose remain replaceable ordinary source;
+  contact frontier and directly invokes the exact selected action; quiet invokes
+  nothing. Its seed geometry prefers composed retained floors, predicted expansion,
+  and actionable regret after excluding invalid, irreversible, and held-repeat
+  candidates. Completed floors cite exact retained Delta, invocation, election,
+  admitted-proposal, or active-tool receipts. Music verifies those references and
+  their current status without treating the resident's scores as world fact. Both
+  the ordering and the fields it asks the resident to expose remain replaceable
+  ordinary source;
 - `attend_consequence` invokes the staged consequence-transition primitive, but
   its interface, policy, and sequencing remain ordinary revisable geometry.
 - `shape_encounter` frames, orders, and emphasizes the exact Sounding or waking
@@ -233,7 +237,9 @@ world-authored Delta
   -> subject encounters current carrier and ordinary-tool digests/interfaces
   -> a neutral heartbeat exposes an exact non-obligatory election opportunity
   -> elect_trajectory computes over a subject-authored contact-or-quiet frontier
-  -> a durable receipt binds the selected concrete tool input to that election
+  -> the same invocation records the election and executes its exact selected
+     concrete action; quiet executes nothing
+  -> every ordinary invocation retains an elected, ad-hoc, or selector basis
   -> inspect_tool retrieves exact projected source when needed
   -> ordinary module executes with unrestricted Node authority
   -> invocation input, output, tool digest, and encounter binding are retained
@@ -321,6 +327,12 @@ does not change the active toolset. A later explicit developmental transaction
 can admit it only after a successful exercise, or instead deny, defer,
 contradict, retire, or roll it back. The transaction and parent-bound position
 successor commit atomically with encounter completion.
+
+Admission provenance is descriptive rather than evaluative. Music mechanically
+labels an admitted decision `exercise-only` when it rests on retained execution
+and subject judgment, or `consequence-linked` when the proposal also cites exact
+delivered consequence Deltas. Neither label claims held-out improvement or gives
+an evaluator authority over the resident.
 
 Ordinary tools retain control of their own result shape, including tools carried
 from an earlier Music release. When an invocation authors developmental
@@ -552,6 +564,14 @@ generic execution context used for the mailbox; it does not whitelist packages,
 define an effect language, or own installation policy. A learned tool may use
 Node's `createRequire` from the habitat `package.json` to resolve an entry point
 and dynamically import it.
+
+Every ordinary invocation and provisional tool trial retains before/after
+`music-execution-environment-1` receipts over the declared dependency manifests
+(`package.json`, lockfile, or shrinkwrap). This makes changes to that executable
+support visible and digest-bound. The receipt explicitly does not claim to root
+arbitrary home files, manually altered package bytes, process state, or the
+external world. `positionRoot` therefore names the ledger-carried developmental
+core, not the resident's entire causally available universe.
 
 Compilation cannot prove that a dynamic dependency exists. If activated learned
 code later fails, invocation failure and inference failure remain durable. The

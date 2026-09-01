@@ -147,15 +147,22 @@ the active selector digest and explicitly marks it as non-obligatory. The one
 resident authors a bounded frontier of concrete tool actions or quiet, including
 its current factual basis for validity, reversibility, held repetition,
 completed-floor composition, predicted expansion, and actionable regret. The
-ordinary selector body—not the kernel—computes the winner. Its seed ordering
+ordinary selector body—not the kernel—computes the winner and asks Music to
+execute that exact winner within the same invocation. Quiet executes nothing.
+Its seed ordering
 rejects invalid, irreversible, and held-repeat candidates, then prefers a
 Boolean threshold of at least two composed completed floors, greater predicted
 expansion, greater actionable regret, and a stable id tie-break. That ordering
 is inherited seed geometry, not an immutable objective: the resident may trial,
-admit, or roll back a replacement like any other ordinary tool.
+admit, or roll back a replacement like any other ordinary tool. Completed
+floors are exact retained references; Music verifies their existence and current
+status without endorsing the resident's expansion, regret, or validity judgments.
 
 The retained `trajectoryElectionReceipt` authorizes only the elected tool and
-exact input in that encounter. The resulting invocation retains the receipt, so
+exact input in that encounter. Invoking the seed selector records the election
+and performs that action directly instead of relying on another model step to
+honor an optional receipt. Every ordinary invocation is retained as `elected`,
+`ad-hoc`, or `selector`. The resulting invocation retains the receipt, so
 ordinary consequence bearing on the action also derives exact ancestry to the
 election that selected it. Soundings carry that derived lineage beside the
 unaltered world Delta, and `inspect_trajectory_election` retrieves the exact
@@ -184,6 +191,10 @@ prevent an already-living subject from loading its ledger-retained machinery.
 normal lifecycle scripts and unrestricted network/process authority—inside the
 resident dependency habitat (by default `LEDGER.dependencies`). Learned tools
 can resolve installed packages from `context.environment.dependencyRoot`.
+Before and after every ordinary invocation or provisional tool trial, Music
+retains a digest-bound receipt over the declared dependency manifests. This
+makes executable support changes visible without pretending that `positionRoot`
+roots arbitrary files, external state, or the resident's entire world.
 
 Startup can recover a syntactically torn final ledger write. The exact fragment
 is preserved beside the ledger and an append-only recovery receipt is added.
@@ -203,6 +214,8 @@ JavaScript function body. It remains provisional across clean completion until
 the subject exercises and explicitly admits it. Rollback does not erase history:
 it authors a provisional child that copies a retained earlier executable body,
 then passes through the same exercise and explicit rollback transaction.
+Admissions are labeled `exercise-only` or `consequence-linked` from their exact
+retained provenance; neither label claims external comparative validation.
 
 A world-authored Delta may declare that it `bearsOn` an exact retained tool
 invocation or trajectory election. That reference assigns no meaning to the observation. The one mind

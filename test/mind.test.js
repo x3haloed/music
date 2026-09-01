@@ -509,6 +509,8 @@ test('instruction-free recurrence lets resident-owned election geometry select a
     closureStatus: 'trajectory-elected',
     content: { trajectory: 'compose-retained-capacities' },
   };
+  let scheduleDigest;
+  let electionDigest;
   let call = 0;
   const model = new MockLanguageModelV4({
     doGenerate: async options => {
@@ -528,7 +530,10 @@ test('instruction-free recurrence lets resident-owned election geometry select a
             action: { kind: 'tool', tool: 'schedule_wake', input: wakeInput },
             geometry: {
               worldValid: true, reversible: true, heldRepeat: false,
-              completedFloors: ['opening', 'trajectory'], predictedExpansion: 1,
+              completedFloors: [
+                { kind: 'active-tool', id: 'schedule_wake', digest: scheduleDigest },
+                { kind: 'active-tool', id: 'elect_trajectory', digest: electionDigest },
+              ], predictedExpansion: 1,
               actionableRegret: 0, basis: 'Two completed floors can participate together.',
             },
           },
@@ -537,19 +542,20 @@ test('instruction-free recurrence lets resident-owned election geometry select a
       if (call === 2) {
         const election = findToolResult(options.prompt, 'elect_trajectory');
         assert.equal(election.selectedCandidateId, 'compose');
-        return toolCallResult('schedule_wake', {
-          ...wakeInput,
-          trajectoryElectionReceipt: election.trajectoryElectionReceipt,
-        });
+        assert.equal(election.action.kind, 'tool');
+        assert.equal(election.action.tool, 'schedule_wake');
+        return textResult('The elected trajectory now has a retained successor.');
       }
-      return textResult('The elected trajectory now has a retained successor.');
+      return textResult('Unexpected extra step.');
     },
   });
   const { kernel, mind } = harness(model);
+  scheduleDigest = toolModuleDigest(kernel.state().tools.get('schedule_wake'));
+  electionDigest = toolModuleDigest(kernel.state().tools.get('elect_trajectory'));
 
   const result = await mind.receive(kernel.openSounding('heartbeat').id);
 
-  assert.equal(result.toolCalls, 2);
+  assert.equal(result.toolCalls, 1);
   const election = kernel.events().find(event => event.type === 'trajectory_election_recorded').payload;
   assert.equal(election.selectedCandidateId, 'compose');
   const action = kernel.state().invocations.find(invocation => invocation.tool.id === 'schedule_wake');

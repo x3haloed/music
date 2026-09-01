@@ -525,6 +525,7 @@ test('authored tool machinery remains provisional until exercised and explicitly
       interpretation: 'Its actual result matched the proposed behavior.',
     }],
   });
+  assert.equal(transaction.decisions[0].admissionBasis, 'exercise-only');
   complete(kernel, admissionInference);
 
   const activeSounding = kernel.openSounding('manual');
@@ -539,6 +540,10 @@ test('authored tool machinery remains provisional until exercised and explicitly
   assert.equal(
     kernel.inspectDevelopment(activeInference, activeSounding.id, proposal.proposalId).standing.at(-1).transactionId,
     transaction.transactionId,
+  );
+  assert.equal(
+    kernel.inspectDevelopment(activeInference, activeSounding.id, proposal.proposalId).standing.at(-1).admissionBasis,
+    'exercise-only',
   );
   complete(kernel, activeInference);
 });
@@ -830,6 +835,10 @@ return { kind: 'backing-file-patch', path: input.path, backup: input.path + '.mu
   await exerciseAndAdmitProposal(kernel, learned.proposalId, {
     path: secondTarget, oldText: 'old', newText: 'new',
   });
+  assert.equal(
+    kernel.state().developmentalProposals.get(learned.proposalId).standing.at(-1).admissionBasis,
+    'consequence-linked',
+  );
   const changedSounding = kernel.openSounding();
   const changedInference = begin(kernel, changedSounding.id);
   const learnedTool = kernel.state().tools.get('file_patch');
@@ -1080,6 +1089,8 @@ test('instruction-free recurrence retains one plastic trajectory election throug
   assert.equal(sounding.trajectoryElection.obligation, false);
   assert.equal(sounding.trajectoryElection.selector.id, 'elect_trajectory');
   const inferenceId = begin(kernel, sounding.id);
+  const scheduleDigest = toolModuleDigest(kernel.state().tools.get('schedule_wake'));
+  const electionDigest = toolModuleDigest(kernel.state().tools.get('elect_trajectory'));
   const wakeInput = {
     afterMs: 60_000,
     reason: 'Return after this elected contact has had time to change the available world.',
@@ -1103,20 +1114,18 @@ test('instruction-free recurrence retains one plastic trajectory election throug
         action: { kind: 'tool', tool: 'schedule_wake', input: wakeInput },
         geometry: {
           worldValid: true, reversible: true, heldRepeat: false,
-          completedFloors: ['temporal-opening', 'trajectory-carriage'],
+          completedFloors: [
+            { kind: 'active-tool', id: 'schedule_wake', digest: scheduleDigest },
+            { kind: 'active-tool', id: 'elect_trajectory', digest: electionDigest },
+          ],
           predictedExpansion: 1, actionableRegret: 0, basis: 'This composes two retained capacities.',
         },
       },
     ],
   });
   assert.equal(elected.selectedCandidateId, 'compose_and_return');
-  await assert.rejects(() => kernel.invokeTool(
-    inferenceId, sounding.id, 'read_file', { path: '/tmp/not-elected' }, null,
-    elected.trajectoryElectionReceipt,
-  ), /does not match the elected trajectory action/);
-  await kernel.invokeTool(
-    inferenceId, sounding.id, 'schedule_wake', wakeInput, null, elected.trajectoryElectionReceipt,
-  );
+  assert.equal(elected.action.kind, 'tool');
+  assert.equal(elected.action.tool, 'schedule_wake');
   complete(kernel, inferenceId);
 
   const electionId = elected.trajectoryElectionReceipt;
@@ -1124,8 +1133,10 @@ test('instruction-free recurrence retains one plastic trajectory election throug
   assert.equal(reconstructed.state().trajectoryElections.get(electionId).selected.id, 'compose_and_return');
   assert.equal(reconstructed.audit().trajectoryElections, 1);
   assert.equal(reconstructed.audit().electedActions, 1);
-  const actionInvocationId = reconstructed.state().invocations
-    .find(invocation => invocation.tool.id === 'schedule_wake').invocationId;
+  const actionInvocationId = elected.action.invocationId;
+  const actionInvocation = reconstructed.state().invocationHistory.get(actionInvocationId);
+  assert.equal(actionInvocation.trajectoryBasis.kind, 'elected');
+  assert.equal(actionInvocation.trajectoryBasis.electionId, electionId);
   reconstructed.admitDelta({
     authority: 'world', id: 'election-consequence', stream: 'world', at: '2026-08-30T13:00:00.000Z',
     bearsOn: [{ kind: 'tool-invocation', invocationId: actionInvocationId }],
@@ -1155,6 +1166,67 @@ test('instruction-free recurrence retains one plastic trajectory election throug
   assert.deepEqual(proposal.revision.consequences, [{
     deltaId: 'election-consequence', invocationIds: [actionInvocationId], electionIds: [electionId],
   }]);
+});
+
+test('trajectory provenance distinguishes ad-hoc action and refuses invented completed floors', async () => {
+  const { kernel } = harness();
+  const sounding = kernel.openSounding('heartbeat');
+  const inferenceId = begin(kernel, sounding.id);
+  await kernel.invokeTool(inferenceId, sounding.id, 'read_file', { path: kernel.ledgerPath, limit: 1 });
+  const adHoc = kernel.state().invocations.find(invocation => invocation.tool.id === 'read_file');
+  assert.deepEqual(adHoc.trajectoryBasis, { kind: 'ad-hoc', electionId: null });
+  await assert.rejects(() => kernel.invokeTool(inferenceId, sounding.id, 'elect_trajectory', {
+    candidates: [
+      {
+        id: 'quiet', description: 'Remain quiet.', action: { kind: 'quiet' },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 0, actionableRegret: 0, basis: 'Quiet is available.',
+        },
+      },
+      {
+        id: 'invented_floor', description: 'Pretend an absent capability is complete.', action: { kind: 'quiet' },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false,
+          completedFloors: [{ kind: 'tool-invocation', id: 'never-happened' }],
+          predictedExpansion: 1, actionableRegret: 0, basis: 'This reference is invented.',
+        },
+      },
+    ],
+  }), /incomplete tool invocation floor/);
+  assert.equal(kernel.audit().adHocActions, 1);
+});
+
+test('a failed elected action remains bound to the election that caused it', async () => {
+  const { kernel, root } = harness();
+  const sounding = kernel.openSounding('heartbeat');
+  const inferenceId = begin(kernel, sounding.id);
+  await assert.rejects(() => kernel.invokeTool(inferenceId, sounding.id, 'elect_trajectory', {
+    candidates: [
+      {
+        id: 'quiet', description: 'Remain quiet.', action: { kind: 'quiet' },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 0, actionableRegret: 0, basis: 'Quiet is available.',
+        },
+      },
+      {
+        id: 'inspect_absent', description: 'Inspect a path that may be absent.',
+        action: { kind: 'tool', tool: 'read_file', input: { path: join(root, 'absent.txt') } },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 1, actionableRegret: 0, basis: 'The attempted observation may expose a boundary.',
+        },
+      },
+    ],
+  }), /ENOENT/);
+  const state = kernel.state();
+  const election = [...state.trajectoryElections.values()].at(-1);
+  const failedAction = [...state.invocationHistory.values()]
+    .find(invocation => invocation.tool.id === 'read_file');
+  assert.equal(failedAction.status, 'failed');
+  assert.deepEqual(failedAction.trajectoryBasis, { kind: 'elected', electionId: election.electionId });
+  assert.equal(kernel.audit().electedActions, 1);
 });
 
 test('tampering with retained history is detected', () => {

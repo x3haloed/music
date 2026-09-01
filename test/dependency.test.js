@@ -25,6 +25,13 @@ test('the ordinary dependency tool installs a real package used by a later inven
   });
   assert.equal(installed.action, 'install');
   assert.match(installed.retainedSpec, /^file:/);
+  const dependencyChange = kernel.state().invocations.find(invocation => invocation.tool.id === 'manage_dependency');
+  assert.equal(dependencyChange.executionEnvironmentBefore.format, 'music-execution-environment-1');
+  assert.notEqual(
+    dependencyChange.executionEnvironmentBefore.digest,
+    dependencyChange.executionEnvironmentAfter.digest,
+  );
+  assert.equal(kernel.audit().executionEnvironmentChanges, 1);
   const authored = kernel.authorToolProposal(inferenceId, sounding.id, {
     interpretation: 'Use the newly installed resident dependency in a later executable affordance.',
     tool: {
