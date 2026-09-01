@@ -113,6 +113,7 @@ function witness(schema, pointer, value) {
 }
 
 function synthesize(schema) {
+  if (Object.keys(schema).length === 0) return {};
   if (Object.hasOwn(schema, 'const')) return structuredClone(schema.const);
   if (Array.isArray(schema.enum) && schema.enum.length > 0) return structuredClone(schema.enum[0]);
   const type = Array.isArray(schema.type) ? schema.type.find(value => value !== 'null') ?? 'null' : schema.type;
@@ -133,13 +134,10 @@ function setPointer(target, pointer, value) {
   const parts = pointer.slice(1).split('/').map(part => part.replaceAll('~1', '/').replaceAll('~0', '~'));
   let cursor = target;
   for (const part of parts.slice(0, -1)) {
-    if (cursor === null || typeof cursor !== 'object' || !Object.hasOwn(cursor, part)) {
-      throw new Error(`discrimination path is absent from synthesized output: ${pointer}`);
-    }
+    if (cursor === null || typeof cursor !== 'object') throw new Error(`discrimination path cannot exist in synthesized output: ${pointer}`);
+    if (!Object.hasOwn(cursor, part)) cursor[part] = {};
     cursor = cursor[part];
   }
-  if (cursor === null || typeof cursor !== 'object' || !Object.hasOwn(cursor, parts.at(-1))) {
-    throw new Error(`discrimination path is absent from synthesized output: ${pointer}`);
-  }
+  if (cursor === null || typeof cursor !== 'object') throw new Error(`discrimination path cannot exist in synthesized output: ${pointer}`);
   cursor[parts.at(-1)] = structuredClone(value);
 }
