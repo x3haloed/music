@@ -12,7 +12,7 @@ try {
     process.stdout.write(`${JSON.stringify({ ok: true, habitat: createHabitat(root) }, null, 2)}\n`);
   } else if (command === 'snapshot') {
     process.stdout.write(`${JSON.stringify({ ok: true, ...snapshotHabitat(root, args[0]) }, null, 2)}\n`);
-  } else if (['init', 'step', 'reside', 'audit', 'message', 'grant', 'revoke', 'outbox', 'events'].includes(command)) {
+  } else if (['init', 'step', 'reside', 'audit', 'message', 'grant', 'revoke', 'outbox', 'ack', 'events'].includes(command)) {
     const habitat = readHabitat(root);
     if (command === 'init' && existsSync(habitat.ledger)) throw new Error(`habitat already has a resident ledger: ${habitat.ledger}`);
     if (command !== 'init' && !existsSync(habitat.ledger)) throw new Error(`habitat has not been initialized: ${habitat.root}`);
@@ -27,5 +27,5 @@ try {
 }
 
 function usage() {
-  throw new Error('usage: music-habitat <create|init|step|reside|audit|message|grant|revoke|outbox|events|snapshot> HABITAT [arguments]');
+  throw new Error('usage: music-habitat <create|init|step|reside|audit|message|grant|revoke|outbox|ack|events|snapshot> HABITAT [arguments]');
 }

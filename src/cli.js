@@ -8,6 +8,7 @@ import { DEFAULT_MODEL, PerspectiveEngine } from './perspective.js';
 import { nextEncounterAt } from './recurrence.js';
 import { readHabitat } from './habitat.js';
 import { runtimeProvenance } from './runtime-provenance.js';
+import { archiveOutboundMessage, drainInboundMessages, pendingOutboundMessages, submitInboundMessage } from './mailbox.js';
 
 const { command, options, positionals } = parse(process.argv.slice(2));
 
@@ -18,6 +19,7 @@ try {
   }
   if (existsSync(join(habitat, 'habitat.json'))) process.chdir(readHabitat(habitat).home);
   const kernel = new MusicKernel(habitat);
+  const preparedHabitat = existsSync(join(habitat, 'habitat.json'));
   if (command === 'init') {
     const state = kernel.initialize(options.designation ?? null);
     print({ subject: state.subject, position: state.position.id, habitat });
@@ -28,14 +30,18 @@ try {
     print(grants.find(grant => grant.capability === capability));
   } else if (command === 'message') {
     const content = options.content ?? (options.stdin ? readFileSync(0, 'utf8') : null);
-    const observation = kernel.receiveMessage({
-      sender: options.from,
-      recipient: options.to ?? 'the entity',
-      channel: options.channel ?? 'inbox',
-      content,
-      authentication: options.authentication ?? null,
-    });
-    print(observation);
+    if (preparedHabitat) {
+      if (!kernel.state().subject) throw new Error('initialize the habitat first');
+      print(submitInboundMessage(habitat, {
+        sender: options.from, recipient: options.to ?? 'the entity', channel: options.channel ?? 'inbox',
+        content, authentication: options.authentication ?? null,
+      }));
+    } else {
+      print(kernel.receiveMessage({
+        sender: options.from, recipient: options.to ?? 'the entity', channel: options.channel ?? 'inbox',
+        content, authentication: options.authentication ?? null,
+      }));
+    }
   } else if (command === 'observe') {
     const value = JSON.parse(options.json ?? readFileSync(0, 'utf8'));
     print(kernel.receiveObservation(value));
@@ -45,7 +51,15 @@ try {
     const count = Number(options.count ?? 20);
     print(kernel.ledger.read().slice(-count));
   } else if (command === 'outbox') {
-    print(kernel.state().observations.filter(value => value.kind === 'message.outbound'));
+    print(preparedHabitat
+      ? pendingOutboundMessages(habitat).map(value => value.message)
+      : kernel.state().observations.filter(value => value.kind === 'message.outbound'));
+  } else if (command === 'ack') {
+    if (!preparedHabitat) throw new Error('ack requires a prepared habitat');
+    const messageId = positionals[0];
+    const selected = pendingOutboundMessages(habitat).find(value => value.message.messageId === messageId);
+    if (!selected) throw new Error(`unknown pending outbound message: ${messageId}`);
+    print({ messageId, archived: archiveOutboundMessage(habitat, selected.path) });
   } else if (command === 'step') {
     kernel.receiveObservation(runtimeProvenance(habitat, 'single-opening'));
     print(await step(kernel, options));
@@ -78,6 +92,7 @@ async function step(kernel, options) {
 async function run(kernel, options) {
   const continuityMs = integerOption(options.continuityMs ?? process.env.MUSIC_CONTINUITY_MS ?? 30 * 60 * 1000, 1_000, 24 * 60 * 60 * 1000, 'continuityMs');
   const minimumCycleMs = integerOption(options.minimumCycleMs ?? process.env.MUSIC_MINIMUM_CYCLE_MS ?? 60_000, 0, continuityMs, 'minimumCycleMs');
+  const pollMs = integerOption(options.pollMs ?? process.env.MUSIC_POLL_MS ?? 250, 50, 60_000, 'pollMs');
   let stopping = false;
   let lastEncounterAt = null;
   const stop = () => { stopping = true; };
@@ -87,25 +102,28 @@ async function run(kernel, options) {
     const state = kernel.state();
     if (!state.subject) throw new Error('initialize the habitat first');
     const now = Date.now();
-    const due = nextEncounterAt({
-      now,
-      notBefore: state.position.activeOpening.notBefore,
-      lastEncounterAt,
-      minimumCycleMs,
-      continuityMs,
-    });
-    if (due > now) await interruptibleDelay(due - now, () => stopping);
+    const contact = existsSync(join(kernel.habitat, 'habitat.json'))
+      ? drainInboundMessages(kernel.habitat, kernel)
+      : [];
+    if (contact.length === 0) {
+      const due = nextEncounterAt({
+        now, notBefore: state.position.activeOpening.notBefore, lastEncounterAt, minimumCycleMs, continuityMs,
+      });
+      if (due > now) {
+        await interruptibleDelay(Math.min(pollMs, due - now), () => stopping);
+        continue;
+      }
+    }
     if (stopping) break;
     const current = kernel.state();
     const openingDue = current.position.activeOpening.notBefore === null ||
       Date.parse(current.position.activeOpening.notBefore) <= Date.now();
-    kernel.receiveObservation({
-      kind: 'continuity.heartbeat',
-      instruction: null,
-      openingDue,
-      pendingOpening: current.position.activeOpening,
-      provenance: { scheduler: 'music-v2-recurrence-1' },
-    });
+    if (contact.length === 0) {
+      kernel.receiveObservation({
+        kind: 'continuity.heartbeat', instruction: null, openingDue,
+        pendingOpening: current.position.activeOpening, provenance: { scheduler: 'music-v2-recurrence-1' },
+      });
+    }
     try {
       const result = await step(kernel, options);
       process.stdout.write(`${JSON.stringify({ at: new Date().toISOString(), ...result })}\n`);
@@ -192,6 +210,6 @@ function print(value) {
 
 function usage(error) {
   if (error) process.stderr.write(`${error}\n\n`);
-  process.stderr.write(`Usage: music <command> --habitat PATH\n\nCommands:\n  init [--designation NAME]\n  grant CAPABILITY [--by PRINCIPAL]\n  revoke CAPABILITY [--by PRINCIPAL]\n  message --from SENDER (--content TEXT | --stdin)\n  observe (--json JSON | stdin)\n  status\n  events [--count N]\n  outbox\n  step [--key-file PATH] [--model ID]\n  run [--continuity-ms N] [--minimum-cycle-ms N] [inference options]\n`);
+  process.stderr.write(`Usage: music <command> --habitat PATH\n\nCommands:\n  init [--designation NAME]\n  grant CAPABILITY [--by PRINCIPAL]\n  revoke CAPABILITY [--by PRINCIPAL]\n  message --from SENDER (--content TEXT | --stdin)\n  observe (--json JSON | stdin)\n  status\n  events [--count N]\n  outbox\n  ack MESSAGE_ID\n  step [--key-file PATH] [--model ID]\n  run [--continuity-ms N] [--minimum-cycle-ms N] [--poll-ms N] [inference options]\n`);
   process.exitCode = 1;
 }

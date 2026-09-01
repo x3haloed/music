@@ -83,22 +83,25 @@ export class MusicKernel {
     return this.state();
   }
 
-  receiveMessage({ sender, recipient = 'the entity', channel = 'inbox', content, authentication = null }) {
+  receiveMessage({ id = null, sender, recipient = 'the entity', channel = 'inbox', content, authentication = null, observedAt = null, delivery = null }) {
     const state = this.state();
     requireSubject(state);
     if (typeof sender !== 'string' || sender.trim() === '') throw new Error('message sender is required');
     if (typeof content !== 'string' || content.length === 0) throw new Error('message content is required');
     const observation = {
-      id: this.id(),
+      id: id ?? this.id(),
       kind: 'message.received',
       sender: sender.trim(),
       recipient,
       channel,
-      observedAt: this.clock().toISOString(),
+      observedAt: observedAt ?? this.clock().toISOString(),
       content,
       authentication,
-      delivery: { adapter: 'music.cli', transformed: false },
+      delivery: delivery ?? { adapter: 'music.cli', transformed: false },
     };
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(observation.id)) throw new Error('invalid message observation id');
+    if (state.observations.some(value => value.id === observation.id)) throw new Error(`duplicate observation id: ${observation.id}`);
+    canonical(observation);
     this.ledger.append('observation.received', { observation });
     return observation;
   }
