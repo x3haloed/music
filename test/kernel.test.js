@@ -1591,7 +1591,11 @@ async function reviewAndElect(kernel, inferenceId, soundingId, candidates) {
   kernel.deliverDevelopmentalReviewContext(inferenceId);
   return kernel.invokeTool(inferenceId, soundingId, 'elect_trajectory', {
     reviewId: reviewed.reviewId,
-    assessments: candidates.map(candidate => ({ candidateId: candidate.id, ...candidate.geometry })),
+    assessments: candidates.map(candidate => ({
+      candidateId: candidate.id,
+      ...candidate.geometry,
+      completedFloors: candidate.geometry.completedFloors.map(floor => `floor_${digest(floor).slice(0, 24)}`),
+    })),
     trajectory: {
       objective: 'Move the current developmental position toward consequence-bearing contact.',
       direction: 'Use the selected candidate and let resulting world contact correct the choice.',

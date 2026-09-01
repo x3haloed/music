@@ -22,13 +22,8 @@ export function initialTrajectoryElectionTool() {
               completedFloors: {
                 type: 'array', maxItems: 16,
                 items: {
-                  type: 'object',
-                  properties: {
-                    kind: { type: 'string', enum: ['world-delta', 'tool-invocation', 'trajectory-election', 'developmental-proposal', 'active-tool'] },
-                    id: { type: 'string', minLength: 1, maxLength: 128 },
-                    digest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-                  },
-                  required: ['kind', 'id'], additionalProperties: false,
+                  type: 'string', pattern: '^floor_[a-f0-9]{24}$',
+                  description: 'One exact token from the delivered completedFloorCatalog. Use an empty array when no completed floor bears on this candidate.',
                 },
               },
               predictedExpansion: { type: 'integer', minimum: -1_000_000, maximum: 1_000_000 },
@@ -81,7 +76,7 @@ async function electTrajectory(input, context) {
     if (ids.has(assessment.candidateId)) throw new Error(`trajectory assessment repeats candidate: ${assessment.candidateId}`);
     ids.add(assessment.candidateId);
     const floors = assessment.completedFloors;
-    if (new Set(floors.map(floor => `${floor.kind}:${floor.id}`)).size !== floors.length) {
+    if (new Set(floors).size !== floors.length) {
       throw new Error(`trajectory candidate ${assessment.candidateId} repeats a completed floor`);
     }
     return assessment;

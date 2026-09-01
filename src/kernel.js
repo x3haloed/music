@@ -769,7 +769,7 @@ export class MusicKernel {
     const reviews = [...state.developmentalReviews.values()].filter(review => review.inferenceId === inferenceId);
     if (reviews.length !== 1) throw new Error('developmental review context requires exactly one review in this inference');
     const review = reviews[0];
-    const message = developmentalReviewContextMessage(review);
+    const message = developmentalReviewContextMessage(review, state);
     this.append('developmental_review_context_delivered', {
       inferenceId,
       soundingId: state.activeEncounter.sounding.id,
@@ -778,6 +778,12 @@ export class MusicKernel {
       message,
     });
     return structuredClone(message);
+  }
+
+  trajectoryFloorTokens(inferenceId, soundingId) {
+    const state = this.state();
+    requireActiveEncounter(state, inferenceId, soundingId);
+    return completedFloorCatalog(state).map(entry => entry.token);
   }
 
   async executeTrajectoryElection(inferenceId, soundingId, invocationId, frontier) {
@@ -2039,7 +2045,7 @@ function reduceEvents(events) {
         if (state.deliveredDevelopmentalReviewContextIds.has(event.payload.reviewId)) {
           throw new Error('developmental review context was delivered more than once');
         }
-        const expected = developmentalReviewContextMessage(review);
+        const expected = developmentalReviewContextMessage(review, state);
         if (digest(event.payload.message) !== digest(expected)) {
           throw new Error('developmental review context message mismatch');
         }
@@ -3859,6 +3865,7 @@ function validateTrajectoryElectionFrontier(frontier, state = null) {
     if (!Array.isArray(frontier.assessments) || frontier.assessments.length !== review.candidates.length) {
       throw new Error('trajectory election must assess every frozen review candidate exactly once');
     }
+    const floorCatalog = new Map(completedFloorCatalog(state).map(entry => [entry.token, entry.reference]));
     const assessments = new Map();
     for (const assessment of frontier.assessments) {
       if (!assessment || typeof assessment !== 'object' || Array.isArray(assessment)
@@ -3867,6 +3874,8 @@ function validateTrajectoryElectionFrontier(frontier, state = null) {
         || typeof assessment.worldValid !== 'boolean' || typeof assessment.reversible !== 'boolean'
         || typeof assessment.heldRepeat !== 'boolean'
         || !Array.isArray(assessment.completedFloors) || assessment.completedFloors.length > 16
+        || new Set(assessment.completedFloors).size !== assessment.completedFloors.length
+        || assessment.completedFloors.some(token => typeof token !== 'string' || !floorCatalog.has(token))
         || !Number.isInteger(assessment.predictedExpansion) || !Number.isInteger(assessment.actionableRegret)
         || typeof assessment.basis !== 'string' || !assessment.basis.trim() || assessment.basis.length > 2_048) {
         throw new Error('invalid trajectory candidate assessment');
@@ -3881,7 +3890,7 @@ function validateTrajectoryElectionFrontier(frontier, state = null) {
           worldValid: assessment.worldValid,
           reversible: assessment.reversible,
           heldRepeat: assessment.heldRepeat,
-          completedFloors: structuredClone(assessment.completedFloors),
+          completedFloors: assessment.completedFloors.map(token => structuredClone(floorCatalog.get(token))),
           predictedExpansion: assessment.predictedExpansion,
           actionableRegret: assessment.actionableRegret,
           basis: assessment.basis,
@@ -3955,7 +3964,31 @@ function trajectoryContextMessage(election) {
   };
 }
 
-function developmentalReviewContextMessage(review) {
+function completedFloorCatalog(state) {
+  const references = [];
+  const encounter = state.activeEncounter;
+  for (const delta of encounter?.sounding?.deltas ?? []) {
+    references.push({ kind: 'world-delta', id: delta.id });
+  }
+  for (const lineage of encounter?.sounding?.deltaLineage ?? []) {
+    for (const id of lineage.invocationIds ?? []) references.push({ kind: 'tool-invocation', id });
+    for (const id of lineage.electionIds ?? []) references.push({ kind: 'trajectory-election', id });
+  }
+  for (const tool of state.tools.values()) {
+    references.push({ kind: 'active-tool', id: tool.id, digest: toolModuleDigest(tool) });
+  }
+  const unique = new Map();
+  for (const reference of references) unique.set(canonical(reference), reference);
+  return [...unique.values()]
+    .sort((left, right) => canonical(left).localeCompare(canonical(right)))
+    .slice(0, 96)
+    .map(reference => ({
+      token: `floor_${digest(reference).slice(0, 24)}`,
+      reference: structuredClone(reference),
+    }));
+}
+
+function developmentalReviewContextMessage(review, state) {
   const envelope = {
     format: 'music-developmental-review-envelope-1',
     authority: 'resident-developmental-reviewer',
@@ -3963,6 +3996,7 @@ function developmentalReviewContextMessage(review) {
     digest: digest({ findings: review.findings, candidates: review.candidates }),
     findings: structuredClone(review.findings),
     candidates: structuredClone(review.candidates),
+    completedFloorCatalog: completedFloorCatalog(state),
   };
   return {
     role: 'user',

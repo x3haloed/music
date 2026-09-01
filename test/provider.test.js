@@ -207,6 +207,9 @@ test('OpenRouter receives named structured review and election phases before unr
     assert.equal(requests[1].body.tools, undefined);
     assert.equal(requests[1].body.response_format.type, 'json_schema');
     assert.equal(requests[1].body.response_format.json_schema.name, 'elect_trajectory');
+    const floorTokens = requests[1].body.response_format.json_schema.schema.properties.assessments
+      .items.properties.completedFloors.items.enum;
+    assert.equal(floorTokens.length > 0, true);
     assert.equal(requests[2].body.tool_choice, 'auto');
     assert.equal(requests[2].body.tools.length > 1, true);
     assert.equal(requests[2].body.tools.some(tool => tool.function.name === 'elect_trajectory'), false);

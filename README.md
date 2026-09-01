@@ -183,8 +183,11 @@ Irreversibility is therefore a cost in the election rather than a stable ban on
 contact. That ordering
 is inherited seed geometry, not an immutable objective: the resident may trial,
 admit, or roll back a replacement like any other ordinary tool. Completed
-floors are exact retained references; Music verifies their existence and current
-status without endorsing the resident's expansion, regret, or validity judgments.
+floors are chosen from opaque schema-enforced tokens whose exact retained
+references travel in the developmental-review context. Music resolves and
+verifies their existence and current status without endorsing the resident's
+expansion, regret, or validity judgments; invented floor ids cannot satisfy the
+election schema.
 
 The trajectory envelope names the retained `trajectoryElectionReceipt`, which
 authorizes only the elected tool and exact input in that encounter. If the

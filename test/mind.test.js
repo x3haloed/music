@@ -9,6 +9,7 @@ import { createTools, MusicMind, repairIncompleteToolTurns } from '../src/mind.j
 import { toolModuleDigest } from '../src/tool-module.js';
 import { pendingOutboundMessages } from '../src/mailbox.js';
 import { initialTools } from '../src/seeds.js';
+import { digest } from '../src/canonical.js';
 
 function harness(model, { designation = 'Test Subject', inference = {}, clock } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'music-mind-test-'));
@@ -330,7 +331,7 @@ test('a saturated passive opening can carry contact origination into later actio
       }
       if (call === 4) {
         const review = findReviewContext(options.prompt);
-        return textResult(JSON.stringify(electionInput(review.reviewId, candidates)));
+        return textResult(JSON.stringify(electionInput(review.reviewId, candidates, review.completedFloorCatalog)));
       }
       if (call === 5) return selectionCall('ask', contact);
       if (call === 6) {
@@ -572,7 +573,7 @@ test('a heartbeat arrives as exact contact without an incoming task or behaviora
       if (call === 1) return textResult(JSON.stringify(reviewInput(candidates)));
       if (call === 2) {
         const review = findReviewContext(options.prompt);
-        return textResult(JSON.stringify(electionInput(review.reviewId, candidates)));
+        return textResult(JSON.stringify(electionInput(review.reviewId, candidates, review.completedFloorCatalog)));
       }
       return textResult('');
     },
@@ -594,6 +595,10 @@ test('a heartbeat arrives as exact contact without an incoming task or behaviora
   assert.equal(model.doGenerateCalls[1].tools, undefined);
   assert.equal(model.doGenerateCalls[1].responseFormat.type, 'json');
   assert.equal(model.doGenerateCalls[1].responseFormat.name, 'elect_trajectory');
+  const floorTokens = model.doGenerateCalls[1].responseFormat.schema.properties.assessments
+    .items.properties.completedFloors.items.enum;
+  assert.equal(floorTokens.length > 0, true);
+  assert.equal(floorTokens.every(token => /^floor_[a-f0-9]{24}$/.test(token)), true);
   assert.match(JSON.stringify(model.doGenerateCalls[2].prompt), /music_trajectory_context/);
   assert.equal(model.doGenerateCalls[2].tools.some(tool => tool.name === 'elect_trajectory'), false);
   assert.equal(kernel.audit().developmentalReviews, 1);
@@ -656,7 +661,7 @@ test('instruction-free recurrence lets resident-owned election geometry select a
       if (call === 1) return textResult(JSON.stringify(reviewInput(candidates)));
       if (call === 2) {
         const review = findReviewContext(options.prompt);
-        return textResult(JSON.stringify(electionInput(review.reviewId, candidates)));
+        return textResult(JSON.stringify(electionInput(review.reviewId, candidates, review.completedFloorCatalog)));
       }
       if (call === 3) {
         const election = findTrajectoryContext(options.prompt);
@@ -1105,10 +1110,19 @@ function reviewInput(candidates) {
   };
 }
 
-function electionInput(reviewId, candidates) {
+function electionInput(reviewId, candidates, completedFloorCatalog = []) {
   return {
     reviewId,
-    assessments: candidates.map(candidate => ({ candidateId: candidate.id, ...candidate.geometry })),
+    assessments: candidates.map(candidate => ({
+      candidateId: candidate.id,
+      ...candidate.geometry,
+      completedFloors: candidate.geometry.completedFloors.map(floor => {
+        const token = `floor_${digest(floor).slice(0, 24)}`;
+        assert.ok(completedFloorCatalog.some(item => item.token === token),
+          `completed floor should appear in delivered catalog: ${JSON.stringify(floor)}`);
+        return token;
+      }),
+    })),
     trajectory: {
       objective: 'Move the current developmental position toward consequence-bearing contact.',
       direction: 'Use the selected candidate and let resulting contact correct the election.',

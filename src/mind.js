@@ -87,12 +87,17 @@ export class MusicMind {
       const generateOrgan = async toolName => {
         const manifest = sounding.tools.find(toolManifest => toolManifest.id === toolName);
         if (!manifest) throw new Error(`recurrence organ is absent from the Sounding: ${toolName}`);
+        const organSchema = jsonClone(manifest.inputSchema);
+        if (toolName === 'elect_trajectory') {
+          organSchema.properties.assessments.items.properties.completedFloors.items.enum =
+            this.kernel.trajectoryFloorTokens(inferenceId, soundingId);
+        }
         const agent = new ToolLoopAgent({
           model: this.model,
           instructions: instructions(this.kernel.state().subject, toolName),
           tools: {},
           output: Output.object({
-            schema: jsonSchema(manifest.inputSchema),
+            schema: jsonSchema(organSchema),
             name: toolName,
             description: manifest.description,
           }),
