@@ -2,86 +2,85 @@
 
 ## Verdict
 
-Music v3 is ready to host a bounded real LLM inhabitant on the supported local
-runtime. A hatch and later successor residence have occurred. This is an
-engineering readiness result, not a claim that open-ended self-expansion has
-been demonstrated.
+Music v3 is hatch-ready for one continuing LLM subject on the supported local
+runtime. This means its complete installed causal path has run successfully. It
+does not claim that an unarranged resident will discover useful trajectories or
+improve its selector indefinitely.
 
-## Live evidence
+## Evidence
 
-On 2026-09-01 a `gpt-5.4-mini` subject completed two initial cycles through six
-ephemeral Codex CLI threads. It authored and elected two operator contacts,
-received two distinct durable outbox receipts, carried the first result into
-the second message, advanced by direct bound predicates to generation 2, and
-remained open in seclusion. Music recorded the hatch after the first complete
-hosted consequence transition.
+The final immutable runtime is implementation digest
+`c421521bbc56e5d871885c89caea11b5cfbcde01fbc1c5c275756b2eb7ab4423`.
+It was exercised from an installation outside the checkout using only
+`z-ai/glm-5.3-flash` at low reasoning effort.
 
-The same exact generation-2 subject was then inherited by successor episodes.
-After a separately appended observation, fresh hosted perspectives used the
-retained delivery memory to cause a third contact and advance to generation 3.
-A final cycle on implementation digest
-`f3eb80f55f9127d3adecc373e1496cd93d7c01eccf1036b8c9be36f7c3b326a7`
-quoted all three prior delivery facts in a fourth bound message, received a new
-receipt, and produced the open generation-4 subject
-`3dd1a90345c3bff94e5356003ce8647569efa162248bf2a78d50fab8c92ccc08`.
-Its final evidence head is
-`102b5107ce15bb681db50634dbfbfb33f66fe587fb689190892d8eb491918dfd`.
+The final live hatch is retained at
+`/Users/chad/.local/share/music/evidence/v3-final-live-311e5a8`. Three fresh
+hosted perspectives oriented, authored an admissible wager, and elected it with
+no transcript or workspace continuity. The bound `operator-outbox` contact
+produced one independently retained receipt, deterministic support applied the
+prospective transition, and Music recorded `subject.hatched`. The subject
+advanced from generation 0 to generation 1 and remained open when the
+one-cycle observer stopped. The verified snapshot contains 16 events and 13
+objects at head
+`3cad2fdd1ff5724567d2f11ad27f67cd52b7a68bece8736ec90f12defc4fbf95`.
+All three provider responses identify GLM Flash and distinct fresh contexts;
+their combined usage was 8,661 tokens.
 
-The final live run and its 16-event, 13-object snapshot are retained locally
-under ignored `.music/`. Earlier snapshots preserve the initial hatch. They are
-not source artifacts and must not be committed.
+Hosted selector verification is separately retained at
+`.music/hosted-selector-20260901-7`. Across nine completed fresh contexts, one
+subject authored and installed a scalar selector, used it to choose measurement
+8, received independent contradiction, corrected maximize to minimize, then
+used the corrected machinery to choose measurement 2 and receive support. The
+subject reached generation 3 and remained open. This is the end-to-end causal
+evidence that the developmental organ is executable subject state rather than
+prompt advice.
+
+The final installed body also passed the active/control deterministic
+rehearsal. `npm run check` passes 46 tests and `npm audit --omit=dev` reports
+zero vulnerabilities.
 
 ## Preserved negative evidence
 
-Three failed live episodes materially improved the habitat:
+Live work exposed several defects without advancing the affected subjects:
 
-- Codex rejected the unrestricted recursive JSON Schema used for challenge
-  output. Actor transport now uses a strict JSON-string envelope followed by
-  authoritative Zod validation.
-- A successor initially exhausted `maxCycles` because the kernel compared an
-  episode budget to lifetime subject generation. Budgets now count promoted
-  cycles in the current episode; a regression test begins above generation 0.
-- A hosted perspective wrapped world witnesses in an extra `output` object.
-  Admission rejected it. The exact reasons are now retained and a frozen number
-  of fresh challenge revisions may use that feedback without relaxing the
-  constitution.
+- OpenRouter's hosted structured-output subset did not reliably support the
+  recursive JSON shapes Music needs. OpenRouter now returns text and the exact
+  local Zod role schema remains authoritative.
+- GLM Flash sometimes returns a single JSON value inside a Markdown fence.
+  Transport accepts one otherwise-empty JSON fence but never extracts JSON from
+  prose.
+- The outbox described a `sha256 digest` while enforcing 64 lowercase
+  hexadecimal characters. Public and enforcing contracts are now exact.
+- Provider reasoning effort, canonical actor comparison, witness document
+  shape, resident permanent-failure reporting, and runtime provenance each
+  failed during hosted bring-up and were repaired at their owning boundaries.
+- Actor-local wager names once contaminated the external selector evaluator.
+  Verification now scores sealed measurements and contact facts instead.
 
-None of these failures advanced or rewrote the subject.
+The rejected runs remain under
+`/Users/chad/.local/share/music/evidence/v3-final-live-f2e06d3` and
+`/Users/chad/.local/share/music/evidence/v3-final-live-e3e42eb`. Neither made
+world contact or advanced its subject.
 
-## Automated evidence
+## Operational boundary
 
-`npm run check` currently passes 34 tests. The suite covers structured hosted
-actor transport, fresh ephemeral contexts, exact actor/world/runtime identity,
-direct and underdetermined transitions, projection controls, observations and
-seclusion, grant revocation, resident exclusivity, bounded retries, uncertain
-effect recovery, malformed receipt quarantine, constitutional repair,
-cross-episode succession, full object-graph verification, replayable snapshots,
-bounded HTTP responses, and deterministic multi-world recurrence. `npm audit
---omit=dev` reports zero vulnerabilities.
+Genesis seals runtime, actor, world identities, grants, budgets, conditions,
+and stopping rule. Runs live outside both checkout and immutable release.
+Exactly one resident lease owns advancement; restart preserves uncertain
+contact keys and abandons unterminated inference explicitly. Seclusion and
+future openings cannot suppress the instruction-free continuity floor, while
+external observations wake immediately. Human messages are ordinary retained
+observations, not privileged transition authority.
 
-## Remaining scientific boundary
+Starter worlds provide durable operator outbox, bounded HTTP JSON, external
+JSON commands, file read/write/patch/search, and an explicitly unrestricted
+shell. Effects require genesis grants and can be revoked. The unrestricted
+shell is intentionally not process-isolated; its timeout reports potentially
+partial effects. External effecting adapters still own idempotency at their
+boundary.
 
-The live hatch world was a run-local durable outbox. It establishes real model
-inhabitance, fresh-context continuity, consequence binding, persistence,
-restart/succession, and operator control. It does not establish useful
-consequence-driven machinery refinement, live assimilation of genuine residue,
-cross-domain generalization, hostile adapter isolation, or open-ended growth.
-Those are the next experiments; they are not missing habitat plumbing disguised
-as future research.
-
-Hosted deployment receipts identify observed thread IDs, model names, usage,
-and exact local projections, but do not make the provider deployment itself
-immutably reproducible. External effecting adapters still own durable
-idempotency at their boundary.
-
-## Selector-recurrence frontier
-
-The current kernel contains the bounded selector recurrence promoted by the
-latest Open Trajectory work. Deterministic evidence covers subject-authored
-installation, later frontier transformation, independent contradiction,
-selector correction, changed later contact, and a matched selector-erased
-decision interface that does not rewrite the underlying subject. This is
-engineering evidence for the causal organ, not hosted evidence that a resident
-will author a useful selection dimension or improve it under an unarranged
-world. The real-v3 readiness claim remains open until that path and the updated
-operational release are exercised end to end.
+The evidence supports engineering hatch readiness, restartable residence,
+causal selector recurrence, and exact auditability. Long-term judgment,
+trajectory quality, useful expansion, and the resident's eventual character
+remain matters for lived observation rather than claims established here.

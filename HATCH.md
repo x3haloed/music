@@ -14,8 +14,8 @@ of open-ended development.
    doctor. For example:
 
    ```sh
-   node bin/music-install.js /Users/chad/.local/share/music/releases/0.0.3
-   /Users/chad/.local/share/music/releases/0.0.3/bin/music-doctor.js
+   node bin/music-install.js /Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT
+   /Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT/bin/music-doctor.js
    ```
 
 3. Keep the run outside both the checkout and release directory. Never put API
@@ -33,7 +33,7 @@ of open-ended development.
 ## Hatch and residence
 
 ```sh
-/Users/chad/.local/share/music/releases/0.0.3/src/cli.js hatch /absolute/run /absolute/spec.json
+/Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT/src/cli.js hatch /absolute/run /absolute/spec.json
 ```
 
 `hatch` initializes the immutable genesis and holds the resident lease. Always
@@ -43,8 +43,8 @@ body. For a
 subject beginning in seclusion, send an observation from another process:
 
 ```sh
-/Users/chad/.local/share/music/releases/0.0.3/src/cli.js observe /absolute/run '{"request":"..."}' operator Chad
-/Users/chad/.local/share/music/releases/0.0.3/src/cli.js outbox /absolute/run
+/Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT/src/cli.js observe /absolute/run '{"request":"..."}' operator Chad
+/Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT/src/cli.js outbox /absolute/run
 ```
 
 Transient inference or contact failures are retained and retried with the
