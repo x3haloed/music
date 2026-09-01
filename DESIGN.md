@@ -139,8 +139,12 @@ The deterministic rehearsal now additionally proves that one subject can
 install a scalar pursuit selector, have it restrict a later election, correct
 the selector after independent contradiction, and have the corrected machinery
 select different later contact. A matched projection-erased condition changes
-selection without rewriting either subject. Hosted-model use of this organ and
-useful correction outside its purpose-built rehearsal remain unproven.
+selection without rewriting either subject. A sealed hosted verification then
+carried the same organ through nine fresh GLM Flash perspectives: install,
+measurement-8 selection, hidden contradiction, correction from maximize to
+minimize, measurement-2 selection, independent support, and an open
+generation-3 successor. This is causal engineering evidence, not a claim of
+general utility.
 
 The selector's writable contract travels in every fresh projection as a
 developmental interface. Installation, correction, and surrender all use the
