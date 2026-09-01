@@ -15,6 +15,11 @@ const ContinuationIntentSchema = z.object({
   opening: OpeningSchema,
 });
 
+const ComparisonSchema = z.object({
+  operator: z.enum(['eq', 'contains', 'gt', 'gte', 'lt', 'lte']).default('eq'),
+  value: JsonValueSchema,
+});
+
 export const WagerIntentSchema = z.object({
   id: IdentifierSchema,
   stake: z.object({
@@ -25,9 +30,10 @@ export const WagerIntentSchema = z.object({
   contact: z.object({ tool: z.string().regex(/^[a-f0-9]{64}$/), input: JsonValueSchema }),
   discrimination: z.object({
     outputPath: z.string().regex(/^\/(?:[^/~]|~[01])*(?:\/(?:[^/~]|~[01])*)*$/),
-    supportValue: JsonValueSchema,
-    contradictionValue: JsonValueSchema,
+    support: ComparisonSchema,
+    contradiction: ComparisonSchema,
   }),
+  developmentScope: z.array(z.enum(['/stakes', '/memory', '/mechanisms', '/authority'])).min(1).max(4),
   continuations: z.object({
     support: ContinuationIntentSchema,
     contradiction: ContinuationIntentSchema,
@@ -42,8 +48,10 @@ export function compileWager(intentValue, { position, readTool }) {
   const intent = WagerIntentSchema.parse(intentValue);
   const tool = ToolArtifactSchema.parse(readTool(intent.contact.tool));
   validateContract(tool.manifest.inputSchema, intent.contact.input, `${intent.id} contact input`);
-  const supportOutput = witness(tool.manifest.outputSchema, intent.discrimination.outputPath, intent.discrimination.supportValue);
-  const contradictionOutput = witness(tool.manifest.outputSchema, intent.discrimination.outputPath, intent.discrimination.contradictionValue);
+  const supportValue = witnessValue(intent.discrimination.support);
+  const contradictionValue = witnessValue(intent.discrimination.contradiction);
+  const supportOutput = witness(tool.manifest.outputSchema, intent.discrimination.outputPath, supportValue);
+  const contradictionOutput = witness(tool.manifest.outputSchema, intent.discrimination.outputPath, contradictionValue);
   if (JSON.stringify(supportOutput) === JSON.stringify(contradictionOutput)) {
     throw new Error(`${intent.id} support and contradiction witnesses are identical`);
   }
@@ -57,7 +65,8 @@ export function compileWager(intentValue, { position, readTool }) {
     ...Object.keys(continuations.contradiction.set),
     ...continuations.contradiction.remove,
   ];
-  const revisionScope = [...new Set(paths.map(path => `/${path.split('/')[1]}`))].sort();
+  const continuationScope = paths.map(path => `/${path.split('/')[1]}`);
+  const revisionScope = [...new Set([...continuationScope, ...intent.developmentScope])].sort();
   const retainedFloorIds = position.floors
     .filter(floor => paths.some(path => pathsOverlap(floor.scope, path)))
     .map(floor => floor.id)
@@ -67,8 +76,8 @@ export function compileWager(intentValue, { position, readTool }) {
     stake: intent.stake,
     contact: intent.contact,
     classifiers: {
-      support: { op: 'eq', path: `/output${intent.discrimination.outputPath}`, value: intent.discrimination.supportValue },
-      contradiction: { op: 'eq', path: `/output${intent.discrimination.outputPath}`, value: intent.discrimination.contradictionValue },
+      support: predicate(intent.discrimination.outputPath, intent.discrimination.support),
+      contradiction: predicate(intent.discrimination.outputPath, intent.discrimination.contradiction),
     },
     witnesses: {
       support: { output: supportOutput },
@@ -79,6 +88,21 @@ export function compileWager(intentValue, { position, readTool }) {
     revisionScope,
     effectRequirements: tool.manifest.effects,
   });
+}
+
+function predicate(outputPath, comparison) {
+  return { op: comparison.operator, path: `/output${outputPath}`, value: comparison.value };
+}
+
+function witnessValue(comparison) {
+  const { operator, value } = comparison;
+  if (operator === 'eq' || operator === 'gte' || operator === 'lte' || operator === 'contains') {
+    return structuredClone(value);
+  }
+  if (typeof value !== 'number') throw new Error(`${operator} comparison requires a numeric value`);
+  if (operator === 'gt') return value + Math.max(1, Math.abs(value) * Number.EPSILON);
+  if (operator === 'lt') return value - Math.max(1, Math.abs(value) * Number.EPSILON);
+  throw new Error(`unsupported comparison operator: ${operator}`);
 }
 
 function witness(schema, pointer, value) {

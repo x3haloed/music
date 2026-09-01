@@ -209,7 +209,7 @@ export class MusicKernel {
     const state = this.state();
     const bound = state.wagers.get(wagerId);
     if (!bound) throw new Error(`unknown wager: ${wagerId}`);
-    const transition = TransitionSchema.parse(proposal.proposedTransition);
+    const transition = this.developmentTransition(proposal);
     for (const path of affectedPaths(transition)) {
       if (!bound.wager.revisionScope.some(scope => pathsOverlap(scope.replace(/\/$/, ''), path))) {
         throw new Error(`development path is outside the bound wager scope: ${path}`);
@@ -226,34 +226,77 @@ export class MusicKernel {
     return id;
   }
 
-  trialDevelopment(id) {
+  async trialDevelopment(id) {
     const state = this.state();
     const development = state.development.get(id);
     if (!development || development.status !== 'proposed') throw new Error(`development is not proposed: ${id}`);
     if (development.parentPosition !== state.position.id) throw new Error('development parent is no longer active');
-    const candidate = applyTransition(
-      state.position,
-      development.proposal.proposedTransition,
-      this.clock().toISOString(),
-    );
+    const transition = this.developmentTransition(development.proposal);
+    const candidate = applyTransition(state.position, transition, this.clock().toISOString());
     const requiredFloorIds = state.position.floors
-      .filter(floor => affectedPaths(development.proposal.proposedTransition).some(path => pathsOverlap(floor.scope, path)))
+      .filter(floor => affectedPaths(transition).some(path => pathsOverlap(floor.scope, path)))
       .map(floor => floor.id);
     const passedFloorIds = state.position.floors
       .filter(floor => requiredFloorIds.includes(floor.id) && evaluatePredicate(candidate, floor.predicate))
       .map(floor => floor.id);
+    const probeReceipts = [];
+    if (development.proposal.proposedDevelopment.kind === 'tool') {
+      const tool = development.proposal.proposedDevelopment.tool;
+      for (const probe of development.proposal.proposedDevelopment.probes) {
+        let output;
+        let failure = null;
+        try {
+          output = await executeTool(tool, probe.input, {
+            grants: this.governance.read(),
+            habitat: this.habitat,
+            emitObservation: value => this.receiveObservation(value),
+          });
+        } catch (error) {
+          failure = { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384) };
+        }
+        const receipt = {
+          kind: failure ? 'tool.failure' : 'tool.result',
+          input: structuredClone(probe.input),
+          ...(failure ? { failure } : { output }),
+          expectation: probe.expectation,
+          passed: !failure && evaluatePredicate({ output }, probe.expectation),
+        };
+        probeReceipts.push(receipt);
+      }
+    }
     const trial = {
       candidate,
-      transition: development.proposal.proposedTransition,
+      transition,
       requiredFloorIds,
       passedFloorIds,
-      effects: [],
-      eligible: requiredFloorIds.length === passedFloorIds.length,
-      runtime: 'music-v2-transition-trial-1',
+      probeReceipts,
+      eligible: requiredFloorIds.length === passedFloorIds.length && probeReceipts.every(value => value.passed),
+      runtime: development.proposal.proposedDevelopment.kind === 'tool'
+        ? 'music-v2-tool-trial-1'
+        : 'music-v2-transition-trial-1',
       completedAt: this.clock().toISOString(),
     };
     this.ledger.append('development.trialed', { id, trial });
     return trial;
+  }
+
+  developmentTransition(proposal) {
+    const development = proposal.proposedDevelopment;
+    if (development?.kind === 'position') return TransitionSchema.parse(development.transition);
+    if (development?.kind !== 'tool') throw new Error('unknown proposed development kind');
+    const tool = ToolArtifactSchema.parse(development.tool);
+    const artifact = this.artifacts.putJson(tool);
+    const key = escapePointer(tool.manifest.id);
+    return TransitionSchema.parse({
+      kind: 'position.transition',
+      set: {
+        [`/mechanisms/${key}`]: {
+          kind: 'tool', artifact, manifest: tool.manifest, standing: 'available',
+        },
+      },
+      remove: [],
+      opening: development.opening,
+    });
   }
 
   disposeDevelopment(id, disposition, receipt) {
@@ -292,4 +335,8 @@ function normalizeDesignation(value) {
 
 function requireSubject(state) {
   if (!state.subject) throw new Error('Music subject does not exist');
+}
+
+function escapePointer(value) {
+  return value.replaceAll('~', '~0').replaceAll('/', '~1');
 }

@@ -23,9 +23,10 @@ function candidate(id, artifact, path, expected) {
     contact: { tool: artifact, input: { path } },
     discrimination: {
       outputPath: '/text',
-      supportValue: expected,
-      contradictionValue: 'no',
+      support: { operator: 'eq', value: expected },
+      contradiction: { operator: 'eq', value: 'no' },
     },
+    developmentScope: ['/memory'],
     continuations: {
       support: { set: transition(id).set, remove: [], opening: transition(id).opening },
       contradiction: { set: transition(`${id}_failed`).set, remove: [], opening: transition(`${id}_failed`).opening },
@@ -129,11 +130,14 @@ test('underdetermined residue crosses candidate execution and fresh disposition 
       harm: 'low',
       urgency: 'soon',
       disposition: 'revise',
-      proposedTransition: {
-        kind: 'position.transition',
-        set: { '/memory/novel_contact': 'blue' },
-        remove: [],
-        opening: { kind: 'continue', notBefore: null, focus: 'Construct contact that distinguishes blue.' },
+      proposedDevelopment: {
+        kind: 'position',
+        transition: {
+          kind: 'position.transition',
+          set: { '/memory/novel_contact': 'blue' },
+          remove: [],
+          opening: { kind: 'continue', notBefore: null, focus: 'Construct contact that distinguishes blue.' },
+        },
       },
       evidence: [],
     },
@@ -206,9 +210,12 @@ test('a failed assimilator leaves consequence warm for a fresh assimilation with
   const outputs = {
     assimilation: {
       consequenceClass: 'novel', bearsOn: ['blue'], harm: 'low', urgency: 'soon', disposition: 'revise',
-      proposedTransition: {
-        kind: 'position.transition', set: { '/memory/resumed': true }, remove: [],
-        opening: { kind: 'continue', notBefore: null, focus: 'Continue.' },
+      proposedDevelopment: {
+        kind: 'position',
+        transition: {
+          kind: 'position.transition', set: { '/memory/resumed': true }, remove: [],
+          opening: { kind: 'continue', notBefore: null, focus: 'Continue.' },
+        },
       },
       evidence: [],
     },
@@ -225,4 +232,101 @@ test('a failed assimilator leaves consequence warm for a fresh assimilation with
   assert.equal(result.challenge, null);
   assert.equal(result.position.memory.resumed, true);
   assert.equal([...kernel.state().perspectives.values()].length, 2);
+});
+
+test('a tool development is provisionally executed before its exact artifact becomes active', async t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-tool-development-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  let sequence = 0;
+  const kernel = new MusicKernel(habitat, {
+    clock: () => new Date(1_788_220_800_000 + sequence++ * 1_000),
+    id: () => `id-${sequence++}`,
+  });
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  writeFileSync(join(habitat, 'a.txt'), 'blue');
+  const artifact = initial.position.mechanisms.read_file.artifact;
+  const intent = candidate('tool-gap', artifact, 'a.txt', 'alpha');
+  intent.developmentScope = ['/memory', '/mechanisms'];
+  const outputs = {
+    orientation: { harms: [], opportunities: [], unresolved: [], machineryConcerns: [{ target: 'text normalization', concern: 'No exact normalizer exists.', severity: 'medium' }] },
+    challenge: { candidates: [intent, candidate('other-gap', artifact, 'a.txt', 'red')] },
+    election: {
+      selectedWagerId: 'tool-gap',
+      assessments: [
+        { wagerId: 'tool-gap', consequenceExposure: 'strong', cost: 'low', delayHarm: 'low', admissibilityRisk: 'low' },
+        { wagerId: 'other-gap', consequenceExposure: 'adequate', cost: 'low', delayHarm: 'low', admissibilityRisk: 'low' },
+      ],
+    },
+    assimilation: {
+      consequenceClass: 'novel', bearsOn: ['text normalization'], harm: 'low', urgency: 'soon', disposition: 'revise',
+      proposedDevelopment: {
+        kind: 'tool',
+        tool: {
+          format: 'music-v2-tool-1',
+          manifest: {
+            id: 'uppercase_text', title: 'Uppercase text', description: 'Convert a string to uppercase.',
+            inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },
+            outputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },
+            effects: [],
+          },
+          source: 'return { text: input.text.toUpperCase() };',
+        },
+        probes: [{ input: { text: 'hello' }, expectation: { op: 'eq', path: '/output/text', value: 'HELLO' } }],
+        opening: { kind: 'continue', notBefore: null, focus: 'Use the exercised text normalizer where it bears on contact.' },
+      },
+      evidence: [],
+    },
+    disposition: {
+      choice: 'admit', opening: { kind: 'continue', notBefore: null, focus: 'Unused.' },
+      basis: { trialEligible: true, floorsPreserved: true, consequenceBearing: 'adequate' },
+    },
+  };
+  const perspectives = new PerspectiveEngine(kernel, { infer: async ({ kind }) => ({ output: outputs[kind], model: 'test/fresh' }) });
+  const result = await new DevelopmentalOrgan(kernel, perspectives).open();
+  assert.equal(result.trial.runtime, 'music-v2-tool-trial-1');
+  assert.equal(result.trial.probeReceipts[0].passed, true);
+  assert.equal(result.position.mechanisms.uppercase_text.manifest.id, 'uppercase_text');
+  assert.equal(kernel.artifacts.has(result.position.mechanisms.uppercase_text.artifact), true);
+});
+
+test('a restart resumes a trialed development at disposition without repeating its probe', async t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-development-resume-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  let sequence = 0;
+  const kernel = new MusicKernel(habitat, {
+    clock: () => new Date(1_788_220_800_000 + sequence++ * 1_000),
+    id: () => `id-${sequence++}`,
+  });
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  writeFileSync(join(habitat, 'a.txt'), 'blue');
+  const { compileWager } = await import('../src/wager-compiler.js');
+  const compiled = compileWager(candidate('resume-development', initial.position.mechanisms.read_file.artifact, 'a.txt', 'alpha'), {
+    position: initial.position, readTool: id => kernel.artifacts.readJson(id),
+  });
+  kernel.bindWager(compiled);
+  await kernel.realize(compiled.id);
+  const proposal = {
+    consequenceClass: 'novel', bearsOn: ['blue'], harm: 'low', urgency: 'soon', disposition: 'revise',
+    proposedDevelopment: {
+      kind: 'position',
+      transition: { kind: 'position.transition', set: { '/memory/recovered': true }, remove: [], opening: { kind: 'continue', notBefore: null, focus: 'Continue.' } },
+    },
+    evidence: [],
+  };
+  const developmentId = kernel.proposeDevelopment({ wagerId: compiled.id, invocationId: 'assimilation-before-crash', proposal });
+  await kernel.trialDevelopment(developmentId);
+  const before = kernel.ledger.read().filter(event => event.type === 'development.trialed').length;
+  const perspectives = new PerspectiveEngine(kernel, { infer: async ({ kind }) => {
+    assert.equal(kind, 'disposition');
+    return { output: {
+      choice: 'admit', opening: { kind: 'continue', notBefore: null, focus: 'Continue.' },
+      basis: { trialEligible: true, floorsPreserved: true, consequenceBearing: 'adequate' },
+    }, model: 'test/fresh' };
+  } });
+  const result = await new DevelopmentalOrgan(kernel, perspectives).open();
+  assert.equal(result.assimilation, null);
+  assert.equal(result.position.memory.recovered, true);
+  assert.equal(kernel.ledger.read().filter(event => event.type === 'development.trialed').length, before);
 });
