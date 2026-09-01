@@ -118,7 +118,7 @@ function synthesize(schema) {
   const type = Array.isArray(schema.type) ? schema.type.find(value => value !== 'null') ?? 'null' : schema.type;
   if (type === 'object') {
     const value = {};
-    for (const key of schema.required ?? []) value[key] = synthesize(schema.properties?.[key] ?? {});
+    for (const [key, child] of Object.entries(schema.properties ?? {})) value[key] = synthesize(child);
     return value;
   }
   if (type === 'array') return [];

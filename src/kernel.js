@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { ArtifactStore } from './artifacts.js';
 import { canonical, digest } from './canonical.js';
@@ -154,12 +155,16 @@ export class MusicKernel {
     if (!receipt) {
       const tool = ToolArtifactSchema.parse(this.artifacts.readJson(wager.contact.tool));
       const startedAt = this.clock().toISOString();
+      const realizationId = this.id();
       let output;
       let failure = null;
       try {
         output = await executeTool(tool, wager.contact.input, {
           grants: this.governance.read(),
           habitat: this.habitat,
+          invocationId: realizationId,
+          wagerId,
+          environment: this.toolEnvironment(),
           emitObservation: value => this.receiveObservation(value),
         });
       } catch (error) {
@@ -169,7 +174,7 @@ export class MusicKernel {
         };
       }
       receipt = {
-        id: this.id(),
+        id: realizationId,
         kind: failure ? 'tool.failure' : 'tool.result',
         tool: { artifact: wager.contact.tool, id: tool.manifest.id },
         input: structuredClone(wager.contact.input),
@@ -264,6 +269,9 @@ export class MusicKernel {
           output = await executeTool(tool, probe.input, {
             grants: this.governance.read(),
             habitat: this.habitat,
+            invocationId: `${id}:probe:${probeReceipts.length}`,
+            wagerId: development.wagerId,
+            environment: this.toolEnvironment(),
             emitObservation: value => this.receiveObservation(value),
           });
         } catch (error) {
@@ -312,6 +320,16 @@ export class MusicKernel {
       remove: [],
       opening: development.opening,
     });
+  }
+
+  toolEnvironment() {
+    const prepared = existsSync(join(this.habitat, 'habitat.json'));
+    return {
+      home: prepared ? join(this.habitat, 'home') : this.habitat,
+      inbox: prepared ? join(this.habitat, 'mailbox', 'inbound') : join(this.habitat, 'inbox'),
+      outbox: prepared ? join(this.habitat, 'mailbox', 'outbound', 'pending') : join(this.habitat, 'outbox'),
+      dependencies: join(this.habitat, 'dependencies'),
+    };
   }
 
   disposeDevelopment(id, disposition, receipt) {

@@ -4,6 +4,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MusicKernel } from '../src/kernel.js';
+import { compileWager } from '../src/wager-compiler.js';
+import { starterTools } from '../src/tools.js';
 
 function fixture() {
   const habitat = mkdtempSync(join(tmpdir(), 'music-v2-kernel-'));
@@ -26,23 +28,21 @@ function transition(value) {
 
 function readWager(state, path, expected = 'green') {
   const tool = state.position.mechanisms.read_file.artifact;
-  return {
+  return compileWager({
     id: 'read-contact',
     stake: { id: 'first-contact', description: 'Can the selected file answer green?', costOfDelay: 'low' },
     contact: { tool, input: { path } },
-    classifiers: {
-      support: { op: 'eq', path: '/output/text', value: expected },
-      contradiction: { op: 'eq', path: '/output/text', value: 'red' },
+    discrimination: {
+      outputPath: '/content',
+      support: { operator: 'contains', value: expected },
+      contradiction: { operator: 'contains', value: 'red' },
     },
-    witnesses: {
-      support: { output: { path, bytes: expected.length, text: expected } },
-      contradiction: { output: { path, bytes: 3, text: 'red' } },
-    },
+    developmentScope: ['/memory'],
     continuations: { support: transition('supported'), contradiction: transition('contradicted') },
-    retainedFloorIds: [],
-    revisionScope: ['/memory'],
-    effectRequirements: ['local.read'],
-  };
+  }, {
+    position: state.position,
+    readTool: () => starterTools().find(value => value.manifest.id === 'read_file'),
+  });
 }
 
 test('exact message observation and elected tool consequence survive restart into a direct transition', async t => {
@@ -86,15 +86,13 @@ test('predicate gap retains consequence without inventing a transition', async t
 test('tool failure is retained as underdetermined consequence instead of escaping the loop', async t => {
   const { habitat, kernel } = fixture();
   t.after(() => rmSync(habitat, { recursive: true, force: true }));
-  writeFileSync(join(habitat, 'answer.txt'), 'a result larger than four bytes');
   kernel.governance.set('local.read', true, 'test operator');
   const initial = kernel.initialize();
-  const wager = readWager(initial, 'answer.txt');
-  wager.contact.input.maxBytes = 4;
+  const wager = readWager(initial, 'absent.txt');
   kernel.bindWager(wager);
   const result = await kernel.realize(wager.id);
   assert.equal(result.receipt.kind, 'tool.failure');
-  assert.match(result.receipt.failure.message, /exceeds maxBytes/);
+  assert.match(result.receipt.failure.message, /ENOENT/);
   assert.equal(result.evaluation.kind, 'underdetermined');
   assert.equal(kernel.state().realizations.get(wager.id).kind, 'tool.failure');
 });
@@ -109,7 +107,7 @@ test('generic position development cannot smuggle unexercised mechanisms into au
     id: 'mechanism-bearing-contact',
     stake: { id: 'mechanism-integrity', description: 'Observe a file before bounded development.', costOfDelay: 'low' },
     contact: { tool: initial.position.mechanisms.read_file.artifact, input: { path: 'missing.txt' } },
-    discrimination: { outputPath: '/text', support: { operator: 'eq', value: 'yes' }, contradiction: { operator: 'eq', value: 'no' } },
+    discrimination: { outputPath: '/content', support: { operator: 'contains', value: 'yes' }, contradiction: { operator: 'contains', value: 'no' } },
     developmentScope: ['/mechanisms'],
     continuations: {
       support: { set: { '/memory/result': 'yes' }, remove: [], opening: { kind: 'continue', notBefore: null, focus: 'Continue.' } },
@@ -148,7 +146,7 @@ test('retained realization receipt resumes at predicate evaluation without repea
   const retained = {
     id: 'receipt-before-restart', kind: 'tool.result',
     tool: { artifact: wager.contact.tool, id: 'read_file' }, input: wager.contact.input,
-    output: { path: join(habitat, 'answer.txt'), bytes: 5, text: 'green' },
+    output: { path: 'answer.txt', resolvedPath: join(habitat, 'answer.txt'), bytes: 5, content: '1: green' },
     startedAt: '2026-09-01T00:00:00.000Z', completedAt: '2026-09-01T00:00:01.000Z',
     capture: { runtime: 'music-v2-tool-runtime-1', transformed: false },
   };
@@ -156,6 +154,6 @@ test('retained realization receipt resumes at predicate evaluation without repea
   writeFileSync(join(habitat, 'answer.txt'), 'red');
   const result = await kernel.realize(wager.id);
   assert.equal(result.evaluation.kind, 'support');
-  assert.equal(result.receipt.output.text, 'green');
+  assert.equal(result.receipt.output.content, '1: green');
   assert.equal(kernel.ledger.read().filter(event => event.type === 'realization.completed').length, 1);
 });

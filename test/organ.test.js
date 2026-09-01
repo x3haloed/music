@@ -22,9 +22,9 @@ function candidate(id, artifact, path, expected) {
     stake: { id: `stake-${id}`, description: `Read ${path} for ${expected}.`, costOfDelay: 'low' },
     contact: { tool: artifact, input: { path } },
     discrimination: {
-      outputPath: '/text',
-      support: { operator: 'eq', value: expected },
-      contradiction: { operator: 'eq', value: 'no' },
+      outputPath: '/content',
+      support: { operator: 'contains', value: expected },
+      contradiction: { operator: 'contains', value: 'no' },
     },
     developmentScope: ['/memory'],
     continuations: {

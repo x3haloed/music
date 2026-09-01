@@ -11,9 +11,9 @@ test('compiler derives executable predicates, witnesses, effects, scope, and flo
     stake: { id: 'understand-file', description: 'Learn whether the file says green.', costOfDelay: 'low' },
     contact: { tool: 'a'.repeat(64), input: { path: 'answer.txt' } },
     discrimination: {
-      outputPath: '/text',
-      support: { operator: 'eq', value: 'green' },
-      contradiction: { operator: 'eq', value: 'red' },
+      outputPath: '/content',
+      support: { operator: 'contains', value: 'green' },
+      contradiction: { operator: 'contains', value: 'red' },
     },
     developmentScope: ['/memory'],
     continuations: {
@@ -26,9 +26,9 @@ test('compiler derives executable predicates, witnesses, effects, scope, and flo
   });
   assert.deepEqual(wager.effectRequirements, ['local.read']);
   assert.deepEqual(wager.revisionScope, ['/memory']);
-  assert.equal(wager.witnesses.support.output.text, 'green');
+  assert.equal(wager.witnesses.support.output.content, 'green');
   assert.equal(wager.witnesses.support.output.path, '');
-  assert.equal(wager.classifiers.support.path, '/output/text');
+  assert.equal(wager.classifiers.support.path, '/output/content');
 });
 
 test('compiler creates valid public witnesses for structural numeric predicates', () => {
