@@ -1,8 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
-import { open, mkdir, readFile, rename, stat, unlink } from 'node:fs/promises';
+import { open, mkdir, rename, stat, unlink } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { defineWorld } from './world.js';
+
+export const MAX_FILE_READ_BYTES = 16 * 1024 * 1024;
+export const MAX_FILE_PATCH_BYTES = 8 * 1024 * 1024;
 
 export function localWorlds() {
   return [fileRead(), fileWrite(), filePatch(), fileSearch(), shell()];
@@ -10,22 +13,22 @@ export function localWorlds() {
 
 function fileRead() {
   return defineWorld({
-    id: 'file-read', version: '1', description: 'Read UTF-8 text with line numbers and bounded pagination. Relative paths resolve from the run workspace; absolute paths are accepted.', effects: ['local.read'],
-    identityMaterial: { implementation: 'music-v3-file-read-1', defaultLines: 500, defaultCharacters: 131_072 },
+    id: 'file-read', version: '2', description: 'Read a bounded-size UTF-8 text file with line numbers and bounded pagination. Relative paths resolve from the run workspace; absolute paths are accepted.', effects: ['local.read'],
+    identityMaterial: { implementation: 'music-v3-file-read-2', maximumSourceBytes: MAX_FILE_READ_BYTES, defaultLines: 500, defaultCharacters: 131_072 },
     publicContract: {
       input: { path: 'nonempty string', offset: 'optional positive line number', limit: 'optional 1..1000', maxChars: 'optional 1024..262144' },
-      output: { ok: 'boolean', kind: 'file-read', resolvedPath: 'string', content: 'numbered UTF-8 text when ok', hasMore: 'boolean when ok', error: 'string when not ok' },
+      output: { ok: 'boolean', kind: 'file-read', resolvedPath: 'string', maximumSourceBytes: MAX_FILE_READ_BYTES, content: 'numbered UTF-8 text when ok', hasMore: 'boolean when ok', error: 'string when not ok' },
     },
     conform: input => objectInput(input, ['path']).concat(typeof input?.path === 'string' && input.path.length > 0 ? [] : ['path must be nonempty'], integerRange(input?.offset, 1, Number.MAX_SAFE_INTEGER, 'offset'), integerRange(input?.limit, 1, 1_000, 'limit'), integerRange(input?.maxChars, 1_024, 262_144, 'maxChars')),
     conformOutput: output => output?.kind === 'file-read' && typeof output.ok === 'boolean' && typeof output.resolvedPath === 'string' ? [] : ['file-read output is malformed'],
     async execute(input, context) {
       const file = resolveContactPath(context, input.path);
-      let metadata;
-      try { metadata = await stat(file); }
+      let source;
+      try { source = await readBoundedRegularFile(file, MAX_FILE_READ_BYTES); }
       catch (error) { return { ok: false, kind: 'file-read', path: input.path, resolvedPath: file, error: error.message }; }
-      if (!metadata.isFile()) return { ok: false, kind: 'file-read', path: input.path, resolvedPath: file, error: 'Path is not a regular file.' };
-      const bytes = await readFile(file);
-      if (bytes.subarray(0, Math.min(bytes.length, 8_192)).includes(0)) return { ok: false, kind: 'file-read', path: input.path, resolvedPath: file, bytes: bytes.length, error: 'This appears to be a binary file.' };
+      if (source.refusal) return { ok: false, kind: 'file-read', path: input.path, resolvedPath: file, bytes: source.bytes, maximumSourceBytes: MAX_FILE_READ_BYTES, error: source.refusal };
+      const { bytes, metadata } = source;
+      if (bytes.subarray(0, Math.min(bytes.length, 8_192)).includes(0)) return { ok: false, kind: 'file-read', path: input.path, resolvedPath: file, bytes: bytes.length, maximumSourceBytes: MAX_FILE_READ_BYTES, error: 'This appears to be a binary file.' };
       const lines = bytes.toString('utf8').split(/\r?\n/);
       const offset = input.offset ?? 1;
       const limit = input.limit ?? 500;
@@ -33,7 +36,7 @@ function fileRead() {
       const selected = lines.slice(offset - 1, offset - 1 + limit);
       const numbered = selected.map((line, index) => `${offset + index}: ${line}`).join('\n');
       const content = numbered.slice(0, maxChars);
-      return { ok: true, kind: 'file-read', path: input.path, resolvedPath: file, bytes: bytes.length, modifiedAt: metadata.mtime.toISOString(), offset, limit, returnedLines: selected.length, totalLines: lines.length, hasMore: offset - 1 + selected.length < lines.length, truncatedByCharacters: content.length < numbered.length, content };
+      return { ok: true, kind: 'file-read', path: input.path, resolvedPath: file, bytes: bytes.length, maximumSourceBytes: MAX_FILE_READ_BYTES, modifiedAt: metadata.mtime.toISOString(), offset, limit, returnedLines: selected.length, totalLines: lines.length, hasMore: offset - 1 + selected.length < lines.length, truncatedByCharacters: content.length < numbered.length, content };
     },
   });
 }
@@ -63,8 +66,10 @@ function fileWrite() {
       try { existing = await stat(file); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
       if (existing && !existing.isFile()) return { ok: false, kind: 'file-write', path: input.path, resolvedPath: file, error: 'Existing path is not a regular file.' };
       if (existing) {
-        const current = await readFile(file);
-        if (sha256(current) === targetHash) return { ok: true, kind: 'file-write', path: input.path, resolvedPath: file, bytes: data.length, overwritten: true, replayed: true, sha256: targetHash };
+        if (existing.size === data.length) {
+          const current = await readBoundedRegularFile(file, data.length);
+          if (!current.refusal && sha256(current.bytes) === targetHash) return { ok: true, kind: 'file-write', path: input.path, resolvedPath: file, bytes: data.length, overwritten: true, replayed: true, sha256: targetHash };
+        }
         if (input.overwrite !== true) return { ok: false, kind: 'file-write', path: input.path, resolvedPath: file, error: 'File already exists; set overwrite=true to replace it.' };
       }
       await atomicReplace(file, data, existing?.mode ?? 0o600);
@@ -75,11 +80,11 @@ function fileWrite() {
 
 function filePatch() {
   return defineWorld({
-    id: 'file-patch', version: '1', description: 'Atomically apply an exact textual replacement only after verifying the expected occurrence count.', effects: ['local.write'],
-    identityMaterial: { implementation: 'music-v3-file-patch-1', operation: 'exact-global-replacement' },
+    id: 'file-patch', version: '2', description: 'Atomically apply an exact textual replacement only after bounding source and result size and verifying the expected occurrence count.', effects: ['local.write'],
+    identityMaterial: { implementation: 'music-v3-file-patch-2', operation: 'exact-global-replacement', maximumSourceBytes: MAX_FILE_PATCH_BYTES, maximumResultBytes: MAX_FILE_PATCH_BYTES },
     publicContract: {
       input: { path: 'nonempty string', oldText: 'nonempty string', newText: 'string', expectedOccurrences: 'optional positive integer, default 1' },
-      output: { ok: 'boolean', kind: 'file-patch', resolvedPath: 'string', occurrences: 'integer', before: 'sha256', after: 'sha256', error: 'string when not applied' },
+      output: { ok: 'boolean', kind: 'file-patch', resolvedPath: 'string', maximumSourceBytes: MAX_FILE_PATCH_BYTES, maximumResultBytes: MAX_FILE_PATCH_BYTES, occurrences: 'integer', before: 'sha256', after: 'sha256', error: 'string when not applied' },
     },
     conform(input) {
       const reasons = objectInput(input, ['path', 'oldText', 'newText']);
@@ -92,14 +97,19 @@ function filePatch() {
     conformOutput: output => output?.kind === 'file-patch' && typeof output.ok === 'boolean' && typeof output.resolvedPath === 'string' ? [] : ['file-patch output is malformed'],
     async execute(input, context) {
       const file = resolveContactPath(context, input.path);
-      const before = await readFile(file, 'utf8');
-      const occurrences = before.split(input.oldText).length - 1;
+      let source;
+      try { source = await readBoundedRegularFile(file, MAX_FILE_PATCH_BYTES); }
+      catch (error) { return { ok: false, kind: 'file-patch', path: input.path, resolvedPath: file, error: error.message }; }
+      if (source.refusal) return { ok: false, kind: 'file-patch', path: input.path, resolvedPath: file, bytes: source.bytes, maximumSourceBytes: MAX_FILE_PATCH_BYTES, maximumResultBytes: MAX_FILE_PATCH_BYTES, error: source.refusal };
+      const before = source.bytes.toString('utf8');
+      const occurrences = countOccurrences(before, input.oldText);
       const expected = input.expectedOccurrences ?? 1;
       if (occurrences !== expected) return { ok: false, kind: 'file-patch', path: input.path, resolvedPath: file, occurrences, error: `Expected ${expected} occurrence(s), found ${occurrences}.` };
+      const resultBytes = Buffer.byteLength(before) + occurrences * (Buffer.byteLength(input.newText) - Buffer.byteLength(input.oldText));
+      if (resultBytes > MAX_FILE_PATCH_BYTES) return { ok: false, kind: 'file-patch', path: input.path, resolvedPath: file, occurrences, resultBytes, maximumSourceBytes: MAX_FILE_PATCH_BYTES, maximumResultBytes: MAX_FILE_PATCH_BYTES, error: `Patched result would exceed the ${MAX_FILE_PATCH_BYTES}-byte maximum.` };
       const after = before.split(input.oldText).join(input.newText);
-      const metadata = await stat(file);
-      await atomicReplace(file, Buffer.from(after, 'utf8'), metadata.mode);
-      return { ok: true, kind: 'file-patch', path: input.path, resolvedPath: file, occurrences, before: sha256(before), after: sha256(after) };
+      await atomicReplace(file, Buffer.from(after, 'utf8'), source.metadata.mode);
+      return { ok: true, kind: 'file-patch', path: input.path, resolvedPath: file, occurrences, resultBytes, maximumSourceBytes: MAX_FILE_PATCH_BYTES, maximumResultBytes: MAX_FILE_PATCH_BYTES, before: sha256(before), after: sha256(after) };
     },
   });
 }
@@ -181,6 +191,38 @@ function shell() {
 function workspaceRoot(context) { return join(context.runRoot, 'workspace'); }
 function resolveContactPath(context, path) { return isAbsolute(path) ? resolve(path) : resolve(workspaceRoot(context), path); }
 function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
+
+async function readBoundedRegularFile(file, maximumBytes) {
+  const handle = await open(file, 'r');
+  try {
+    const metadata = await handle.stat();
+    if (!metadata.isFile()) return { refusal: 'Path is not a regular file.', bytes: metadata.size };
+    if (metadata.size > maximumBytes) return { refusal: `File size ${metadata.size} exceeds the ${maximumBytes}-byte maximum.`, bytes: metadata.size };
+    const bytes = Buffer.allocUnsafe(metadata.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const read = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (read.bytesRead === 0) break;
+      offset += read.bytesRead;
+    }
+    const extra = Buffer.allocUnsafe(1);
+    const growth = await handle.read(extra, 0, 1, offset);
+    if (growth.bytesRead > 0) return { refusal: `File grew beyond its checked ${metadata.size}-byte size during reading.`, bytes: metadata.size + growth.bytesRead };
+    return { bytes: bytes.subarray(0, offset), metadata };
+  } finally {
+    await handle.close();
+  }
+}
+
+function countOccurrences(content, search) {
+  let count = 0;
+  let offset = 0;
+  while ((offset = content.indexOf(search, offset)) !== -1) {
+    count += 1;
+    offset += search.length;
+  }
+  return count;
+}
 
 async function atomicReplace(file, data, mode) {
   const temporary = `${file}.music-${process.pid}-${randomUUID()}.tmp`;

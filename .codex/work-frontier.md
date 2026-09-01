@@ -39,7 +39,7 @@ machine-owner governance without a researcher-authored transition bridge.
 ## Evaluation regime
 
 - **Epoch:** V3-HATCH-READY-1
-- **Engineering anchors:** 46 deterministic tests; active/control rehearsal;
+- **Engineering anchors:** 48 deterministic tests; active/control rehearsal;
   hosted selector recurrence in `.music/hosted-selector-20260901-7`; installed
   GLM Flash hatch and replayable snapshot in
   `/Users/chad/.local/share/music/evidence/v3-final-live-311e5a8`.

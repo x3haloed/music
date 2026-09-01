@@ -10,9 +10,11 @@ improve its selector indefinitely.
 ## Evidence
 
 The final immutable runtime is implementation digest
-`c421521bbc56e5d871885c89caea11b5cfbcde01fbc1c5c275756b2eb7ab4423`.
-It was exercised from an installation outside the checkout using only
-`z-ai/glm-5.3-flash` at low reasoning effort.
+`62b24a47bec43a7b426a7290cf85054f72ec37e170e598465bc0536887abe148`.
+Its predecessor was exercised from an installation outside the checkout using
+only `z-ai/glm-5.3-flash` at low reasoning effort; the current delta bounds
+file-tool allocation and has production-shaped sparse-file coverage without
+changing the resident recurrence path.
 
 The final live hatch is retained at
 `/Users/chad/.local/share/music/evidence/v3-final-live-311e5a8`. Three fresh
@@ -36,8 +38,8 @@ subject reached generation 3 and remained open. This is the end-to-end causal
 evidence that the developmental organ is executable subject state rather than
 prompt advice.
 
-The final installed body also passed the active/control deterministic
-rehearsal. `npm run check` passes 46 tests and `npm audit --omit=dev` reports
+The installed body also passed the active/control deterministic rehearsal.
+`npm run check` passes 48 tests and `npm audit --omit=dev` reports
 zero vulnerabilities.
 
 ## Preserved negative evidence
@@ -78,7 +80,9 @@ JSON commands, file read/write/patch/search, and an explicitly unrestricted
 shell. Effects require genesis grants and can be revoked. The unrestricted
 shell is intentionally not process-isolated; its timeout reports potentially
 partial effects. External effecting adapters still own idempotency at their
-boundary.
+boundary. File reads reject sources over 16 MiB before body allocation; patches
+reject sources and projected results over 8 MiB. Sparse inputs exercise these
+limits in the production-shaped adapter tests.
 
 The evidence supports engineering hatch readiness, restartable residence,
 causal selector recurrence, and exact auditability. Long-term judgment,

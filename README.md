@@ -67,6 +67,12 @@ world has an exact sealed identity and effect requirement (`local.read`,
 timeouts return `effect: "possibly-partial"` rather than pretending an
 arbitrary command was rolled back.
 
+File input is bounded before body allocation: `file-read` refuses sources over
+16 MiB, while `file-patch` refuses sources or projected results over 8 MiB.
+Sparse files and files that grow beyond their checked size are refused. The
+unrestricted shell remains available when deliberate streaming or specialized
+large-file handling is needed.
+
 ## CLI
 
 ```sh

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, openSync, closeSync, readFileSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { localWorlds } from '../src/local-worlds.js';
+import { localWorlds, MAX_FILE_PATCH_BYTES, MAX_FILE_READ_BYTES } from '../src/local-worlds.js';
 import { WorldRegistry } from '../src/world.js';
 
 function harness(t) {
@@ -50,4 +50,44 @@ test('shell retains separate bounded output, idempotency context, and timeout un
   const timeout = await contact('shell', { command: 'sleep 2', timeoutMs: 100 });
   assert.equal(timeout.status, 'timeout');
   assert.equal(timeout.effect, 'possibly-partial');
+});
+
+test('file reads and patches refuse oversized sparse inputs before body allocation', async t => {
+  const { root, contact } = harness(t);
+  const workspace = join(root, 'workspace');
+  mkdirSync(workspace, { recursive: true });
+  const sparse = join(workspace, 'oversized-sparse.txt');
+  const descriptor = openSync(sparse, 'w');
+  closeSync(descriptor);
+  truncateSync(sparse, MAX_FILE_READ_BYTES + 1);
+
+  const read = await contact('file-read', { path: 'oversized-sparse.txt' });
+  assert.equal(read.ok, false);
+  assert.equal(read.bytes, MAX_FILE_READ_BYTES + 1);
+  assert.match(read.error, /exceeds the .*byte maximum/);
+
+  const patch = await contact('file-patch', { path: 'oversized-sparse.txt', oldText: 'x', newText: 'y' });
+  assert.equal(patch.ok, false);
+  assert.equal(patch.maximumSourceBytes, MAX_FILE_PATCH_BYTES);
+  assert.match(patch.error, /exceeds the .*byte maximum/);
+
+  const refusedWrite = await contact('file-write', { path: 'oversized-sparse.txt', content: 'small' });
+  assert.equal(refusedWrite.ok, false);
+  assert.match(refusedWrite.error, /already exists/);
+  const replaced = await contact('file-write', { path: 'oversized-sparse.txt', content: 'small', overwrite: true });
+  assert.equal(replaced.ok, true);
+  assert.equal(readFileSync(sparse, 'utf8'), 'small');
+});
+
+test('file patch refuses replacement amplification before constructing the result', async t => {
+  const { root, contact } = harness(t);
+  const workspace = join(root, 'workspace');
+  mkdirSync(workspace, { recursive: true });
+  const path = join(workspace, 'amplify.txt');
+  writeFileSync(path, 'x'.repeat(9));
+  const replacement = 'y'.repeat(1024 * 1024);
+  const patch = await contact('file-patch', { path: 'amplify.txt', oldText: 'x', newText: replacement, expectedOccurrences: 9 });
+  assert.equal(patch.ok, false);
+  assert.ok(patch.resultBytes > MAX_FILE_PATCH_BYTES);
+  assert.equal(readFileSync(path, 'utf8'), 'x'.repeat(9));
 });
