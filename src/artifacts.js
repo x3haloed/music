@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { canonical } from './canonical.js';
 
 export class ArtifactStore {
   constructor(root) {
@@ -16,6 +17,10 @@ export class ArtifactStore {
     return id;
   }
 
+  putJson(value) {
+    return this.put(canonical(value));
+  }
+
   has(id) {
     return existsSync(this.path(id));
   }
@@ -25,6 +30,10 @@ export class ArtifactStore {
     const actual = createHash('sha256').update(content).digest('hex');
     if (actual !== id) throw new Error(`artifact digest mismatch: ${id}`);
     return content;
+  }
+
+  readJson(id) {
+    return JSON.parse(this.read(id).toString('utf8'));
   }
 
   path(id) {

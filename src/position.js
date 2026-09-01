@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { digest } from './canonical.js';
 import { IdentifierSchema, IsoDateSchema, JsonValueSchema } from './schema.js';
+import { PredicateSchema } from './predicate.js';
 
 const PointerSchema = z.string().regex(/^\/(stakes|mechanisms|authority|memory)(?:\/(?:[^/~]|~[01])*)*$/);
 
@@ -20,7 +21,7 @@ export const TransitionSchema = z.object({
 export const FloorSchema = z.object({
   id: IdentifierSchema,
   scope: PointerSchema,
-  predicate: JsonValueSchema,
+  predicate: PredicateSchema,
   earnedBy: z.string().min(1),
 });
 
@@ -37,22 +38,29 @@ export const PositionSchema = z.object({
   activeOpening: OpeningSchema,
 });
 
-export function initialPosition(at) {
+export function initialPosition(at, initial = {}) {
   return identify({
     parent: null,
     generation: 0,
     createdAt: at,
-    stakes: {},
-    mechanisms: {},
-    authority: {},
-    memory: {},
-    floors: [],
+    stakes: initial.stakes ?? {},
+    mechanisms: initial.mechanisms ?? {},
+    authority: initial.authority ?? {},
+    memory: initial.memory ?? {},
+    floors: initial.floors ?? [],
     activeOpening: {
       kind: 'continue',
       notBefore: null,
       focus: 'Encounter the available world and originate the first bounded developmental wager.',
     },
   });
+}
+
+export function verifyPosition(value) {
+  const position = PositionSchema.parse(value);
+  const { id, ...body } = position;
+  if (digest(body) !== id) throw new Error(`position digest mismatch: ${id}`);
+  return position;
 }
 
 export function applyTransition(positionValue, transitionValue, at) {

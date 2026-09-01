@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { classifyReceipt } from './predicate.js';
+import { classifyReceipt, PredicateSchema } from './predicate.js';
 import { affectedPaths, pathsOverlap, TransitionSchema } from './position.js';
 import { DigestSchema, IdentifierSchema, JsonValueSchema } from './schema.js';
 
@@ -15,8 +15,8 @@ export const WagerSchema = z.object({
     input: JsonValueSchema,
   }),
   classifiers: z.object({
-    support: JsonValueSchema,
-    contradiction: JsonValueSchema,
+    support: PredicateSchema,
+    contradiction: PredicateSchema,
   }),
   witnesses: z.object({
     support: JsonValueSchema,
@@ -31,10 +31,17 @@ export const WagerSchema = z.object({
   effectRequirements: z.array(IdentifierSchema).max(32),
 });
 
-export function admitWager(wagerValue, { position, grants = [], artifactExists }) {
+export function admitWager(wagerValue, { position, grants = [], artifactExists, toolEffects = () => [] }) {
   const wager = WagerSchema.parse(wagerValue);
   const reasons = [];
   if (!artifactExists(wager.contact.tool)) reasons.push('contact tool artifact is absent');
+  else {
+    const requiredByTool = [...new Set(toolEffects(wager.contact.tool))].sort();
+    const declaredByWager = [...new Set(wager.effectRequirements)].sort();
+    if (JSON.stringify(requiredByTool) !== JSON.stringify(declaredByWager)) {
+      reasons.push(`effect requirements must exactly match the contact tool: ${requiredByTool.join(', ')}`);
+    }
+  }
 
   const supportWitness = classifyReceipt(wager.witnesses.support, wager.classifiers);
   const contradictionWitness = classifyReceipt(wager.witnesses.contradiction, wager.classifiers);

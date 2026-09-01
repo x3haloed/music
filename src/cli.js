@@ -1,0 +1,185 @@
+#!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import process from 'node:process';
+import { DevelopmentalOrgan } from './organ.js';
+import { MusicKernel } from './kernel.js';
+import { DEFAULT_MODEL, PerspectiveEngine } from './perspective.js';
+import { nextEncounterAt } from './recurrence.js';
+
+const { command, options, positionals } = parse(process.argv.slice(2));
+
+try {
+  const habitat = resolve(options.habitat ?? process.env.MUSIC_HABITAT ?? '');
+  if (!options.habitat && !process.env.MUSIC_HABITAT) {
+    throw new Error('set MUSIC_HABITAT or pass --habitat');
+  }
+  const kernel = new MusicKernel(habitat);
+  if (command === 'init') {
+    const state = kernel.initialize(options.designation ?? null);
+    print({ subject: state.subject, position: state.position.id, habitat });
+  } else if (command === 'grant' || command === 'revoke') {
+    const capability = positionals[0];
+    if (!capability) throw new Error(`${command} requires a capability`);
+    const grants = kernel.governance.set(capability, command === 'grant', options.by ?? 'local operator');
+    print(grants.find(grant => grant.capability === capability));
+  } else if (command === 'message') {
+    const content = options.content ?? (options.stdin ? readFileSync(0, 'utf8') : null);
+    const observation = kernel.receiveMessage({
+      sender: options.from,
+      recipient: options.to ?? 'the entity',
+      channel: options.channel ?? 'inbox',
+      content,
+      authentication: options.authentication ?? null,
+    });
+    print(observation);
+  } else if (command === 'observe') {
+    const value = JSON.parse(options.json ?? readFileSync(0, 'utf8'));
+    print(kernel.receiveObservation(value));
+  } else if (command === 'status') {
+    print(projectStatus(kernel.state(), kernel.governance.read()));
+  } else if (command === 'events') {
+    const count = Number(options.count ?? 20);
+    print(kernel.ledger.read().slice(-count));
+  } else if (command === 'outbox') {
+    print(kernel.state().observations.filter(value => value.kind === 'message.outbound'));
+  } else if (command === 'step') {
+    print(await step(kernel, options));
+  } else if (command === 'run') {
+    await run(kernel, options);
+  } else {
+    usage(command ? `unknown command: ${command}` : null);
+  }
+} catch (error) {
+  process.stderr.write(`${error?.stack ?? error}\n`);
+  process.exitCode = 1;
+}
+
+async function step(kernel, options) {
+  const state = kernel.state();
+  if (!state.subject) throw new Error('initialize the habitat first');
+  const engine = new PerspectiveEngine(kernel, inferenceOptions(kernel.habitat, options));
+  const result = await new DevelopmentalOrgan(kernel, engine).open();
+  return {
+    wager: result.election.output.selectedWagerId,
+    outcome: result.realized.evaluation.kind,
+    position: (result.position ?? result.realized.position)?.id ?? kernel.state().position.id,
+    generation: kernel.state().position.generation,
+    assimilation: result.assimilation ? result.assimilation.output.disposition : null,
+  };
+}
+
+async function run(kernel, options) {
+  const continuityMs = integerOption(options.continuityMs ?? process.env.MUSIC_CONTINUITY_MS ?? 30 * 60 * 1000, 1_000, 24 * 60 * 60 * 1000, 'continuityMs');
+  const minimumCycleMs = integerOption(options.minimumCycleMs ?? process.env.MUSIC_MINIMUM_CYCLE_MS ?? 60_000, 0, continuityMs, 'minimumCycleMs');
+  let stopping = false;
+  let lastEncounterAt = null;
+  const stop = () => { stopping = true; };
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
+  while (!stopping) {
+    const state = kernel.state();
+    if (!state.subject) throw new Error('initialize the habitat first');
+    const now = Date.now();
+    const due = nextEncounterAt({
+      now,
+      notBefore: state.position.activeOpening.notBefore,
+      lastEncounterAt,
+      minimumCycleMs,
+      continuityMs,
+    });
+    if (due > now) await interruptibleDelay(due - now, () => stopping);
+    if (stopping) break;
+    const current = kernel.state();
+    const openingDue = current.position.activeOpening.notBefore === null ||
+      Date.parse(current.position.activeOpening.notBefore) <= Date.now();
+    kernel.receiveObservation({
+      kind: 'continuity.heartbeat',
+      instruction: null,
+      openingDue,
+      pendingOpening: current.position.activeOpening,
+      provenance: { scheduler: 'music-v2-recurrence-1' },
+    });
+    try {
+      const result = await step(kernel, options);
+      process.stdout.write(`${JSON.stringify({ at: new Date().toISOString(), ...result })}\n`);
+    } catch (error) {
+      process.stderr.write(`${new Date().toISOString()} cycle failed: ${error?.message ?? error}\n`);
+    } finally {
+      lastEncounterAt = Date.now();
+    }
+  }
+}
+
+function inferenceOptions(habitat, options) {
+  const keyFile = options.keyFile ?? process.env.MUSIC_OPENROUTER_KEY_FILE;
+  const apiKey = keyFile ? readFileSync(resolve(keyFile), 'utf8').trim() : process.env.OPENROUTER_API_KEY;
+  return {
+    apiKey,
+    model: options.model ?? process.env.MUSIC_MODEL ?? DEFAULT_MODEL,
+    maxOutputTokens: integerOption(options.maxOutputTokens ?? process.env.MUSIC_MAX_OUTPUT_TOKENS ?? 15_000, 256, 32_768, 'maxOutputTokens'),
+  };
+}
+
+function projectStatus(state, grants) {
+  return {
+    subject: state.subject,
+    position: state.position && {
+      id: state.position.id,
+      parent: state.position.parent,
+      generation: state.position.generation,
+      activeOpening: state.position.activeOpening,
+    },
+    observations: state.observations.length,
+    perspectives: Object.fromEntries([...state.perspectives.values()].map(value => [value.status, 0]).map(([key]) => [key, [...state.perspectives.values()].filter(value => value.status === key).length])),
+    activeWager: state.election,
+    development: [...state.development.values()].map(value => ({ id: value.id, status: value.status, wagerId: value.wagerId })),
+    grants,
+    ledgerHead: state.head,
+  };
+}
+
+function parse(args) {
+  const [command, ...rest] = args;
+  const options = {};
+  const positionals = [];
+  for (let index = 0; index < rest.length; index += 1) {
+    const token = rest[index];
+    if (!token.startsWith('--')) {
+      positionals.push(token);
+      continue;
+    }
+    const name = token.slice(2).replace(/-([a-z])/g, (_, character) => character.toUpperCase());
+    if (name === 'stdin') options[name] = true;
+    else {
+      if (rest[index + 1] === undefined) throw new Error(`missing value for ${token}`);
+      options[name] = rest[++index];
+    }
+  }
+  return { command, options, positionals };
+}
+
+function integerOption(value, minimum, maximum, name) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < minimum || number > maximum) {
+    throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`);
+  }
+  return number;
+}
+
+async function interruptibleDelay(milliseconds, stopped) {
+  const end = Date.now() + milliseconds;
+  while (!stopped() && Date.now() < end) {
+    await new Promise(resolveDelay => setTimeout(resolveDelay, Math.min(1_000, end - Date.now())));
+  }
+}
+
+function print(value) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function usage(error) {
+  if (error) process.stderr.write(`${error}\n\n`);
+  process.stderr.write(`Usage: music <command> --habitat PATH\n\nCommands:\n  init [--designation NAME]\n  grant CAPABILITY [--by PRINCIPAL]\n  revoke CAPABILITY [--by PRINCIPAL]\n  message --from SENDER (--content TEXT | --stdin)\n  observe (--json JSON | stdin)\n  status\n  events [--count N]\n  outbox\n  step [--key-file PATH] [--model ID]\n  run [--continuity-ms N] [--minimum-cycle-ms N] [inference options]\n`);
+  process.exitCode = 1;
+}

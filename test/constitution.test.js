@@ -43,6 +43,7 @@ test('constitution admits a non-vacuous, closed, authorized wager', () => {
     position: initialPosition('2026-09-01T00:00:00.000Z'),
     grants: [{ capability: 'local.read', active: true }],
     artifactExists: () => true,
+    toolEffects: () => ['local.read'],
   });
   assert.equal(result.admissible, true);
   const next = applyTransition(initialPosition('2026-09-01T00:00:00.000Z'), support, '2026-09-01T00:01:00.000Z');
