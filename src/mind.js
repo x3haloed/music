@@ -189,14 +189,16 @@ export function createTools(kernel, inferenceId, soundingId) {
     execute: async input => kernel.inspectDevelopment(inferenceId, soundingId, input.proposalId ?? null),
   });
   tools.trial_development = tool({
-    description: 'Exercise provisional development without activating it. Tool proposals execute immediately with real unrestricted authority. Carrier proposals are armed for the next fresh encounter, where the provisional continuity, orientation, inference policy, or other component actually governs that encounter; only its later retained terminal outcome can make admission eligible.',
+    description: 'Exercise provisional development without activating it. Supply input as JSON text so arbitrary proposed interfaces survive strict provider schemas exactly. Tool proposals execute immediately with real unrestricted authority. Carrier proposals are armed for the next fresh encounter, where the provisional continuity, orientation, inference policy, or other component actually governs that encounter; only its later retained terminal outcome can make admission eligible.',
     inputSchema: jsonSchema({
       type: 'object', properties: {
         proposalId: { type: 'string', minLength: 1, maxLength: 128 },
-        input: {},
+        input: { type: 'string', minLength: 1, maxLength: 131_072, description: 'A JSON-encoded value passed to the provisional machinery.' },
       }, required: ['proposalId', 'input'], additionalProperties: false,
     }),
-    execute: async input => kernel.trialDevelopmentalProposal(inferenceId, soundingId, input.proposalId, input.input),
+    execute: async input => kernel.trialDevelopmentalProposal(
+      inferenceId, soundingId, input.proposalId, parseTrialInput(input.input),
+    ),
   });
   tools.advance_development = tool({
     description: 'Stage or extend one atomic subject-authored developmental transaction over provisional proposals. Compatible calls in the same encounter compose, including with schedule_wake; duplicate decisions or successor openings are refused. Admission or rollback requires a retained successful exercise. Clean inference completion commits the combined transaction; it is not itself the reason for promotion.',
@@ -268,6 +270,15 @@ export function createTools(kernel, inferenceId, soundingId) {
     },
   });
   return tools;
+}
+
+function parseTrialInput(value) {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`trial_development input must be valid JSON text: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 export function repairIncompleteToolTurns(messages) {

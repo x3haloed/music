@@ -287,6 +287,11 @@ world-authored Delta
   -> rollback_tool can copy retained prior source into a new parent-bound version
 ```
 
+`trial_development` carries its arbitrary provisional input as bounded JSON text
+across the provider boundary, then parses it before execution. This explicit ABI
+avoids strict OpenRouter normalization turning an unconstrained JSON Schema into
+a string while leaving provisional source to assume it received an object.
+
 Tool source is omitted from the default Sounding projection to avoid replaying
 every implementation into every prompt. `inspect_tool` returns the exact source
 bound to that encounter, so modification is informed rather than blind.

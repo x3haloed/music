@@ -183,6 +183,8 @@ test('OpenRouter receives a named first-step selector for instruction-free recur
     assert.deepEqual(requests[0].body.tools.map(tool => tool.function.name), ['elect_trajectory']);
     assert.equal(requests[1].body.tool_choice, 'auto');
     assert.equal(requests[1].body.tools.length > 1, true);
+    const trialTool = requests[1].body.tools.find(tool => tool.function.name === 'trial_development');
+    assert.equal(trialTool.function.parameters.properties.input.type, 'string');
     assert.equal(kernel.audit().trajectoryElections, 1);
     assert.equal(kernel.audit().electedActions, 0);
   } finally {

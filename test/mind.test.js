@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { MockLanguageModelV4 } from 'ai/test';
 import { MusicKernel } from '../src/kernel.js';
-import { MusicMind, repairIncompleteToolTurns } from '../src/mind.js';
+import { createTools, MusicMind, repairIncompleteToolTurns } from '../src/mind.js';
 import { toolModuleDigest } from '../src/tool-module.js';
 import { pendingOutboundMessages } from '../src/mailbox.js';
 import { initialTools } from '../src/seeds.js';
@@ -517,6 +517,36 @@ test('the one mind can revise the retained geometry that shapes later Soundings'
   const projection = kernel.events().findLast(event => event.type === 'delivery_projection_started');
   assert.equal(projection.payload.tool.version, 2);
   assert.equal(kernel.audit().failedDeliveryProjections, 0);
+});
+
+test('strict-provider JSON text reaches provisional tool trials as the original value', async () => {
+  const model = new MockLanguageModelV4({ doGenerate: [textResult('unused')] });
+  const { kernel } = harness(model);
+  const authoredSounding = kernel.openSounding('manual');
+  const authoredInference = kernel.beginInference(
+    authoredSounding.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Author.' },
+  );
+  const proposal = kernel.authorToolProposal(authoredInference, authoredSounding.id, {
+    interpretation: 'Exercise arbitrary JSON through the strict trial boundary.',
+    tool: {
+      id: 'trial_json_probe',
+      description: 'Return the exact trial input.',
+      inputSchema: { type: 'object', additionalProperties: true },
+      source: 'return input;',
+    },
+  });
+  completeFixture(kernel, authoredInference);
+  const trialSounding = kernel.openSounding('manual');
+  const trialInference = kernel.beginInference(
+    trialSounding.id, { provider: 'fixture', model: 'fixture' }, { role: 'user', content: 'Trial.' },
+  );
+
+  const result = await createTools(kernel, trialInference, trialSounding.id).trial_development.execute({
+    proposalId: proposal.proposalId,
+    input: '{"nested":{"value":3},"enabled":true}',
+  });
+
+  assert.deepEqual(result.output, { nested: { value: 3 }, enabled: true });
 });
 
 test('a heartbeat arrives as exact contact without an incoming task or behavioral instruction', async () => {

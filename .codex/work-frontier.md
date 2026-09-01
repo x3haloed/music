@@ -332,6 +332,13 @@ cost $0.00097172 total.
 
 ## Prediction errors
 
+- OpenRouter's strict tool schema did not preserve `trial_development`'s empty
+  arbitrary-value schema as an object boundary: the living resident's first
+  selector trial received JSON text and failed inside the provisional source.
+  The resident independently diagnosed this with an exercised echo tool and
+  authored a tolerant selector candidate. The harness boundary now makes JSON
+  text explicit and decodes it before every provisional tool or carrier trial.
+
 - The first resident had no retained `elect_trajectory` tool. Earlier audits of
   zero selector use were therefore not evidence that it repeatedly declined an
   available election opportunity: the opportunity constructor correctly
