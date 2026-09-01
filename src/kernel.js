@@ -3816,8 +3816,9 @@ function validateDevelopmentalReview(frontier, encounter) {
         throw new Error(`review candidate ${candidate.id} needs an available non-organ tool action`);
       }
       executable += 1;
-    } else if (action.tool !== undefined || action.input !== undefined) {
-      throw new Error(`quiet review candidate ${candidate.id} cannot carry a tool action`);
+    } else if (action.tool !== 'quiet' || !action.input || typeof action.input !== 'object'
+      || Array.isArray(action.input) || Object.keys(action.input).length !== 0) {
+      throw new Error(`quiet review candidate ${candidate.id} needs tool quiet and an empty input`);
     }
     return structuredClone(candidate);
   });

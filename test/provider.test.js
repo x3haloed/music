@@ -154,7 +154,11 @@ test('OpenRouter receives named structured review and election phases before unr
       evidence: ['sounding:heartbeat'],
     }],
     candidates: candidates.map(({ geometry: ignored, ...candidate }) => ({
-      ...candidate, addressesFindingIds: ['current_position'],
+      ...candidate,
+      action: candidate.action.kind === 'quiet'
+        ? { ...candidate.action, tool: 'quiet', input: {} }
+        : candidate.action,
+      addressesFindingIds: ['current_position'],
     })),
   };
   const fetch = async (url, init = {}) => {

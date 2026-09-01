@@ -1581,7 +1581,11 @@ async function reviewAndElect(kernel, inferenceId, soundingId, candidates) {
       evidence: [`sounding:${soundingId}`],
     }],
     candidates: candidates.map(({ geometry: ignored, ...candidate }) => ({
-      ...candidate, addressesFindingIds: ['whole_position'],
+      ...candidate,
+      action: candidate.action.kind === 'quiet'
+        ? { ...candidate.action, tool: 'quiet', input: {} }
+        : candidate.action,
+      addressesFindingIds: ['whole_position'],
     })),
   });
   kernel.deliverDevelopmentalReviewContext(inferenceId);

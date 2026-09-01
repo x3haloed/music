@@ -41,11 +41,17 @@ export function initialDevelopmentalReviewTool() {
                 type: 'object',
                 properties: {
                   kind: { type: 'string', enum: ['tool', 'quiet'] },
-                  tool: { type: 'string', pattern: '^[a-z][a-z0-9_-]{0,47}$' },
-                  input: { type: 'object', additionalProperties: true },
+                  tool: {
+                    type: 'string', pattern: '^[a-z][a-z0-9_-]{0,47}$',
+                    description: 'The exact ordinary tool id, or the literal sentinel quiet when kind is quiet.',
+                  },
+                  input: {
+                    type: 'object', additionalProperties: true,
+                    description: 'The exact tool input, or an empty object when kind is quiet.',
+                  },
                   observation: { type: 'string', minLength: 1, maxLength: 2_048 },
                 },
-                required: ['kind'], additionalProperties: false,
+                required: ['kind', 'tool', 'input'], additionalProperties: false,
               },
             },
             required: ['id', 'description', 'addressesFindingIds', 'action'], additionalProperties: false,

@@ -158,6 +158,11 @@ using the elector's retained interface, and invokes the elector. It must assess
 every frozen candidate and is the sole authority that may create or replace the
 trajectory record.
 
+Every review candidate carries a uniform complete action record. Executable
+candidates name the exact ordinary tool and full input; quiet is represented by
+`kind: "quiet", tool: "quiet", input: {}`. This keeps required fields explicit
+under provider JSON-schema generation instead of relying on conditional omission.
+
 Neither organ phase accepts assistant prose or provider tool-call emulation as
 its result. After election,
 Music injects the exact retained trajectory as a distinct user-role

@@ -1096,7 +1096,11 @@ function reviewInput(candidates) {
       evidence: ['sounding:current'],
     }],
     candidates: candidates.map(({ geometry: ignored, ...candidate }) => ({
-      ...candidate, addressesFindingIds: ['current_position'],
+      ...candidate,
+      action: candidate.action.kind === 'quiet'
+        ? { ...candidate.action, tool: 'quiet', input: {} }
+        : candidate.action,
+      addressesFindingIds: ['current_position'],
     })),
   };
 }
