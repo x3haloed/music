@@ -131,6 +131,21 @@ export class DevelopmentalOrgan {
         prior: { orientation: null, challenge: null, election: null },
       });
     }
+    if (standing.election) {
+      const wager = standing.wagers.get(standing.election.wagerId)?.wager;
+      if (!wager) throw new Error('active election lacks its retained wager');
+      const realized = await this.kernel.realize(wager.id);
+      if (realized.evaluation.kind !== 'underdetermined') {
+        return { orientation: null, challenge: null, election: null, realized, assimilation: null };
+      }
+      return this.assimilate({
+        projection,
+        wager,
+        receipt: realized.receipt,
+        evaluation: realized.evaluation,
+        prior: { orientation: null, challenge: null, election: null },
+      });
+    }
     const orientation = await this.perspectives.invoke({
       kind: 'orientation',
       schemaId: 'music.orientation-1',

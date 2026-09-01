@@ -98,3 +98,64 @@ test('tool failure is retained as underdetermined consequence instead of escapin
   assert.equal(result.evaluation.kind, 'underdetermined');
   assert.equal(kernel.state().realizations.get(wager.id).kind, 'tool.failure');
 });
+
+test('generic position development cannot smuggle unexercised mechanisms into authority', async t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-development-boundary-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  const kernel = new MusicKernel(habitat);
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  const intent = {
+    id: 'mechanism-bearing-contact',
+    stake: { id: 'mechanism-integrity', description: 'Observe a file before bounded development.', costOfDelay: 'low' },
+    contact: { tool: initial.position.mechanisms.read_file.artifact, input: { path: 'missing.txt' } },
+    discrimination: { outputPath: '/text', support: { operator: 'eq', value: 'yes' }, contradiction: { operator: 'eq', value: 'no' } },
+    developmentScope: ['/mechanisms'],
+    continuations: {
+      support: { set: { '/memory/result': 'yes' }, remove: [], opening: { kind: 'continue', notBefore: null, focus: 'Continue.' } },
+      contradiction: { set: { '/memory/result': 'no' }, remove: [], opening: { kind: 'continue', notBefore: null, focus: 'Continue.' } },
+    },
+  };
+  const { compileWager } = await import('../src/wager-compiler.js');
+  const wager = compileWager(intent, { position: initial.position, readTool: id => kernel.artifacts.readJson(id) });
+  kernel.bindWager(wager);
+  await kernel.realize(wager.id);
+  assert.throws(() => kernel.proposeDevelopment({
+    wagerId: wager.id,
+    invocationId: 'attempted-bypass',
+    proposal: {
+      proposedDevelopment: {
+        kind: 'position',
+        transition: {
+          kind: 'position.transition',
+          set: { '/mechanisms/untried': { kind: 'tool' } },
+          remove: [],
+          opening: { kind: 'continue', notBefore: null, focus: 'Continue.' },
+        },
+      },
+    },
+  }), /cannot bypass/);
+});
+
+test('retained realization receipt resumes at predicate evaluation without repeating world contact', async t => {
+  const { habitat, kernel } = fixture();
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  writeFileSync(join(habitat, 'answer.txt'), 'green');
+  const wager = readWager(initial, 'answer.txt');
+  kernel.bindWager(wager);
+  const retained = {
+    id: 'receipt-before-restart', kind: 'tool.result',
+    tool: { artifact: wager.contact.tool, id: 'read_file' }, input: wager.contact.input,
+    output: { path: join(habitat, 'answer.txt'), bytes: 5, text: 'green' },
+    startedAt: '2026-09-01T00:00:00.000Z', completedAt: '2026-09-01T00:00:01.000Z',
+    capture: { runtime: 'music-v2-tool-runtime-1', transformed: false },
+  };
+  kernel.ledger.append('realization.completed', { wagerId: wager.id, receipt: retained });
+  writeFileSync(join(habitat, 'answer.txt'), 'red');
+  const result = await kernel.realize(wager.id);
+  assert.equal(result.evaluation.kind, 'support');
+  assert.equal(result.receipt.output.text, 'green');
+  assert.equal(kernel.ledger.read().filter(event => event.type === 'realization.completed').length, 1);
+});

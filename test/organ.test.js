@@ -330,3 +330,22 @@ test('a restart resumes a trialed development at disposition without repeating i
   assert.equal(result.position.memory.recovered, true);
   assert.equal(kernel.ledger.read().filter(event => event.type === 'development.trialed').length, before);
 });
+
+test('a restart resumes a bound wager without rerunning orientation, challenge, or election', async t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-bound-resume-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  const kernel = new MusicKernel(habitat);
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  writeFileSync(join(habitat, 'a.txt'), 'alpha');
+  const { compileWager } = await import('../src/wager-compiler.js');
+  const wager = compileWager(candidate('bound-before-restart', initial.position.mechanisms.read_file.artifact, 'a.txt', 'alpha'), {
+    position: initial.position, readTool: id => kernel.artifacts.readJson(id),
+  });
+  kernel.bindWager(wager);
+  const perspectives = new PerspectiveEngine(kernel, { infer: async () => { throw new Error('no perspective should run'); } });
+  const result = await new DevelopmentalOrgan(kernel, perspectives).open();
+  assert.equal(result.realized.evaluation.kind, 'support');
+  assert.equal(result.realized.position.memory['bound-before-restart'], true);
+  assert.equal(kernel.state().perspectives.size, 0);
+});

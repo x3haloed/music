@@ -73,5 +73,7 @@ function applyEvent(state, event) {
       state.position = verifyPosition(payload.position);
     }
     state.pendingAssimilation = null;
+  } else {
+    throw new Error(`unsupported ledger event type: ${event.type}`);
   }
 }

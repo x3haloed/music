@@ -144,64 +144,72 @@ export class MusicKernel {
   }
 
   async realize(wagerId) {
-    const state = this.state();
+    let state = this.state();
     requireSubject(state);
     const bound = state.wagers.get(wagerId);
     if (!bound) throw new Error(`unknown wager: ${wagerId}`);
-    if (state.realizations.has(wagerId)) throw new Error(`wager was already realized: ${wagerId}`);
     if (bound.position !== state.position.id) throw new Error('wager parent position is no longer active');
     const wager = bound.wager;
-    const tool = ToolArtifactSchema.parse(this.artifacts.readJson(wager.contact.tool));
-    const startedAt = this.clock().toISOString();
-    let output;
-    let failure = null;
-    try {
-      output = await executeTool(tool, wager.contact.input, {
-        grants: this.governance.read(),
-        habitat: this.habitat,
-        emitObservation: value => this.receiveObservation(value),
-      });
-    } catch (error) {
-      failure = {
-        name: error?.name ?? 'Error',
-        message: String(error?.message ?? error).slice(0, 16_384),
+    let receipt = state.realizations.get(wagerId);
+    if (!receipt) {
+      const tool = ToolArtifactSchema.parse(this.artifacts.readJson(wager.contact.tool));
+      const startedAt = this.clock().toISOString();
+      let output;
+      let failure = null;
+      try {
+        output = await executeTool(tool, wager.contact.input, {
+          grants: this.governance.read(),
+          habitat: this.habitat,
+          emitObservation: value => this.receiveObservation(value),
+        });
+      } catch (error) {
+        failure = {
+          name: error?.name ?? 'Error',
+          message: String(error?.message ?? error).slice(0, 16_384),
+        };
+      }
+      receipt = {
+        id: this.id(),
+        kind: failure ? 'tool.failure' : 'tool.result',
+        tool: { artifact: wager.contact.tool, id: tool.manifest.id },
+        input: structuredClone(wager.contact.input),
+        ...(failure ? { failure } : { output }),
+        startedAt,
+        completedAt: this.clock().toISOString(),
+        capture: { runtime: 'music-v2-tool-runtime-1', transformed: false },
       };
+      this.ledger.append('realization.completed', { wagerId, receipt });
+      state = this.state();
     }
-    const receipt = {
-      id: this.id(),
-      kind: failure ? 'tool.failure' : 'tool.result',
-      tool: { artifact: wager.contact.tool, id: tool.manifest.id },
-      input: structuredClone(wager.contact.input),
-      ...(failure ? { failure } : { output }),
-      startedAt,
-      completedAt: this.clock().toISOString(),
-      capture: { runtime: 'music-v2-tool-runtime-1', transformed: false },
-    };
-    this.ledger.append('realization.completed', { wagerId, receipt });
-    const evaluation = classifyReceipt(receipt, wager.classifiers);
-    const evaluationReceipt = {
-      ...evaluation,
-      evaluator: 'music-v2-predicate-1',
-      receipt: digest(receipt),
-      evaluatedAt: this.clock().toISOString(),
-    };
-    this.ledger.append('predicate.evaluated', { wagerId, evaluation: evaluationReceipt });
-    if (evaluation.kind === 'support' || evaluation.kind === 'contradiction') {
-      const operation = wager.continuations[evaluation.kind];
+    let evaluationReceipt = state.evaluations.get(wagerId);
+    if (!evaluationReceipt) {
+      const evaluation = classifyReceipt(receipt, wager.classifiers);
+      evaluationReceipt = {
+        ...evaluation,
+        evaluator: 'music-v2-predicate-1',
+        receipt: digest(receipt),
+        evaluatedAt: this.clock().toISOString(),
+      };
+      this.ledger.append('predicate.evaluated', { wagerId, evaluation: evaluationReceipt });
+    }
+    if (evaluationReceipt.kind === 'support' || evaluationReceipt.kind === 'contradiction') {
+      const operation = wager.continuations[evaluationReceipt.kind];
       const position = applyTransition(state.position, operation, this.clock().toISOString());
       this.ledger.append('transition.applied', {
         wagerId,
-        outcome: evaluation.kind,
+        outcome: evaluationReceipt.kind,
         operation,
         position,
       });
       return { receipt, evaluation: evaluationReceipt, position };
     }
-    this.ledger.append('consequence.underdetermined', {
-      wagerId,
-      evaluation: evaluationReceipt,
-      position: state.position.id,
-    });
+    if (!this.state().pendingAssimilation) {
+      this.ledger.append('consequence.underdetermined', {
+        wagerId,
+        evaluation: evaluationReceipt,
+        position: state.position.id,
+      });
+    }
     return { receipt, evaluation: evaluationReceipt, position: null };
   }
 
@@ -210,6 +218,13 @@ export class MusicKernel {
     const bound = state.wagers.get(wagerId);
     if (!bound) throw new Error(`unknown wager: ${wagerId}`);
     const transition = this.developmentTransition(proposal);
+    if (proposal.proposedDevelopment?.kind === 'position') {
+      for (const path of affectedPaths(transition)) {
+        if (pathsOverlap('/mechanisms', path) || pathsOverlap('/authority', path)) {
+          throw new Error('position development cannot bypass an exercised mechanism or authority trial');
+        }
+      }
+    }
     for (const path of affectedPaths(transition)) {
       if (!bound.wager.revisionScope.some(scope => pathsOverlap(scope.replace(/\/$/, ''), path))) {
         throw new Error(`development path is outside the bound wager scope: ${path}`);

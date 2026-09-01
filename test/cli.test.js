@@ -22,3 +22,12 @@ test('CLI keeps governance control distinct from exact inbox observation', t => 
   assert.equal(status.grants[0].capability, 'local.read');
   assert.equal(status.grants[0].grantedBy, 'Chad acting as machine owner');
 });
+
+test('CLI refuses an unapproved model before inference', t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-cli-model-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  execFileSync(process.execPath, [cli, 'init', '--habitat', habitat]);
+  assert.throws(() => execFileSync(process.execPath, [cli, 'step', '--model', 'anthropic/expensive', '--habitat', habitat], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }), error => error.stderr.includes('permits only z-ai/glm-5.3-flash'));
+});

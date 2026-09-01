@@ -4,6 +4,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Ledger } from '../src/ledger.js';
+import { initialPosition } from '../src/position.js';
+import { reconstruct } from '../src/state.js';
 
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'music-v2-ledger-'));
@@ -41,4 +43,16 @@ test('ledger refuses a second writer lock', t => {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   writeFileSync(ledger.lockPath, 'held');
   assert.throws(() => ledger.append('subject.born', {}), /already active/);
+});
+
+test('state reconstruction rejects hash-valid events with unknown semantics', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'music-v2-unknown-event-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const ledger = new Ledger(join(directory, 'ledger.jsonl'));
+  ledger.append('subject.born', {
+    subject: { id: 'subject', designation: null, bornAt: '2026-09-01T00:00:00.000Z' },
+    position: initialPosition('2026-09-01T00:00:00.000Z'),
+  });
+  ledger.append('future.meaning', { plausible: true });
+  assert.throws(() => reconstruct(ledger.read()), /unsupported ledger event type/);
 });
