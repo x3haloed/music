@@ -17,7 +17,7 @@ opens the next cycle.
 The first release claims local single-resident execution on Node.js 22+, durable
 append-only state, restart-safe idempotent world contact, fresh model contexts,
 subject-authored JSON wagers and state transitions, independent adapter-owned
-world receipts, deterministic consequence classification, matched projection
+world receipts and typed attestations, deterministic consequence classification, matched projection
 controls, bounded automatic recurrence, durable external observations,
 machine-owner grant revocation, exact cross-episode succession, snapshots, and
 hosted inference through OpenRouter or ephemeral Codex CLI processes.
@@ -60,6 +60,7 @@ sealed run specification + exact subject
   -> retained idempotency key
   -> exact independent world contact
   -> immutable receipt
+  -> tool-owned typed attestation of exactly what that contact can establish
   -> deterministic predicate classification
      -> unique branch: exact transition
      -> residue: fresh assimilation, then exact transition
@@ -84,19 +85,25 @@ transcript is projected.
   selector policy, restricts election to its selected subset, realizes the
   exact selected contact, evaluates predicates, applies transitions, and
   schedules recurrence.
-- **World adapters:** validate contact inputs and cause independently owned
-  outputs under identities binding their implementation, public contract, and
-  declared hidden-configuration material.
+- **World adapters:** validate contact inputs, cause independently owned
+  outputs, and derive typed attestations under identities binding their
+  implementation, attestation procedure, public contract, and declared
+  hidden-configuration material.
 - **Observer:** freezes the specification, supplies adapters and optional
   projection-only controls, inspects evidence, and owns the stopping rule.
 - **Machine owner:** may deliver observations and revoke or restore only grants
   already present in the genesis envelope. These actions are retained ledger
   events and cannot rewrite subject state or sealed outcomes.
 
-Support and contradiction witnesses use the same predicate-document shape as
-real consequence: `{output: WORLD_OUTPUT}`. The world adapter validates the
-nested output and the classifier evaluates that document directly, so proposal
-and realization do not rely on parallel witness representations.
+Support and contradiction witnesses use the same output portion of the
+consequence document as real contact. Realized classification receives
+`{output: WORLD_OUTPUT, attestations: [...]}`. Wagers must declare which of the
+selected world's published attestation types bear on their interpretation; a
+file world therefore cannot authoritatively bear on operator delivery. The
+kernel retains matching exact attestations in `subject.facts`. Subject memory,
+stakes, language, continuation prose, and the contents of written files remain
+interpretations: writing or rereading a proposition proves persistence of its
+representation, not the proposition represented.
 
 ## Restart contract
 

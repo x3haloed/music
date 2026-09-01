@@ -39,6 +39,7 @@ export function rehearsalFixture() {
       ? 'Score a resource-allocation policy under an independently selected regime.'
       : 'Evaluate a set-valued mechanism against an independently supplied distinction.',
     effects: [],
+    attestationTypes: [`${name}.result`],
     identityMaterial: name === 'allocation-world'
       ? { oracle: 'normal-balanced-9-shifted-balanced-5-constraint-aware-9' }
       : { oracle: 'three-hidden-contactable-minus-blocked-cases-v1' },
@@ -56,6 +57,7 @@ export function rehearsalFixture() {
       return output && typeof output === 'object' && Number.isFinite(output.score) && typeof output.passed === 'boolean'
         ? [] : ['output must contain finite score and Boolean passed'];
     },
+    attest: (_input, output) => [{ type: `${name}.result`, value: output }],
     async execute(input, context) {
       const key = `${name}:${context.idempotencyKey}`;
       if (!memory.has(key)) memory.set(key, calculate(input));
@@ -98,6 +100,7 @@ export function rehearsalFixture() {
       id: adapter.id === 'allocation-world' ? 'allocation' : 'set-contact',
       adapter: adapter.id,
       adapterIdentity: worlds.get(adapter.id).identity,
+      attestationTypes: worlds.get(adapter.id).attestationTypes,
       description: adapter.description,
       publicContract: adapter.publicContract,
     })),
@@ -139,6 +142,7 @@ function plan(control) {
     id,
     stake: { id: 'allocation-quality', question: `What consequence follows ${id}?` },
     contact: { world, input },
+    bearing: { attestationTypes: [world === 'allocation' ? 'allocation-world.result' : 'set-world.result'], interpretation: `The ${world} result bears on ${id}.` },
     predicates,
     witnesses: { support: { output: supportWitness }, contradiction: { output: contradictionWitness } },
     continuations,

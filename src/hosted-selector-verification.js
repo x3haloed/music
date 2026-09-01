@@ -15,6 +15,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
     version: '1',
     description: 'Independently evaluate one prospectively bound selector-development pursuit. Outcome mapping is sealed from actor projections.',
     effects: [],
+    attestationTypes: ['selector.consequence'],
     identityMaterial: { outcomes: { install: [true, 1], high: [false, 0], low: [true, 2] } },
     publicContract: {
       input: { pursuit: 'install|high|low', declaredCheckpointCount: 'install=0, high=8, low=2' },
@@ -32,6 +33,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
         && typeof output.passed === 'boolean' && Number.isInteger(output.observedCheckpointCount) && output.observedCheckpointCount >= 0
         ? [] : ['output must contain pursuit, passed, and nonnegative observedCheckpointCount'];
     },
+    attest: (_input, output) => [{ type: 'selector.consequence', value: output }],
     async execute(input) {
       contacts.push(input.pursuit);
       const [passed, observedCheckpointCount] = { install: [true, 1], high: [false, 0], low: [true, 2] }[input.pursuit];
@@ -48,7 +50,7 @@ export async function runHostedSelectorVerification(root, { apiKey = process.env
     cheapestFalsifier: 'The selector is not installed, does not choose high then low, is not corrected from maximize to minimize, or any required transition is supplied outside the ordinary actor/wager/consequence path.',
     actor: actor.describe(),
     worlds: [{
-      id: 'selector-consequence', adapter: world.id, adapterIdentity: worlds.get(world.id).identity,
+      id: 'selector-consequence', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes,
       description: world.description, publicContract: world.publicContract,
     }],
     grants: [],

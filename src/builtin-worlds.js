@@ -13,6 +13,7 @@ export function builtinWorlds() {
       version: '1',
       description: 'Deliver one durable message to the machine owner through the run outbox.',
       effects: ['operator.message'],
+      attestationTypes: ['operator.message.delivery-result'],
       identityMaterial: { implementation: 'music-v3-operator-outbox-1', storage: 'run-local-idempotent-json' },
       publicContract: {
         input: { audience: 'short string', message: 'JSON value' },
@@ -30,6 +31,7 @@ export function builtinWorlds() {
         return output && typeof output.delivered === 'boolean' && /^[a-f0-9]{64}$/.test(output.deliveryId) && typeof output.audience === 'string'
           ? [] : ['output must contain Boolean delivered, exactly 64 lowercase hexadecimal deliveryId characters, and string audience'];
       },
+      attest: (input, output) => [{ type: 'operator.message.delivery-result', value: { audience: input.audience, messageDigest: digest(input.message), delivered: output.delivered, deliveryId: output.deliveryId } }],
       async execute(input, context) {
         const record = {
           format: 'music-v3-outbox-message-1',
@@ -53,6 +55,7 @@ export function builtinWorlds() {
       version: '1',
       description: 'Bounded HTTP JSON contact. The remote service must honor Idempotency-Key for effecting methods.',
       effects: ['network.fetch'],
+      attestationTypes: ['network.http.response'],
       identityMaterial: { implementation: 'music-v3-http-json-2', maximumResponseBytes: 2097152 },
       publicContract: {
         input: { url: 'absolute http(s) URL', method: 'GET|POST|PUT|PATCH|DELETE', body: 'optional JSON', headers: 'optional string map' },
@@ -74,6 +77,7 @@ export function builtinWorlds() {
         return output && typeof output === 'object' && Number.isInteger(output.status) && typeof output.ok === 'boolean'
           ? [] : ['output must contain integer status and Boolean ok'];
       },
+      attest: (input, output) => [{ type: 'network.http.response', value: { requestedUrl: input.url, finalUrl: output.finalUrl, method: output.method, status: output.status, ok: output.ok } }],
       async execute(input, context) {
         const method = input.method ?? 'GET';
         const response = await fetch(input.url, {
@@ -102,6 +106,7 @@ export function builtinWorlds() {
       version: '1',
       description: 'Execute one external program with a JSON request on stdin and capture one JSON result on stdout.',
       effects: ['local.execute'],
+      attestationTypes: ['local.json-command.result'],
       identityMaterial: { implementation: 'music-v3-json-command-1', maximumBufferBytes: 2097152 },
       publicContract: {
         input: { executable: 'absolute path', args: 'string array', cwd: 'absolute path', payload: 'JSON value' },
@@ -120,6 +125,7 @@ export function builtinWorlds() {
         return output && typeof output === 'object' && Number.isInteger(output.exitCode) && Object.hasOwn(output, 'result')
           ? [] : ['output must contain exitCode and result'];
       },
+      attest: (input, output) => [{ type: 'local.json-command.result', value: { executable: input.executable, args: input.args ?? [], cwd: input.cwd ?? null, exitCode: output.exitCode } }],
       execute(input, context) {
         return new Promise((resolveResult, reject) => {
           const child = execFile(input.executable, input.args ?? [], {

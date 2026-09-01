@@ -14,15 +14,18 @@ function fixture({ execute, plan = null, maxCycles = 1 } = {}) {
   const calls = [];
   const world = defineWorld({
     id: 'probe-world', version: '1', description: 'Independent probe.', effects: [], publicContract: { input: 'object', output: '{value:number}' },
+    attestationTypes: ['probe.result'],
     identityMaterial: { fixture: 'probe-world-v1' },
     conform: input => input && typeof input === 'object' ? [] : ['object required'],
     conformOutput: output => output && typeof output.value === 'number' ? [] : ['numeric value required'],
+    attest: (_input, output) => [{ type: 'probe.result', value: output }],
     execute: execute ?? (async (input, context) => { calls.push(context.idempotencyKey); return { value: input.value }; }),
   });
   const worlds = new WorldRegistry([world]);
   const transition = { set: { '/memory/result': 'accepted' }, remove: [], continuation: { kind: 'stop', focus: 'Complete.', notBefore: null } };
   const wager = {
     id: 'probe', stake: { id: 'probe-stake', question: 'Is the value positive?' }, contact: { world: 'probe', input: { value: 1 } },
+    bearing: { attestationTypes: ['probe.result'], interpretation: 'The independent probe result bears on whether the value is positive.' },
     predicates: { support: { op: 'gt', path: '/output/value', value: 0 }, contradiction: { op: 'lte', path: '/output/value', value: 0 } },
     witnesses: { support: { output: { value: 1 } }, contradiction: { output: { value: 0 } } }, continuations: { support: transition },
     revisionScope: ['/memory'], retainedFloorIds: [], effectRequirements: [],
@@ -36,7 +39,7 @@ function fixture({ execute, plan = null, maxCycles = 1 } = {}) {
   const spec = {
     format: 'music-v3-run-spec-1', id: 'test-run', title: 'Test run', hypothesis: 'Exact contact changes state.', cheapestFalsifier: 'The bound contact does not change state.',
     actor: actor.describe(),
-    worlds: [{ id: 'probe', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, description: world.description, publicContract: world.publicContract }],
+    worlds: [{ id: 'probe', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes, description: world.description, publicContract: world.publicContract }],
     grants: [], initialSubject: {}, conditions: [{ id: 'active', interventions: [] }], limits: { maxCycles, maxActorCalls: 8 }, stoppingRule: 'Stop after the limit.',
   };
   const parent = mkdtempSync(join(tmpdir(), 'music-v3-kernel-'));
@@ -54,6 +57,33 @@ test('bound world contact changes exact state through a direct predicate transit
   assert.equal(result.subject.generation, 1);
   assert.equal(result.cycles[0].transition.authority, 'bound-predicate');
   assert.equal(value.calls.length, 1);
+  const facts = Object.values(result.subject.facts);
+  assert.equal(facts.length, 1);
+  assert.equal(facts[0].type, 'probe.result');
+  assert.deepEqual(facts[0].value, { value: 1 });
+  assert.equal(facts[0].world, 'probe');
+  assert.equal(facts[0].receipt.sha256, result.cycles[0].contact.output.sha256);
+});
+
+test('a representation receipt cannot bear authoritative weight for a relation its world does not attest', () => {
+  const value = fixture();
+  const subject = createSubject({}, new Date().toISOString());
+  const laundering = structuredClone(value.wager);
+  laundering.stake.question = 'Does writing a sentence prove an operator received its claim?';
+  laundering.bearing = {
+    attestationTypes: ['operator.message.delivery-result'],
+    interpretation: 'Treat the probe representation as evidence of operator delivery.',
+  };
+  const admission = admitWager(laundering, { subject, spec: value.spec, worlds: value.worlds });
+  assert.equal(admission.admissible, false);
+  assert.match(admission.reasons.join('\n'), /not attested by world probe/);
+});
+
+test('genesis cannot seed authoritative facts outside world contact', () => {
+  assert.throws(
+    () => createSubject({ facts: { invented: { type: 'operator.message.delivery-result' } } }, new Date().toISOString()),
+    /unrecognized key|facts/i,
+  );
 });
 
 test('restart after uncertain adapter failure reuses the retained idempotency key', async t => {

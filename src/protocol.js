@@ -14,6 +14,7 @@ export const WorldSpecSchema = z.object({
   id: IdentifierSchema,
   adapter: IdentifierSchema,
   adapterIdentity: z.string().regex(/^[a-f0-9]{64}$/),
+  attestationTypes: z.array(IdentifierSchema).min(1).max(64),
   description: z.string().min(1).max(4096),
   publicContract: Json,
 });
@@ -74,6 +75,10 @@ export const WagerSchema = z.object({
       inputKey: IdentifierSchema,
     }).optional(),
   }),
+  bearing: z.object({
+    attestationTypes: z.array(IdentifierSchema).min(1).max(64),
+    interpretation: z.string().min(1).max(8192),
+  }),
   predicates: z.object({
     support: PredicateSchema,
     contradiction: PredicateSchema,
@@ -115,7 +120,8 @@ export const RoleTasks = {
   orient: 'Orient to the exact inherited subject position. Identify live stakes as concise descriptive text and the next consequence-bearing opening. Do not propose world contact yet.',
   challenge: [
     'Author one or more executable falsifiable wagers using an available world.',
-    'Predicates are evaluated against a document shaped exactly as {output: WORLD_OUTPUT}; predicate paths for world fields therefore begin with /output.',
+    'Every wager bearing must name only attestation types published by its selected world. Attestations are authoritative world facts; stake questions, memory, continuation prose, and files containing claims are interpretations and cannot upgrade their own factual authority.',
+    'Predicates are evaluated against a document shaped as {output: WORLD_OUTPUT, attestations: WORLD_ATTESTATIONS}; predicate paths for world fields therefore begin with /output.',
     'The support and contradiction witnesses are complete predicate documents shaped exactly as {output: WORLD_OUTPUT} and must each uniquely reach their named predicate branch.',
     'Wrap each complete example world output exactly once in the witness output property.',
     'effectRequirements must exactly equal the selected world adapter effects and every effect must be present in capabilities.effectiveGrants.',

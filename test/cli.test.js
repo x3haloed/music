@@ -18,6 +18,7 @@ test('doctor and template expose an executable sealed envelope', () => {
   assert.equal(template.format, 'music-v3-run-spec-1');
   assert.equal(template.limits.continuityPulseMs, 300_000);
   assert.equal(template.worlds[0].adapterIdentity, worlds.find(value => value.id === 'http-json').identity);
+  assert.deepEqual(template.worlds[0].attestationTypes, ['network.http.response']);
 });
 
 test('CLI refuses an unapproved OpenRouter model before inference', t => {

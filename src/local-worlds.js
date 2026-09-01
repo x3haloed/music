@@ -13,7 +13,7 @@ export function localWorlds() {
 
 function fileRead() {
   return defineWorld({
-    id: 'file-read', version: '2', description: 'Read a bounded-size UTF-8 text file with line numbers and bounded pagination. Relative paths resolve from the run workspace; absolute paths are accepted.', effects: ['local.read'],
+    id: 'file-read', version: '3', description: 'Read a bounded-size UTF-8 text file with line numbers and bounded pagination. Relative paths resolve from the run workspace; absolute paths are accepted.', effects: ['local.read'], attestationTypes: ['filesystem.read.result'],
     identityMaterial: { implementation: 'music-v3-file-read-2', maximumSourceBytes: MAX_FILE_READ_BYTES, defaultLines: 500, defaultCharacters: 131_072 },
     publicContract: {
       input: { path: 'nonempty string', offset: 'optional positive line number', limit: 'optional 1..1000', maxChars: 'optional 1024..262144' },
@@ -21,6 +21,7 @@ function fileRead() {
     },
     conform: input => objectInput(input, ['path']).concat(typeof input?.path === 'string' && input.path.length > 0 ? [] : ['path must be nonempty'], integerRange(input?.offset, 1, Number.MAX_SAFE_INTEGER, 'offset'), integerRange(input?.limit, 1, 1_000, 'limit'), integerRange(input?.maxChars, 1_024, 262_144, 'maxChars')),
     conformOutput: output => output?.kind === 'file-read' && typeof output.ok === 'boolean' && typeof output.resolvedPath === 'string' ? [] : ['file-read output is malformed'],
+    attest: (input, output) => [{ type: 'filesystem.read.result', value: { requestedPath: input.path, resolvedPath: output.resolvedPath, ok: output.ok, bytes: output.bytes ?? null, error: output.error ?? null } }],
     async execute(input, context) {
       const file = resolveContactPath(context, input.path);
       let source;
@@ -43,7 +44,7 @@ function fileRead() {
 
 function fileWrite() {
   return defineWorld({
-    id: 'file-write', version: '1', description: 'Atomically create a UTF-8 file and missing parents. Existing files are refused unless overwrite is explicitly true; an identical retried result is recognized.', effects: ['local.write'],
+    id: 'file-write', version: '2', description: 'Atomically create a UTF-8 file and missing parents. Existing files are refused unless overwrite is explicitly true; an identical retried result is recognized.', effects: ['local.write'], attestationTypes: ['filesystem.write.result'],
     identityMaterial: { implementation: 'music-v3-file-write-1', maximumCharacters: 1_048_576 },
     publicContract: {
       input: { path: 'nonempty string', content: 'UTF-8 string at most 1048576 characters', overwrite: 'optional boolean' },
@@ -57,6 +58,7 @@ function fileWrite() {
       return reasons;
     },
     conformOutput: output => output?.kind === 'file-write' && typeof output.ok === 'boolean' && typeof output.resolvedPath === 'string' ? [] : ['file-write output is malformed'],
+    attest: (input, output) => [{ type: 'filesystem.write.result', value: { requestedPath: input.path, resolvedPath: output.resolvedPath, ok: output.ok, sha256: output.sha256 ?? null, replayed: output.replayed ?? null, overwritten: output.overwritten ?? null, error: output.error ?? null } }],
     async execute(input, context) {
       const file = resolveContactPath(context, input.path);
       await mkdir(dirname(file), { recursive: true });
@@ -80,7 +82,7 @@ function fileWrite() {
 
 function filePatch() {
   return defineWorld({
-    id: 'file-patch', version: '2', description: 'Atomically apply an exact textual replacement only after bounding source and result size and verifying the expected occurrence count.', effects: ['local.write'],
+    id: 'file-patch', version: '3', description: 'Atomically apply an exact textual replacement only after bounding source and result size and verifying the expected occurrence count.', effects: ['local.write'], attestationTypes: ['filesystem.patch.result'],
     identityMaterial: { implementation: 'music-v3-file-patch-2', operation: 'exact-global-replacement', maximumSourceBytes: MAX_FILE_PATCH_BYTES, maximumResultBytes: MAX_FILE_PATCH_BYTES },
     publicContract: {
       input: { path: 'nonempty string', oldText: 'nonempty string', newText: 'string', expectedOccurrences: 'optional positive integer, default 1' },
@@ -95,6 +97,7 @@ function filePatch() {
       return reasons;
     },
     conformOutput: output => output?.kind === 'file-patch' && typeof output.ok === 'boolean' && typeof output.resolvedPath === 'string' ? [] : ['file-patch output is malformed'],
+    attest: (input, output) => [{ type: 'filesystem.patch.result', value: { requestedPath: input.path, resolvedPath: output.resolvedPath, ok: output.ok, before: output.before ?? null, after: output.after ?? null, occurrences: output.occurrences ?? null, error: output.error ?? null } }],
     async execute(input, context) {
       const file = resolveContactPath(context, input.path);
       let source;
@@ -116,7 +119,7 @@ function filePatch() {
 
 function fileSearch() {
   return defineWorld({
-    id: 'file-search', version: '1', description: 'Search UTF-8 contents with ripgrep or discover file paths containing a substring. Results are bounded.', effects: ['local.read'],
+    id: 'file-search', version: '2', description: 'Search UTF-8 contents with ripgrep or discover file paths containing a substring. Results are bounded.', effects: ['local.read'], attestationTypes: ['filesystem.search.result'],
     identityMaterial: { implementation: 'music-v3-file-search-1', engine: 'rg', maximumMatches: 200 },
     publicContract: {
       input: { pattern: 'string', target: 'optional content|files', path: 'optional path', fileGlob: 'optional glob', limit: 'optional 1..200' },
@@ -130,6 +133,7 @@ function fileSearch() {
       return reasons;
     },
     conformOutput: output => output?.kind === 'file-search' && typeof output.ok === 'boolean' && Array.isArray(output.matches) ? [] : ['file-search output is malformed'],
+    attest: (input, output) => [{ type: 'filesystem.search.result', value: { requestedPath: input.path ?? '.', pattern: input.pattern, target: input.target ?? 'content', ok: output.ok, count: output.count, truncated: output.truncated } }],
     async execute(input, context) {
       const workspace = workspaceRoot(context);
       const root = resolveContactPath(context, input.path ?? '.');
@@ -151,7 +155,7 @@ function fileSearch() {
 
 function shell() {
   return defineWorld({
-    id: 'shell', version: '1', description: 'Run an unrestricted foreground shell command with bounded output, process-group timeout handling, and explicit partial-effect uncertainty.', effects: ['local.execute'],
+    id: 'shell', version: '2', description: 'Run an unrestricted foreground shell command with bounded output, process-group timeout handling, and explicit partial-effect uncertainty.', effects: ['local.execute'], attestationTypes: ['local.process.result'],
     identityMaterial: { implementation: 'music-v3-shell-1', maximumCaptureCharacters: 200_000 },
     publicContract: {
       input: { command: 'nonempty string up to 65536 characters', workdir: 'optional path', timeoutMs: 'optional 100..600000', maxOutputChars: 'optional 1024..200000' },
@@ -165,6 +169,7 @@ function shell() {
       return reasons;
     },
     conformOutput: output => output?.kind === 'shell-command' && typeof output.ok === 'boolean' && ['timeout', 'exited'].includes(output.status) ? [] : ['shell output is malformed'],
+    attest: (input, output) => [{ type: 'local.process.result', value: { command: input.command, cwd: output.cwd, status: output.status, effect: output.effect, exitCode: output.exitCode, signal: output.signal, ok: output.ok } }],
     async execute(input, context) {
       await mkdir(workspaceRoot(context), { recursive: true, mode: 0o700 });
       const cwd = resolveContactPath(context, input.workdir ?? '.');

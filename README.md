@@ -67,6 +67,14 @@ world has an exact sealed identity and effect requirement (`local.read`,
 timeouts return `effect: "possibly-partial"` rather than pretending an
 arbitrary command was rolled back.
 
+Every world also publishes sealed attestation types and derives exact typed
+attestations from its input and receipt. Wagers must declare compatible bearing
+before contact. Matching attestations accumulate under `subject.facts`; all
+actor-authored memory and prose remain explicitly interpretive. Consequently a
+file write can establish persisted bytes, but a file containing “message
+delivered” cannot establish operator delivery. Only an `operator-outbox`
+delivery attestation can carry that authority.
+
 File input is bounded before body allocation: `file-read` refuses sources over
 16 MiB, while `file-patch` refuses sources or projected results over 8 MiB.
 Sparse files and files that grow beyond their checked size are refused. The

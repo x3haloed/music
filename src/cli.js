@@ -186,6 +186,7 @@ function worlds() {
     identity: adapter.identity,
     description: adapter.description,
     effects: adapter.effects,
+    attestationTypes: adapter.attestationTypes,
     publicContract: adapter.publicContract,
   })));
 }
@@ -209,6 +210,7 @@ function template([adapterId = 'http-json', actorId = 'openrouter']) {
       id: 'primary-world',
       adapter: adapter.id,
       adapterIdentity: adapter.identity,
+      attestationTypes: adapter.attestationTypes,
       description: adapter.description,
       publicContract: adapter.publicContract,
     }],

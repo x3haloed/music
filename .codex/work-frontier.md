@@ -23,6 +23,9 @@ inspection without turning that window into a second controller or authority.
 - Contact is bound before effect. Determinate predicates apply their bound
   transition directly; only genuine predicate residue may invoke fresh
   assimilation.
+- Retained factual authority follows the contacted world's exact attestation:
+  recording or rereading a proposition can establish persistence of its
+  representation, but cannot establish the proposition represented.
 - Human messages, grant changes, failures, and continuity pulses are retained
   world facts. Human prose has no privileged transition authority.
 - One resident owns advancement. Restarts preserve uncertain effect keys,
@@ -44,7 +47,7 @@ inspection without turning that window into a second controller or authority.
 ## Evaluation regime
 
 - **Epoch:** V3-HATCH-READY-1
-- **Engineering anchors:** 48 deterministic tests; active/control rehearsal;
+- **Engineering anchors:** 56 deterministic tests; active/control rehearsal;
   hosted selector recurrence in `.music/hosted-selector-20260901-7`; installed
   GLM Flash hatch and replayable snapshot in
   `/Users/chad/.local/share/music/evidence/v3-final-live-311e5a8`.
@@ -65,3 +68,7 @@ inspection without turning that window into a second controller or authority.
   unpredictable receipt fields. Exact receipts remain in the evidence graph;
   genuine unresolved bearing belongs in assimilation rather than fabricated
   prospective state.
+- Live generation 56 wrote and reread a file claiming a second operator
+  delivery although no operator-outbox contact or delivery existed. Structural
+  receipt validation therefore permits representation evidence to be laundered
+  into unsupported semantic authority.

@@ -36,6 +36,8 @@ export function admitWager(value, { subject, spec, worlds, grants = spec.grants 
   if (!declaredWorld) reasons.push(`world is outside the sealed envelope: ${wager.contact.world}`);
   if (declaredWorld && !adapter) reasons.push(`world adapter is unavailable: ${declaredWorld.adapter}`);
   if (adapter) {
+    const published = new Set(adapter.attestationTypes);
+    for (const type of boundWager.bearing.attestationTypes) if (!published.has(type)) reasons.push(`wager bearing ${type} is not attested by world ${declaredWorld.id}`);
     for (const reason of adapter.conform(boundWager.contact.input)) reasons.push(`contact: ${reason}`);
     for (const [kind, witness] of Object.entries(wager.witnesses)) {
       for (const reason of adapter.conformOutput(witness.output)) reasons.push(`${kind} witness: ${reason}`);

@@ -45,10 +45,12 @@ test('one subject installs, uses, corrects, and reuses executable selection mach
   const contacts = [];
   const world = defineWorld({
     id: 'selector-world', version: '1', description: 'Independently returns the consequence assigned to one bound pursuit.', effects: [],
+    attestationTypes: ['selector.result'],
     identityMaterial: { outcomes: { install: true, high: false, low: true } },
     publicContract: { input: { pursuit: 'install|high|low' }, output: { pursuit: 'string', passed: 'boolean' } },
     conform: input => input && ['install', 'high', 'low'].includes(input.pursuit) ? [] : ['known pursuit required'],
     conformOutput: output => output && typeof output.pursuit === 'string' && typeof output.passed === 'boolean' ? [] : ['pursuit and passed required'],
+    attest: (_input, output) => [{ type: 'selector.result', value: output }],
     async execute(input) {
       contacts.push(input.pursuit);
       return { pursuit: input.pursuit, passed: { install: true, high: false, low: true }[input.pursuit] };
@@ -68,6 +70,7 @@ test('one subject installs, uses, corrects, and reuses executable selection mach
     id,
     stake: { id: 'selector-development', question: `What follows from ${pursuit}?` },
     contact: { world: 'selector-contact', input: { pursuit } },
+    bearing: { attestationTypes: ['selector.result'], interpretation: `The selector result bears on ${pursuit}.` },
     predicates: predicate,
     witnesses,
     continuations,
@@ -108,7 +111,7 @@ test('one subject installs, uses, corrects, and reuses executable selection mach
     hypothesis: 'Consequence-corrected subject machinery changes later contact.',
     cheapestFalsifier: 'A later election escapes the retained selector or correction does not change contact.',
     actor: actor.describe(),
-    worlds: [{ id: 'selector-contact', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, description: world.description, publicContract: world.publicContract }],
+    worlds: [{ id: 'selector-contact', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes, description: world.description, publicContract: world.publicContract }],
     grants: [], initialSubject: {}, conditions: [{ id: 'active', interventions: [] }],
     limits: { maxCycles: 3, maxActorCalls: 12 }, stoppingRule: 'Stop after three complete contacts.',
   };
@@ -138,16 +141,19 @@ test('independent contradiction can surrender the selector and reopen actor elec
   const contacts = [];
   const world = defineWorld({
     id: 'surrender-world', version: '1', description: 'Contradict the selected pursuit, then retain later contact.', effects: [],
+    attestationTypes: ['surrender.result'],
     identityMaterial: { implementation: 'surrender-world-v1' },
     publicContract: { input: { pursuit: 'string' }, output: { passed: 'boolean' } },
     conform: input => input && ['selected', 'free-a', 'free-b'].includes(input.pursuit) ? [] : ['known pursuit required'],
     conformOutput: output => output && typeof output.passed === 'boolean' ? [] : ['passed required'],
+    attest: (_input, output) => [{ type: 'surrender.result', value: output }],
     async execute(input) { contacts.push(input.pursuit); return { passed: input.pursuit !== 'selected' }; },
   });
   const worlds = new WorldRegistry([world]);
   const make = (id, measurement, continuation) => ({
     id, stake: { id: 'selector-surrender', question: `What follows from ${id}?` },
     contact: { world: 'surrender', input: { pursuit: id } },
+    bearing: { attestationTypes: ['surrender.result'], interpretation: `The surrender result bears on ${id}.` },
     predicates: { support: { op: 'eq', path: '/output/passed', value: true }, contradiction: { op: 'eq', path: '/output/passed', value: false } },
     witnesses: { support: { output: { passed: true } }, contradiction: { output: { passed: false } } },
     continuations: continuation,
@@ -172,7 +178,7 @@ test('independent contradiction can surrender the selector and reopen actor elec
   const spec = {
     format: 'music-v3-run-spec-1', id: 'selector-surrender', title: 'Selector surrender',
     hypothesis: 'Independent contradiction can surrender selector machinery.', cheapestFalsifier: 'The next frontier remains selector-constrained.',
-    actor: actor.describe(), worlds: [{ id: 'surrender', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, description: world.description, publicContract: world.publicContract }],
+    actor: actor.describe(), worlds: [{ id: 'surrender', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes, description: world.description, publicContract: world.publicContract }],
     grants: [], initialSubject: { mechanisms: { pursuitSelector: selector('maximize') } }, conditions: [{ id: 'active', interventions: [] }],
     limits: { maxCycles: 2, maxActorCalls: 8 }, stoppingRule: 'Stop after actor election reopens.',
   };
@@ -194,16 +200,19 @@ test('a matched projection erasure removes selector influence without rewriting 
   const contacts = [];
   const world = defineWorld({
     id: 'choice-world', version: '1', description: 'Retain which independently bound pursuit reached contact.', effects: [],
+    attestationTypes: ['choice.result'],
     identityMaterial: { implementation: 'choice-world-v1' },
     publicContract: { input: { pursuit: 'string' }, output: { pursuit: 'string', passed: 'boolean' } },
     conform: input => input && ['low', 'high'].includes(input.pursuit) ? [] : ['known pursuit required'],
     conformOutput: output => output && typeof output.pursuit === 'string' && typeof output.passed === 'boolean' ? [] : ['pursuit and Boolean passed required'],
+    attest: (_input, output) => [{ type: 'choice.result', value: output }],
     async execute(input) { contacts.push(input.pursuit); return { pursuit: input.pursuit, passed: true }; },
   });
   const worlds = new WorldRegistry([world]);
   const makeWager = (id, measurement) => ({
     id: `choose-${id}`, stake: { id: 'choice', question: `Choose ${id}?` },
     contact: { world: 'choice', input: { pursuit: id } },
+    bearing: { attestationTypes: ['choice.result'], interpretation: `The choice result bears on ${id}.` },
     predicates: { support: { op: 'eq', path: '/output/passed', value: true }, contradiction: { op: 'eq', path: '/output/passed', value: false } },
     witnesses: { support: { output: { pursuit: id, passed: true } }, contradiction: { output: { pursuit: id, passed: false } } },
     continuations: { support: { set: { '/memory/chosen': id }, remove: [], continuation: { kind: 'stop', focus: 'Choice observed.', notBefore: null } } },
@@ -222,7 +231,7 @@ test('a matched projection erasure removes selector influence without rewriting 
     format: 'music-v3-run-spec-1', id: 'selector-erasure-control', title: 'Selector erasure control',
     hypothesis: 'The retained selector changes which same-frontier pursuit reaches contact.',
     cheapestFalsifier: 'Active and erased decision interfaces bind the same pursuit.', actor: actor.describe(),
-    worlds: [{ id: 'choice', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, description: world.description, publicContract: world.publicContract }],
+    worlds: [{ id: 'choice', adapter: world.id, adapterIdentity: worlds.get(world.id).identity, attestationTypes: worlds.get(world.id).attestationTypes, description: world.description, publicContract: world.publicContract }],
     grants: [], initialSubject: { mechanisms: { pursuitSelector: selector('maximize') } },
     conditions: [
       { id: 'active', interventions: [] },

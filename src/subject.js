@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { clone, digest } from './canonical.js';
 import { PredicateSchema, evaluatePredicate } from './predicate.js';
 import { PURSUIT_SELECTOR_KEY, PursuitSelectorSchema } from './selector.js';
+import { verifyAttestation } from './world.js';
 
 const Json = z.json();
 const MechanismsSchema = z.record(z.string(), Json).superRefine((value, context) => {
@@ -37,11 +38,12 @@ export const SubjectSchema = z.object({
   language: z.record(z.string(), Json),
   authority: z.record(z.string(), Json),
   memory: z.record(z.string(), Json),
+  facts: z.record(z.string(), Json).optional(),
   floors: z.array(FloorSchema).max(512),
   continuation: ContinuationSchema,
 });
 
-export const SubjectSeedSchema = SubjectSchema.omit({ id: true, parent: true, generation: true, createdAt: true }).partial({
+export const SubjectSeedSchema = SubjectSchema.omit({ id: true, parent: true, generation: true, createdAt: true, facts: true }).partial({
   format: true,
   stakes: true,
   mechanisms: true,
@@ -50,7 +52,7 @@ export const SubjectSeedSchema = SubjectSchema.omit({ id: true, parent: true, ge
   memory: true,
   floors: true,
   continuation: true,
-});
+}).strict();
 
 export const TransitionSchema = z.object({
   set: z.record(StatePointerSchema, Json).default({}),
@@ -70,6 +72,7 @@ export function createSubject(seedValue, at) {
     language: seed.language ?? {},
     authority: seed.authority ?? {},
     memory: seed.memory ?? {},
+    facts: seed.facts ?? {},
     floors: seed.floors ?? [],
     continuation: seed.continuation ?? {
       kind: 'continue',
@@ -86,7 +89,7 @@ export function verifySubject(value) {
   return subject;
 }
 
-export function applyTransition(subjectValue, transitionValue, at) {
+export function applyTransition(subjectValue, transitionValue, at, { attestations = [] } = {}) {
   const subject = verifySubject(subjectValue);
   const transition = TransitionSchema.parse(transitionValue);
   const next = clone(subject);
@@ -94,6 +97,11 @@ export function applyTransition(subjectValue, transitionValue, at) {
   next.parent = subject.id;
   next.generation += 1;
   next.createdAt = at;
+  next.facts ??= {};
+  for (const value of attestations) {
+    const attestation = verifyAttestation(value);
+    next.facts[attestation.id] = clone(attestation);
+  }
   for (const [pointer, value] of Object.entries(transition.set)) setPointer(next, pointer, value);
   for (const pointer of transition.remove) removePointer(next, pointer);
   next.continuation = transition.continuation;

@@ -8,6 +8,7 @@ import { ResidentLease } from './residency.js';
 import { IdentifierSchema } from './subject.js';
 import { runtimeProvenance } from './runtime-provenance.js';
 import { PURSUIT_SELECTOR_INTERFACE, selectWagers } from './selector.js';
+import { deriveAttestations } from './world.js';
 
 export class DevelopmentalKernel {
   constructor(root, { actor, worlds, clock = () => new Date(), id = identifier, provenance = runtimeProvenance } = {}) {
@@ -321,12 +322,18 @@ export class DevelopmentalKernel {
         world: started.world,
         adapterIdentity: started.adapterIdentity,
         output: outputRef,
+        attestations: this.store.put(deriveAttestations(adapter, input, output, {
+          world: started.world,
+          input: started.input,
+          receipt: outputRef,
+        })),
       });
       state = this.state();
     }
     if (!state.currentCycle.evaluation) {
       const output = this.store.get(state.currentCycle.contact.output);
-      const evaluation = classify({ output }, wager.predicates);
+      const attestations = this.store.get(state.currentCycle.contact.attestations);
+      const evaluation = classify({ output, attestations }, wager.predicates);
       this.store.append('consequence.evaluated', {
         cycleId: cycle.id,
         wagerId: wager.id,
@@ -349,7 +356,10 @@ export class DevelopmentalKernel {
         transition = validateAssimilation(result.transition, wager, state.subject);
         authority = 'fresh-assimilation';
       }
-      const next = applyTransition(state.subject, transition, this.clock().toISOString());
+      const attestations = this.store.get(state.currentCycle.contact.attestations)
+        .filter(value => wager.bearing.attestationTypes.includes(value.type));
+      if (attestations.length === 0) throw new Error('bound contact emitted no attestation matching the wager bearing');
+      const next = applyTransition(state.subject, transition, this.clock().toISOString(), { attestations });
       this.store.append('transition.applied', {
         cycleId: cycle.id,
         wagerId: wager.id,
@@ -515,6 +525,7 @@ export class DevelopmentalKernel {
         wager: this.store.get(cycle.binding.wager),
         world: cycle.contactStarted.world,
         receipt: this.store.get(cycle.contact.output),
+        attestations: this.store.get(cycle.contact.attestations),
         evaluation: cycle.evaluation,
         successor: this.store.get(cycle.transition.subject),
         selection: this.store.get(cycle.frontier).selection,
@@ -530,7 +541,11 @@ export class DevelopmentalKernel {
         limits: state.spec.limits,
       },
       subject: this.subjectForCondition(state),
-      worlds: state.spec.worlds.map(({ id, description, publicContract }) => ({ id, description, publicContract })),
+      epistemicContract: {
+        authoritative: 'Only world attestations retained in subject.facts or supplied with the current receipt are established facts.',
+        interpretive: 'Subject memory, stakes, language, continuation prose, and file contents are interpretations unless they cite an exact attestation; copying or rereading prose does not strengthen it.',
+      },
+      worlds: state.spec.worlds.map(({ id, description, publicContract, attestationTypes }) => ({ id, description, publicContract, attestationTypes })),
       capabilities: { effectiveGrants: state.effectiveGrants },
       developmentalInterfaces: { pursuitSelector: clone(PURSUIT_SELECTOR_INTERFACE) },
       observations: this.observationsFor(state),
