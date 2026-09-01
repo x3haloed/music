@@ -64,6 +64,21 @@ export async function discoverResidentCli(rootArg, { execute = executeFile } = {
   return match[1];
 }
 
+export function discoverActiveResidentRoot(residentsRootArg, { processAlive = defaultProcessAlive } = {}) {
+  const residentsRoot = resolve(residentsRootArg);
+  const candidates = [];
+  if (!existsSync(residentsRoot)) return join(residentsRoot, 'resident');
+  for (const entry of readdirSync(residentsRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const root = join(residentsRoot, entry.name);
+    const lease = readJsonIfPresent(join(root, 'resident.lock'));
+    if (lease?.format !== 'music-v3-resident-lease-1' || !Number.isInteger(lease.pid) || !processAlive(lease.pid)) continue;
+    candidates.push({ root, acquiredAt: Date.parse(lease.acquiredAt ?? '') || 0 });
+  }
+  candidates.sort((left, right) => right.acquiredAt - left.acquiredAt || left.root.localeCompare(right.root));
+  return candidates[0]?.root ?? join(residentsRoot, 'resident');
+}
+
 export function projectConversation(root, events) {
   const messages = [];
   for (const event of events) {

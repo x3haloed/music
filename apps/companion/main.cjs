@@ -3,7 +3,8 @@ const { homedir } = require('node:os');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-const runRoot = path.resolve(process.env.MUSIC_RUN_DIR || path.join(homedir(), '.local/share/music/residents/resident'));
+const residentsRoot = path.join(homedir(), '.local/share/music/residents');
+const configuredRunRoot = process.env.MUSIC_RUN_DIR ? path.resolve(process.env.MUSIC_RUN_DIR) : null;
 let companion;
 let window;
 let tray;
@@ -64,12 +65,16 @@ function showWindow() {
 }
 
 function snapshot() {
-  return companion.companionSnapshot(runRoot);
+  return companion.companionSnapshot(activeRunRoot());
+}
+
+function activeRunRoot() {
+  return configuredRunRoot || companion.discoverActiveResidentRoot(residentsRoot);
 }
 
 function safe(operation) {
   try { return { ok: true, ...operation() }; }
-  catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error), run: runRoot }; }
+  catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error), run: activeRunRoot() }; }
 }
 
 function beginPolling() {
@@ -86,7 +91,7 @@ function beginPolling() {
 ipcMain.handle('music:getSnapshot', () => safe(snapshot));
 ipcMain.handle('music:send', async (_event, payload) => {
   try {
-    const result = await companion.sendCompanionMessage(runRoot, payload?.message, { from: 'Chad' });
+    const result = await companion.sendCompanionMessage(activeRunRoot(), payload?.message, { from: 'Chad' });
     return { ok: true, ...result };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };

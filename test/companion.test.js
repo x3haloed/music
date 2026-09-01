@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { deriveCompanionPhase, discoverResidentCli, projectConversation, sendCompanionMessage } from '../src/companion.js';
+import { deriveCompanionPhase, discoverActiveResidentRoot, discoverResidentCli, projectConversation, sendCompanionMessage } from '../src/companion.js';
 
 test('Companion projects retained human observations and actual outbox deliveries without inventing replies', () => {
   const root = mkdtempSync(join(tmpdir(), 'music-companion-conversation-'));
@@ -53,6 +53,17 @@ test('Companion discovers the exact CLI from the live resident lease rather than
   writeFileSync(join(root, 'resident.lock'), JSON.stringify({ format: 'music-v3-resident-lease-1', pid: 42 }));
   const found = await discoverResidentCli(root, { execute: async () => ({ stdout: `node ${cli} hatch /run /spec\n` }) });
   assert.equal(found, cli);
+});
+
+test('Companion follows the newest live successor instead of a fixed resident directory', () => {
+  const residents = mkdtempSync(join(tmpdir(), 'music-companion-residents-'));
+  const old = join(residents, 'resident');
+  const successor = join(residents, 'resident-successor');
+  mkdirSync(old);
+  mkdirSync(successor);
+  writeFileSync(join(old, 'resident.lock'), JSON.stringify({ format: 'music-v3-resident-lease-1', pid: 41, acquiredAt: '2026-09-01T01:00:00.000Z' }));
+  writeFileSync(join(successor, 'resident.lock'), JSON.stringify({ format: 'music-v3-resident-lease-1', pid: 42, acquiredAt: '2026-09-01T02:00:00.000Z' }));
+  assert.equal(discoverActiveResidentRoot(residents, { processAlive: pid => pid === 42 }), successor);
 });
 
 test('Companion presence reports the active fresh perspective without treating it as a message', () => {
