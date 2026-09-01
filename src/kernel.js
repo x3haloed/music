@@ -20,7 +20,7 @@ export class DevelopmentalKernel {
     this.provenance = provenance;
   }
 
-  initialize(specValue, { condition = 'active', inheritedSubject = null, predecessor = null } = {}) {
+  initialize(specValue, { condition = 'active', inheritedSubject = null, predecessor = null, predecessorStore = null } = {}) {
     if (this.store.readEvents().length > 0) throw new Error('run store is already initialized');
     if (!specValue?.inference || specValue?.actor) {
       throw new Error('new runs require an explicit inference block');
@@ -33,6 +33,10 @@ export class DevelopmentalKernel {
     const subject = inheritedSubject === null
       ? createSubject(spec.initialSubject, this.clock().toISOString())
       : verifySubject(inheritedSubject);
+    if (inheritedSubject !== null) {
+      if (!predecessorStore) throw new Error('successor initialization requires the predecessor object store');
+      this.store.importObjectGraph(subject, predecessorStore);
+    }
     if (spec.inheritedSubjectId !== subject.id) {
       if (inheritedSubject !== null || spec.inheritedSubjectId !== null) {
         throw new Error(`inherited subject mismatch: expected ${spec.inheritedSubjectId}, got ${subject.id}`);

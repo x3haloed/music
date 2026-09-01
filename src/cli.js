@@ -51,7 +51,8 @@ async function initialize([rootArg, specArg, condition = 'active']) {
 async function continueRun([rootArg, specArg, priorRootArg, condition = 'active']) {
   requireArgs(rootArg, specArg, priorRootArg);
   const root = absolute(rootArg);
-  const prior = new DevelopmentalKernel(absolute(priorRootArg)).state();
+  const priorKernel = new DevelopmentalKernel(absolute(priorRootArg));
+  const prior = priorKernel.state();
   if (!prior.initialized) throw new Error('predecessor run is not initialized');
   if (prior.subject.continuation.kind === 'stop') throw new Error('predecessor subject chose closure');
   const spec = RunSpecSchema.parse(JSON.parse(readFileSync(absolute(specArg), 'utf8')));
@@ -61,6 +62,7 @@ async function continueRun([rootArg, specArg, priorRootArg, condition = 'active'
     condition,
     inheritedSubject: prior.subject,
     predecessor: { runId: prior.runId, head: prior.head, subjectId: prior.subject.id },
+    predecessorStore: priorKernel.store,
   });
   output({ runId: state.runId, specId: spec.id, condition, subjectId: state.subject.id, predecessor: state.predecessor, root });
 }

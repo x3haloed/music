@@ -57,6 +57,10 @@ Live work exposed several defects without advancing the affected subjects:
 - Provider/model configuration, reasoning effort, canonical inference comparison, witness document
   shape, resident permanent-failure reporting, and runtime provenance each
   failed during hosted bring-up and were repaired at their owning boundaries.
+- Live provider succession exposed that exact subject identity could retain
+  content-addressed evidence references absent from the successor store.
+  Succession now verifies and imports the entire reachable inherited object
+  graph before genesis, and its test asserts graph completeness.
 - Actor-local wager names once contaminated the external selector evaluator.
   Verification now scores sealed measurements and contact facts instead.
 

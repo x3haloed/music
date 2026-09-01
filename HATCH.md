@@ -89,6 +89,7 @@ node src/cli.js continue /absolute/new-run /absolute/new-spec.json /absolute/pri
 
 Preserve both episode snapshots. The successor genesis binds the predecessor
 run ID, ledger head, and subject ID; the subject retains its lifetime generation
-and content identity. Review and freeze the generated envelope before
+and content identity. Succession verifies and imports the inherited subject's
+complete reachable object graph before writing genesis. Review and freeze the generated envelope before
 `continue`; it retains the previous hypothesis, grants, limits, conditions, and
 stopping rule while refreshing world identities from the new release.

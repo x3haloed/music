@@ -144,6 +144,9 @@ observation exists; timed continuations wake only at their retained time.
 An observer-limited episode may end with an open subject. A successor episode
 must bind that exact subject ID and the predecessor run/head/subject triple.
 Lifetime generation is not reset, while cycle budgets apply to the new episode.
+Every content-addressed object reachable from the inherited subject is verified
+against and copied from the predecessor store before successor genesis, so
+identity continuity cannot retain dangling evidence references.
 The runtime records source, dependency-lock, inference-provider, world, and
 model-setting identities and refuses to advance under changed causal code. A
 successor episode may deliberately select a different provider or model while

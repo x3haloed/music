@@ -51,6 +51,25 @@ export class RunStore {
     return value;
   }
 
+  importObjectGraph(value, sourceStore) {
+    if (!sourceStore || typeof sourceStore.get !== 'function') throw new Error('source object store is required');
+    this.initialize();
+    const imported = new Set();
+    const pending = [...collectReferences(value).values()];
+    while (pending.length > 0) {
+      const reference = pending.pop();
+      if (imported.has(reference.sha256)) continue;
+      const retained = sourceStore.get(reference);
+      const copied = this.put(retained);
+      if (copied.sha256 !== reference.sha256 || copied.bytes !== reference.bytes) {
+        throw new Error(`imported object differs from predecessor: ${reference.sha256}`);
+      }
+      imported.add(reference.sha256);
+      for (const nested of collectReferences(retained).values()) pending.push(nested);
+    }
+    return { objects: imported.size };
+  }
+
   readEvents() {
     if (!existsSync(this.ledgerPath)) return [];
     const bytes = readFileSync(this.ledgerPath, 'utf8');

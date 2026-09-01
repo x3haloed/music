@@ -350,12 +350,14 @@ test('a successor run retains exact subject identity and cross-run evidence ance
   const state = successor.initialize(successorSpec, {
     inheritedSubject: priorState.subject,
     predecessor: { runId: priorState.runId, head: priorState.head, subjectId: priorState.subject.id },
+    predecessorStore: prior.store,
   });
   assert.equal(state.subject.id, priorState.subject.id);
   assert.equal(state.subject.generation, 1);
   assert.deepEqual(state.predecessor, { runId: priorState.runId, head: priorState.head, subjectId: priorState.subject.id });
   assert.equal(state.spec.inference.provider, 'successor-provider');
   assert.notEqual(state.spec.inference.provider, priorState.spec.inference.provider);
+  assert.doesNotThrow(() => successor.store.verifyObjectGraph());
 });
 
 test('successor cycle limits count the current episode rather than lifetime generation', async t => {
@@ -381,7 +383,7 @@ test('successor cycle limits count the current episode rather than lifetime gene
   spec.inheritedSubjectId = inherited.id;
   spec.limits.maxCycles = 1;
   const successor = new DevelopmentalKernel(successorRoot, { ...value, actor });
-  successor.initialize(spec, { inheritedSubject: inherited, predecessor: { runId: 'prior', head: 'head', subjectId: inherited.id } });
+  successor.initialize(spec, { inheritedSubject: inherited, predecessor: { runId: 'prior', head: 'head', subjectId: inherited.id }, predecessorStore: prior.store });
   const state = await successor.run();
   assert.equal(state.subject.generation, 2);
   assert.equal(state.cycles.filter(cycle => cycle.transition).length, 1);

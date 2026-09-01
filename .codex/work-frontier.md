@@ -15,6 +15,8 @@ inspection without turning that window into a second controller or authority.
   workspaces are never continuity substrates.
 - Fresh projections carry the exact current subject plus bounded historical
   transitions; they never duplicate cumulative predecessor subjects as history.
+- Exact succession imports and verifies every content-addressed object reachable
+  from the inherited subject before successor genesis.
 - Genesis binds one explicit inference provider/model/settings block, the
   causal runtime, worlds, grants, limits,
   conditions, and stopping rule. The kernel alone selects, contacts, classifies,
