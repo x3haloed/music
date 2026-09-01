@@ -1386,6 +1386,61 @@ test('a newly admitted reviewer does not deadlock recurrence against an incompat
   assert.equal(sounding.trajectoryElection, undefined);
 });
 
+test('format-12 reconstruction preserves the first required action-bearing recurrence opportunity', () => {
+  const tools = initialTools().map(tool => {
+    if (tool.id === 'review_developmental_position') {
+      const retained = structuredClone(tool);
+      retained.inputSchema.properties.candidates.items.properties.action = {
+        type: 'object', additionalProperties: true,
+      };
+      retained.inputSchema.properties.candidates.items.required.push('action');
+      return retained;
+    }
+    if (tool.id === 'elect_trajectory') {
+      const retained = structuredClone(tool);
+      retained.inputSchema.properties.reviewId = { type: 'string', minLength: 1, maxLength: 128 };
+      retained.inputSchema.properties.trajectory = { type: 'object', additionalProperties: true };
+      return retained;
+    }
+    return tool;
+  });
+  const { kernel, root } = harness({}, tools);
+  const sounding = kernel.openSounding('opening');
+  assert.equal(sounding.trajectoryElection, undefined);
+
+  const ledger = join(root, 'events.jsonl');
+  const events = readFileSync(ledger, 'utf8').trimEnd().split('\n').map(line => JSON.parse(line));
+  const event = events.at(-1);
+  const reviewer = tools.find(tool => tool.id === 'review_developmental_position');
+  const selector = tools.find(tool => tool.id === 'elect_trajectory');
+  event.payload.sounding.trajectoryElection = {
+    format: 'music-trajectory-election-opportunity-2',
+    occasion: 'subject-opening-recurrence',
+    reviewer: { id: reviewer.id, version: reviewer.version, digest: toolModuleDigest(reviewer) },
+    selector: { id: selector.id, version: selector.version, digest: toolModuleDigest(selector) },
+    consequenceAddressable: true,
+    entry: 'required',
+    actionObligation: false,
+    quietPermitted: true,
+    frontier: { minimumCandidates: 2, minimumExecutableCandidates: 1 },
+  };
+  event.payload.projection = digest(event.payload.sounding);
+  const unsigned = structuredClone(event);
+  delete unsigned.hash;
+  event.hash = digest(unsigned);
+  writeFileSync(ledger, `${events.map(candidate => JSON.stringify(candidate)).join('\n')}\n`);
+
+  const reconstructed = new MusicKernel(ledger);
+  assert.equal(
+    reconstructed.state().openSoundingId,
+    sounding.id,
+  );
+  assert.equal(
+    reconstructed.state().soundings.get(sounding.id).sounding.trajectoryElection.format,
+    'music-trajectory-election-opportunity-2',
+  );
+});
+
 test('recurrence cannot bypass structured review and election, while directional candidates need no tool plan', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding('heartbeat');

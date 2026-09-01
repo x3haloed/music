@@ -238,7 +238,10 @@ design unless later observation demonstrates that it is absolutely necessary.
   physically independent detached clones; habitats keep ledger, home, mailbox,
   dependencies, and configuration outside source. Snapshots exclude the writer
   lock, carry a digest inventory, and cannot race the resident. Frozen synthetic
-  event-10 and event-11 ledgers make backwards reconstruction a build invariant.
+  event-10 and event-11 ledgers make backwards reconstruction a build invariant;
+  format-12 reconstruction also derives all three retained trajectory-opportunity
+  generations and accepts the historically absent active-trajectory projection
+  only while the retained trajectory itself is legacy-shaped.
 - **The one subject must be able to author a current account of its situation
   and reliably re-encounter it after completed conversation leaves the active
   prompt.**

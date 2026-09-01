@@ -1571,14 +1571,21 @@ function reduceEvents(events) {
             && digest(sounding.development) !== digest(projectDevelopmentalFrontier(state))) {
             throw new Error('Sounding developmental frontier projection mismatch');
           }
-          if (digest(sounding.activeTrajectory ?? null)
-            !== digest(state.currentTrajectory ? projectActiveTrajectory(state.currentTrajectory) : null)) {
+          const expectedActiveTrajectory = state.currentTrajectory
+            ? projectActiveTrajectory(state.currentTrajectory) : null;
+          const exactActiveTrajectory = digest(sounding.activeTrajectory ?? null)
+            === digest(expectedActiveTrajectory);
+          const omittedLegacyActiveTrajectory = sounding.activeTrajectory === undefined
+            && state.currentTrajectory
+            && state.currentTrajectory.format !== 'music-active-trajectory-1';
+          if (!exactActiveTrajectory && !omittedLegacyActiveTrajectory) {
             throw new Error('Sounding active trajectory projection mismatch');
           }
           if (sounding.trajectoryElection !== undefined) {
             const projected = digest({ trajectoryElection: sounding.trajectoryElection });
             const accepted = [
               trajectoryElectionOpportunity(state, sounding.trigger),
+              legacyStructuredTrajectoryElectionOpportunity(state, sounding.trigger),
               legacyTrajectoryElectionOpportunity(state, sounding.trigger),
             ].some(opportunity => projected === digest(opportunity));
             if (!accepted) throw new Error('Sounding trajectory-election opportunity mismatch');
@@ -3427,6 +3434,47 @@ function supportsStructuredRecurrenceOrgan(reviewer, selector) {
     && selectorProperties?.assessments?.type === 'array'
     && Array.isArray(selectorProperties?.trajectory?.type),
   );
+}
+
+// The first required recurrence organ used exact action-bearing candidates.
+// Its retained opportunity is history, not current policy, but format-12
+// reconstruction must still be able to derive it from the exact historical
+// reviewer and selector manifests active at that Sounding.
+function legacyStructuredTrajectoryElectionOpportunity(state, trigger) {
+  if (!['opening', 'scheduled', 'heartbeat'].includes(trigger)) return {};
+  if ((state.pendingDeltas?.length ?? 0) > 0
+    || (state.consequences instanceof Map && projectUnresolvedConsequences(state).length > 0)) return {};
+  const selector = state.tools.get(TRAJECTORY_ELECTION_TOOL_ID);
+  const reviewer = state.tools.get(DEVELOPMENTAL_REVIEW_TOOL_ID);
+  const reviewProperties = reviewer?.inputSchema?.properties;
+  const selectorProperties = selector?.inputSchema?.properties;
+  if (!(reviewer && selector
+    && reviewProperties?.findings?.type === 'array'
+    && reviewProperties?.candidates?.type === 'array'
+    && reviewProperties.candidates.items?.properties?.action?.type === 'object'
+    && selectorProperties?.reviewId?.type === 'string'
+    && selectorProperties?.assessments?.type === 'array'
+    && selectorProperties?.trajectory?.type === 'object')) return {};
+  return {
+    trajectoryElection: {
+      format: 'music-trajectory-election-opportunity-2',
+      occasion: trigger === 'heartbeat' ? 'instruction-free-recurrence' : 'subject-opening-recurrence',
+      reviewer: {
+        id: reviewer.id, version: reviewer.version, digest: toolModuleDigest(reviewer),
+      },
+      selector: {
+        id: selector.id, version: selector.version, digest: toolModuleDigest(selector),
+      },
+      consequenceAddressable: true,
+      entry: 'required',
+      actionObligation: false,
+      quietPermitted: true,
+      frontier: {
+        minimumCandidates: 2,
+        minimumExecutableCandidates: 1,
+      },
+    },
+  };
 }
 
 // Event format 12 already contains the earlier, optional heartbeat opportunity.
