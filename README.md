@@ -152,4 +152,5 @@ tool invention with real provisional execution, recurrence floors/ceilings,
 provider-output quarantine, and restart at retained phase boundaries.
 
 The complete hatch, contact, shutdown, snapshot, upgrade, and recovery runbook
-is [OPERATIONS.md](./OPERATIONS.md).
+is [OPERATIONS.md](./OPERATIONS.md). The frozen readiness evidence and explicit
+boundaries are [HATCH-READINESS.md](./HATCH-READINESS.md).
