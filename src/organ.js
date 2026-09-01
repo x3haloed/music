@@ -120,6 +120,7 @@ export class DevelopmentalOrgan {
       subject: state.subject,
       position,
       observations: state.observations.slice(-64),
+      causalHistory: causalHistory(state, this.kernel.artifacts),
       resourceStanding: structuredClone(state.resources),
       tools: Object.values(position.mechanisms)
         .filter(value => value?.kind === 'tool')
@@ -413,6 +414,59 @@ export class DevelopmentalOrgan {
 
 function authorityKind(development) {
   return ['tool-authority', 'inference-policy'].includes(development.proposal.proposedDevelopment.kind);
+}
+
+function causalHistory(state, artifacts) {
+  const episodes = [...state.wagers.values()].slice(-16).map(bound => {
+    const wager = bound.wager;
+    const receipt = state.realizations.get(wager.id);
+    const evaluation = state.evaluations.get(wager.id);
+    const development = [...state.development.values()].find(value => value.wagerId === wager.id);
+    return {
+      wagerId: wager.id,
+      stake: structuredClone(wager.stake),
+      contact: { tool: wager.contact.tool, input: bounded(wager.contact.input) },
+      electionReceipt: bound.electionReceipt ?? null,
+      consequence: receipt ? bounded(receipt) : null,
+      evaluation: evaluation ? structuredClone(evaluation) : null,
+      development: development ? {
+        id: development.id,
+        kind: development.proposal.proposedDevelopment.kind,
+        status: development.status,
+        eligible: development.trial?.eligible ?? null,
+      } : null,
+    };
+  });
+  const cognition = [...state.perspectives.values()]
+    .filter(value => value.status === 'completed')
+    .slice(-12)
+    .map(value => ({
+      invocationId: value.id,
+      kind: value.kind,
+      completedAt: value.receipt.completedAt,
+      output: bounded(artifacts.readJson(value.receipt.output)),
+    }));
+  const activeDevelopment = [...state.development.values()]
+    .filter(value => value.status === 'proposed' || value.status === 'trialed')
+    .map(value => ({
+      id: value.id,
+      wagerId: value.wagerId,
+      status: value.status,
+      proposal: bounded(value.proposal),
+      trial: value.trial ? bounded(value.trial) : null,
+    }));
+  return { episodes, priorCognition: cognition, activeDevelopment };
+}
+
+function bounded(value, maximumBytes = 32_768) {
+  const json = JSON.stringify(value);
+  const bytes = Buffer.byteLength(json);
+  if (bytes <= maximumBytes) return structuredClone(value);
+  return {
+    projectionTruncated: true,
+    retainedBytes: bytes,
+    utf8Prefix: Buffer.from(json).subarray(0, maximumBytes).toString('utf8'),
+  };
 }
 
 function challengeTask() {

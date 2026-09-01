@@ -81,6 +81,42 @@ test('fresh typed perspectives elect and realize one exact wager without respons
   assert.equal(invocations.every(value => value.status === 'completed'), true);
 });
 
+test('fresh context receives bounded prior cognition and world consequence as distinct causal history', async t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-history-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  const kernel = new MusicKernel(habitat);
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  writeFileSync(join(habitat, 'a.txt'), 'alpha');
+  writeFileSync(join(habitat, 'b.txt'), 'beta');
+  const outputs = {
+    orientation: { harms: [], opportunities: [], unresolved: [], machineryConcerns: [] },
+    challenge: { candidates: [
+      candidate('history-alpha', initial.position.mechanisms.read_file.artifact, 'a.txt', 'alpha'),
+      candidate('history-beta', initial.position.mechanisms.read_file.artifact, 'b.txt', 'beta'),
+    ] },
+    election: {
+      selectedWagerId: 'history-alpha',
+      assessments: [
+        { wagerId: 'history-alpha', consequenceExposure: 'strong', cost: 'low', delayHarm: 'low', admissibilityRisk: 'low' },
+        { wagerId: 'history-beta', consequenceExposure: 'adequate', cost: 'low', delayHarm: 'low', admissibilityRisk: 'low' },
+      ],
+    },
+  };
+  await new DevelopmentalOrgan(kernel, new PerspectiveEngine(kernel, {
+    infer: async ({ kind }) => ({ output: outputs[kind], model: 'test/fresh' }),
+  })).open();
+  const projection = new DevelopmentalOrgan(kernel, new PerspectiveEngine(kernel, {
+    infer: async () => { throw new Error('unused'); },
+  })).projection();
+  assert.equal(projection.causalHistory.episodes.length, 1);
+  assert.equal(projection.causalHistory.episodes[0].consequence.kind, 'tool.result');
+  assert.equal(projection.causalHistory.episodes[0].evaluation.kind, 'support');
+  assert.deepEqual(projection.causalHistory.episodes[0].consequence.output.content, '1: alpha');
+  assert.deepEqual(projection.causalHistory.priorCognition.map(value => value.kind), ['orientation', 'challenge', 'election']);
+  assert.equal(projection.causalHistory.activeDevelopment.length, 0);
+});
+
 test('invalid perspective output is quarantined without changing the position', async t => {
   const habitat = mkdtempSync(join(tmpdir(), 'music-v2-quarantine-'));
   t.after(() => rmSync(habitat, { recursive: true, force: true }));
