@@ -1252,6 +1252,78 @@ test('a release can offer missing recurrence machinery without activating it for
   assert.equal(kernel.openSounding('heartbeat').trajectoryElection.entry, 'required');
 });
 
+test('a provisional trajectory elector can be trialed against an undelivered retained review', async () => {
+  const { kernel } = harness();
+  const active = kernel.state().tools.get('elect_trajectory');
+  const proposed = {
+    ...structuredClone(active),
+    version: active.version + 1,
+    parent: toolModuleDigest(active),
+    source: `${active.source}\n// Exercise the replacement through the migration path before admission.`,
+  };
+  const offer = kernel.offerToolProposal({
+    interpretation: 'Let the resident exercise a replacement elector before it can govern recurrence.',
+    evidence: ['release:migration-test'],
+    tool: proposed,
+  }, {
+    format: 'music-developmental-offer-1',
+    authority: 'release',
+    release: {
+      commit: 'a'.repeat(40), version: '0.0.1', workingTreeClean: true,
+      workingTreeStateSha256: 'b'.repeat(64),
+    },
+    tool: { id: proposed.id, digest: toolModuleDigest(proposed) },
+  });
+  const sounding = kernel.openSounding('heartbeat');
+  const inferenceId = begin(kernel, sounding.id);
+  const reviewed = await kernel.invokeTool(inferenceId, sounding.id, 'review_developmental_position', {
+    findings: [{
+      id: 'migration', class: 'constraint', severity: 'medium', urgency: 'near',
+      costOfDelay: 'medium', condition: 'The proposed elector has not yet exercised its review-bound path.',
+      evidence: [`sounding:${sounding.id}`],
+    }],
+    candidates: [
+      {
+        id: 'inspect', description: 'Inspect a retained file.', addressesFindingIds: ['migration'],
+        action: { kind: 'tool', tool: 'read_file', input: { path: kernel.ledgerPath, limit: 1 } },
+      },
+      {
+        id: 'quiet', description: 'Remain quiet for this bounded encounter.', addressesFindingIds: ['migration'],
+        action: { kind: 'quiet', tool: 'quiet', input: {} },
+      },
+    ],
+  });
+
+  const trial = await kernel.trialDevelopmentalProposal(inferenceId, sounding.id, offer.proposalId, {
+    reviewId: reviewed.reviewId,
+    assessments: [
+      {
+        candidateId: 'inspect', worldValid: true, reversible: true, heldRepeat: false,
+        completedFloors: [], predictedExpansion: 1, actionableRegret: 0,
+        basis: 'Inspection creates bounded world contact.',
+      },
+      {
+        candidateId: 'quiet', worldValid: true, reversible: true, heldRepeat: false,
+        completedFloors: [], predictedExpansion: 0, actionableRegret: 1,
+        basis: 'Quiet remains available but delays the unresolved trial.',
+      },
+    ],
+    selectedCandidateId: 'inspect',
+    trajectory: {
+      objective: 'Exercise the proposed elector against retained review state.',
+      direction: 'Prefer bounded inspection over unobserved deferral.',
+      horizon: 'immediate',
+      successSignals: ['The provisional election returns a grounded preview.'],
+      reconsiderWhen: ['The preview fails validation.'],
+    },
+  });
+
+  assert.equal(trial.output.format, 'music-provisional-trajectory-election-1');
+  assert.equal(trial.output.selectedCandidateId, 'inspect');
+  assert.equal(kernel.state().deliveredDevelopmentalReviewContextIds.has(reviewed.reviewId), false);
+  kernel.failInference(inferenceId, new Error('test encounter intentionally ends after the provisional trial'));
+});
+
 test('a newly admitted reviewer does not deadlock recurrence against an incompatible retained selector', () => {
   const tools = initialTools().map(tool => tool.id === 'elect_trajectory' ? {
     ...tool,

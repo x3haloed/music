@@ -2416,7 +2416,7 @@ function previewToolSelection(toolId, frontier) {
 }
 
 function previewTrajectoryElection(frontier, state) {
-  const election = validateTrajectoryElectionFrontier(frontier, state);
+  const election = validateTrajectoryElectionFrontier(frontier, state, { requireDeliveredReview: false });
   const floorGrounding = groundTrajectoryFloors(election.candidates, state);
   return {
     format: 'music-provisional-trajectory-election-1',
@@ -3846,7 +3846,7 @@ function validateTrajectoryEnvelope(value) {
   return structuredClone(value);
 }
 
-function validateTrajectoryElectionFrontier(frontier, state = null) {
+function validateTrajectoryElectionFrontier(frontier, state = null, { requireDeliveredReview = true } = {}) {
   if (!frontier || typeof frontier !== 'object' || Array.isArray(frontier)) {
     throw new Error('trajectory election frontier must be an object');
   }
@@ -3859,7 +3859,7 @@ function validateTrajectoryElectionFrontier(frontier, state = null) {
       || review.projection !== state.activeEncounter?.projection) {
       throw new Error('trajectory election review is not bound to the active encounter');
     }
-    if (!state.deliveredDevelopmentalReviewContextIds.has(review.reviewId)) {
+    if (requireDeliveredReview && !state.deliveredDevelopmentalReviewContextIds.has(review.reviewId)) {
       throw new Error('trajectory election review was not delivered as structured context');
     }
     if (!Array.isArray(frontier.assessments) || frontier.assessments.length !== review.candidates.length) {
