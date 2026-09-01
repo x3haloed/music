@@ -60,7 +60,7 @@ export function initialPosition(at, initial = {}) {
     authority: initial.authority ?? {},
     memory: initial.memory ?? {},
     floors: initial.floors ?? [],
-    activeOpening: {
+    activeOpening: initial.activeOpening ?? {
       kind: 'continue',
       notBefore: null,
       focus: 'Encounter the available world and originate the first bounded developmental wager.',

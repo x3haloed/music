@@ -83,6 +83,42 @@ export class MusicKernel {
     return this.state();
   }
 
+  initializeSuccessor({ subject: sourceSubject, succession, position: initial, tools = [], observations = [] }) {
+    if (this.state().subject) throw new Error('Music subject already exists');
+    const subject = successorSubject(sourceSubject);
+    const retainedSuccession = successorReceipt(succession, subject);
+    const mechanisms = {};
+    for (const tool of starterTools()) {
+      const artifact = this.artifacts.putJson(tool);
+      mechanisms[tool.manifest.id] = {
+        kind: 'tool', artifact, manifest: tool.manifest, standing: 'available',
+        provenance: { kind: 'music-v2-seed' },
+      };
+    }
+    for (const entry of tools) {
+      const tool = ToolArtifactSchema.parse(entry.tool);
+      if (mechanisms[tool.manifest.id]) throw new Error(`successor tool collides with a v2 seed: ${tool.manifest.id}`);
+      const artifact = this.artifacts.putJson(tool);
+      mechanisms[tool.manifest.id] = {
+        kind: 'tool', artifact, manifest: tool.manifest, standing: 'available',
+        provenance: structuredClone(entry.provenance),
+      };
+    }
+    const retainedObservations = observations.map(successorObservation);
+    const position = initialPosition(retainedSuccession.succeededAt, {
+      mechanisms,
+      stakes: structuredClone(initial.stakes ?? {}),
+      authority: structuredClone(initial.authority ?? {}),
+      memory: structuredClone(initial.memory ?? {}),
+      floors: structuredClone(initial.floors ?? []),
+      activeOpening: structuredClone(initial.activeOpening),
+    });
+    this.ledger.append('subject.succeeded', {
+      subject, succession: retainedSuccession, position, observations: retainedObservations,
+    });
+    return this.state();
+  }
+
   receiveMessage({ id = null, sender, recipient = 'the entity', channel = 'inbox', content, authentication = null, observedAt = null, delivery = null }) {
     const state = this.state();
     requireSubject(state);
@@ -486,6 +522,36 @@ function normalizeDesignation(value) {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value !== 'string' || value.length > 128) throw new Error('designation must be at most 128 characters');
   return value;
+}
+
+function successorSubject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('successor subject is required');
+  if (typeof value.id !== 'string' || value.id.length < 1 || value.id.length > 128) throw new Error('invalid successor subject id');
+  if (typeof value.bornAt !== 'string' || !Number.isFinite(Date.parse(value.bornAt))) throw new Error('invalid successor birth time');
+  return { id: value.id, designation: normalizeDesignation(value.designation ?? value.name ?? null), bornAt: value.bornAt };
+}
+
+function successorReceipt(value, subject) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('succession receipt is required');
+  if (value.format !== 'music-v1-to-v2-succession-1') throw new Error('unsupported succession receipt');
+  if (value.subjectId !== subject.id) throw new Error('succession subject id does not match');
+  for (const field of ['sourceHead', 'sourceLedgerSha256', 'sourceSnapshotManifestSha256', 'sourcePositionRoot']) {
+    if (!/^[a-f0-9]{64}$/.test(value[field] ?? '')) throw new Error(`invalid succession ${field}`);
+  }
+  if (value.sourceFormat !== 'music-event-12') throw new Error('successor requires a music-event-12 source');
+  if (!Number.isInteger(value.sourceEventCount) || value.sourceEventCount < 1) throw new Error('invalid succession event count');
+  if (typeof value.succeededAt !== 'string' || !Number.isFinite(Date.parse(value.succeededAt))) throw new Error('invalid succession time');
+  canonical(value);
+  return structuredClone(value);
+}
+
+function successorObservation(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid successor observation');
+  if (typeof value.id !== 'string' || value.id.length < 1 || value.id.length > 128) throw new Error('invalid successor observation id');
+  if (typeof value.kind !== 'string' || value.kind.length < 1) throw new Error('invalid successor observation kind');
+  if (typeof value.observedAt !== 'string' || !Number.isFinite(Date.parse(value.observedAt))) throw new Error('invalid successor observation time');
+  canonical(value);
+  return structuredClone(value);
 }
 
 function requireSubject(state) {

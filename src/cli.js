@@ -172,6 +172,7 @@ function inferenceOptions(options) {
 function projectStatus(state, grants) {
   return {
     subject: state.subject,
+    succession: state.succession,
     position: state.position && {
       id: state.position.id,
       parent: state.position.parent,

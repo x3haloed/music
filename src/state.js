@@ -3,6 +3,7 @@ import { PositionSchema, verifyPosition } from './position.js';
 export function reconstruct(events) {
   const state = {
     subject: null,
+    succession: null,
     position: null,
     observations: [],
     perspectives: new Map(),
@@ -32,6 +33,14 @@ function applyEvent(state, event) {
     if (state.subject) throw new Error('ledger contains more than one subject birth');
     state.subject = structuredClone(payload.subject);
     state.position = verifyPosition(payload.position);
+    return;
+  }
+  if (event.type === 'subject.succeeded') {
+    if (state.subject) throw new Error('ledger contains more than one subject genesis');
+    state.subject = structuredClone(payload.subject);
+    state.succession = structuredClone(payload.succession);
+    state.position = verifyPosition(payload.position);
+    state.observations.push(...structuredClone(payload.observations));
     return;
   }
   if (!state.subject) throw new Error(`${event.type} precedes subject birth`);

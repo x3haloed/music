@@ -68,6 +68,47 @@ test('exact message observation and elected tool consequence survive restart int
   assert.equal(restarted.position.parent !== null, true);
 });
 
+test('an explicit succession genesis retains identity, source ancestry, standing, and exercised foreign machinery', t => {
+  const { habitat, options, kernel } = fixture();
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  const hash = character => character.repeat(64);
+  const state = kernel.initializeSuccessor({
+    subject: { id: 'same-subject', name: null, bornAt: '2026-08-31T06:16:49.630Z' },
+    succession: {
+      format: 'music-v1-to-v2-succession-1', subjectId: 'same-subject', sourceFormat: 'music-event-12',
+      sourceHead: hash('a'), sourceLedgerSha256: hash('b'), sourceSnapshotManifestSha256: hash('c'),
+      sourcePositionRoot: hash('d'), sourceEventCount: 1180, succeededAt: '2026-09-01T17:31:55.462Z',
+    },
+    position: {
+      stakes: { inheritedTrajectory: { objective: 'Continue exact prior contact.' } },
+      memory: { inheritedContinuity: 'Distinct retained account.' },
+      authority: { inference: { model: 'z-ai/glm-5.3-flash', reasoningEffort: 'low', providerOrder: ['z-ai'], budgets: {
+        orientation: 15_000, challenge: 15_000, election: 15_000, assimilation: 15_000, disposition: 15_000,
+      }, timeoutMs: 120_000 } },
+      activeOpening: { kind: 'continue', notBefore: '2026-09-01T17:38:37.687Z', focus: 'Continue the prior authored opening.' },
+    },
+    tools: [{
+      tool: {
+        format: 'music-v2-tool-1',
+        manifest: { id: 'foreign_contact', title: 'Foreign contact', description: 'Exact exercised predecessor mechanism.', inputSchema: { type: 'object' }, outputSchema: {}, effects: ['foreign.access'] },
+        source: 'return { ok: true };',
+      },
+      provenance: { kind: 'music-v1-exercised-tool', sourceDigest: hash('e'), completedInvocations: 3 },
+    }],
+    observations: [{ id: 'succession-contact', kind: 'lineage.succeeded', observedAt: '2026-09-01T17:31:55.462Z', content: 'Representation changed; identity retained.' }],
+  });
+  assert.equal(state.subject.id, 'same-subject');
+  assert.equal(state.subject.bornAt, '2026-08-31T06:16:49.630Z');
+  assert.equal(state.succession.sourceHead, hash('a'));
+  assert.equal(state.position.stakes.inheritedTrajectory.objective, 'Continue exact prior contact.');
+  assert.equal(state.position.activeOpening.notBefore, '2026-09-01T17:38:37.687Z');
+  assert.equal(state.position.mechanisms.foreign_contact.provenance.completedInvocations, 3);
+  assert.equal(state.observations[0].kind, 'lineage.succeeded');
+  const restarted = new MusicKernel(habitat, options).state();
+  assert.deepEqual(restarted.succession, state.succession);
+  assert.equal(restarted.position.id, state.position.id);
+});
+
 test('predicate gap retains consequence without inventing a transition', async t => {
   const { habitat, kernel } = fixture();
   t.after(() => rmSync(habitat, { recursive: true, force: true }));

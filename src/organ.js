@@ -118,6 +118,7 @@ export class DevelopmentalOrgan {
     const allowed = position.authority?.toolSelection?.allowedToolIds;
     return {
       subject: state.subject,
+      succession: state.succession,
       position,
       observations: state.observations.slice(-64),
       causalHistory: causalHistory(state, this.kernel.artifacts),
@@ -128,6 +129,7 @@ export class DevelopmentalOrgan {
           artifact: value.artifact,
           manifest: value.manifest,
           standing: value.standing,
+          provenance: value.provenance ?? null,
           selectable: value.manifest.effects.every(effect => granted.has(effect)) &&
             (!Array.isArray(allowed) || allowed.includes(value.manifest.id)),
         })),
