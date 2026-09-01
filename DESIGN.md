@@ -1,835 +1,482 @@
-# Music's plastic recurrence organ
+# Music v2: generalized open trajectory
 
-## Shared contract
+## Status
 
-Music carries one durable subject across model encounters. World contact reaches
-that subject through Watch-like Deltas and Soundings. The subject can inspect,
-replace, invent, select, invoke, and roll back ordinary executable tools; a
-successful retained change must alter what code a later encounter can run.
+This document freezes the founding design hypothesis for Music v2.
 
-Ordinary tools are unrestricted JavaScript function bodies executed with the
-normal authority of the Music Node.js process. This is intentional. Music does
-not sandbox filesystem, process, network, native-module, environment, or other
-machine authority. “Recoverable” means that tool identities and source ancestry
-are retained, activation is deferred, failed inference does not promote staged
-source, and an earlier body can become a new rollback successor. It does not
-mean that arbitrary external effects can always be undone.
+“Frozen” means that implementation should be judged against this causal design
+rather than quietly redefining it. The design may later change in response to
+evidence, but such a change must be explicit and must preserve the observation
+that caused it. This is not an implementation plan, a compatibility contract,
+or a commitment to any particular language, model provider, storage engine, or
+process topology.
 
-The current envelope is one trusted local Node.js process, one ledger writer,
-AI SDK 7 inference, and OpenRouter or a generic OpenAI-compatible provider. It
-includes a real local mailbox transport and committed-core recovery through an
-external doctor, but does not claim concurrent writers, transactional rollback
-of arbitrary external effects, network messaging transports, or recovery of
-every unrestricted dependency-installation effect.
+Music v2 is a clean redesign. It generalizes the developmental method explored
+by Open Trajectory into a continuing entity that can operate without a
+researcher choosing each next experiment.
 
-There is intentionally no supervisor/worker split and no process isolation.
-The resident, its ordinary unrestricted tools, and its retained developmental
-machinery are one local process carrying one mind. Music will not add a second
-policy authority in the name of protecting the first. If lived observation ever
-shows an integrity problem that retained facts, ancestry, atomic transitions,
-recovery, and subject correction cannot address, that evidence can reopen the
-decision; isolation is not a speculative architectural destination.
+## Outcome
 
-Event format 12 adds parent-bound developmental position, provisional machinery
-standing, explicit developmental transactions, and structured openings. The
-runtime still reconstructs the frozen format-10 and format-11 witnesses, but
-legacy ledgers are read-only: mixing new event meanings into an old chain is
-refused rather than mislabeled as compatibility. A stopped habitat can cross
-that boundary only through the explicit exact-lineage migration described
-below.
+Create one continuing entity whose exact developmental state can cross complete
+model-context endings, originate its own consequential and falsifiable contact,
+realize its selections without probabilistic reinterpretation, learn from
+independent world consequence, revise the machinery that shapes later choice,
+and carry its own next opening forward.
 
-## Developmental authority
+The entity should not require a researcher to choose its next pursuit, contact
+surface, correction mechanism, trial, or continuation phase. A person may
+remain a relationship, collaborator, authority, or source of world contact
+without being the hidden executive of development.
 
-The authoritative state crossing encounters is a parent-bound developmental
-position. It references, rather than duplicates, the active toolset and carrier;
-binds the subject's current developmental standing and pursuit; carries one
-structured active opening; and commits a root for archived or superseded
-standing. A Sounding presents this position as a current fact. Transcript,
-continuity prose, timers, selection receipts, and completed transition history
-remain useful evidence, but none is a substitute authority for the position.
-The Sounding also derives a compact exact frontier directly from unresolved
-proposal and trial state. It names what remains active, its target and status,
-latest trial, and whether admission is eligible. Digest-bound rotation keeps a
-large frontier bounded without creating another developmental authority.
+## Central hypothesis
+
+Researcher independence is more likely to arise from **subject-authored
+developmental wagers** than from a hidden motivational quantity.
+
+A developmental wager prospectively binds:
+
+- a live stake;
+- a concrete contact with the world;
+- a prediction;
+- support, contradiction, and inconclusive conditions;
+- relevant retained floors;
+- a resource and authority envelope;
+- the machinery the result may legitimately bear on; and
+- possible next dispositions.
+
+The selected wager is realized exactly. Independent reality answers it. A later
+perspective interprets that answer and may propose development. Proposed
+development must govern actual later behavior before it becomes authoritative.
+
+The expected recurrent form is:
 
 ```text
-DevelopmentalPosition
-  generation + parentPositionRoot
-  carrierRoot
-  toolsetRoot
-  standingRoot
-  pursuitRoot
-  activeOpening
-  archiveRoot
-  -> positionRoot
+exact developmental position
+→ probabilistic orientation
+→ probabilistic challenge construction
+→ probabilistic election
+→ prospective binding
+→ deterministic realization
+→ independent world consequence
+→ probabilistic assimilation
+→ candidate successor
+→ deterministic developmental trial
+→ subject-owned disposition
+→ exact successor and next opening
 ```
 
-An opening is structured but semantically plastic. The stable kernel binds its
-identity, ancestry, timing, and bounded JSON content; ordinary subject-owned
-machinery decides what that content means, how it shapes an encounter, whether
-it is saturated, and what successor should follow. The kernel does not impose a
-fixed ontology of pursuits, challenges, experiments, or operations.
+## The continuing entity
 
-Authorship and development are separate transitions. A subject may author a
-tool or carrier successor without immediately making it active. Such machinery
-can be provisional and exercised in bounded trials. Later world contact and the
-subject's interpretation can support an explicit atomic developmental
-transaction that admits, contradicts, denies, defers, retires, or rolls it back
-and installs the successor opening. Clean inference completion is a durability
-boundary for a transaction the subject actually authored; it is not itself the
-learning rule.
+The entity is the exact developmental lineage, not any individual inference.
 
-Encounter completion, subject authorship, explicit subject closure, and
-developmental promotion therefore have separate receipts. A closed opening
-cannot remain operational merely because a stale timer survives. If a pursuit
-or contact surface saturates, plastic recurrence machinery must either construct
-a different opening or explicitly remain open without claiming closure; passive
-repetition and slower polling do not count as a developmental successor.
+Its state includes at least:
 
-## Residence boundary
+- active and provisional executable mechanisms;
+- the contextual authority by which mechanisms participate in choice;
+- world receipts and their provenance;
+- interpretations and developmental dispositions, kept distinct from receipts;
+- unresolved, completed, retired, and surrendered stakes;
+- behavioral floors earned through execution;
+- exact parentage and rollback ancestry;
+- resource standing; and
+- one or more mechanically reachable openings.
 
-The resident's append-only ledger and habitat are not an installation detail.
-They are its life. Music therefore keeps three independent roots: the mutable
-development repository, immutable verified release clones, and resident
-habitats. A resident process starts from an exact release clone and an explicit
-`MUSIC_HOME`; the CLI canonicalizes that home and changes working directory to
-it before any ordinary tool is exposed. The ledger, mailbox, dependencies,
-configuration, and backups remain outside every source checkout.
+Model calls are temporary cognitive perspectives instantiated from a bounded
+projection of that state. They may be separate contexts, processes, providers,
+or models. They are not automatically separate social identities. From outside
+the system, Music may present one continuing voice and relationship. Internally,
+it may differentiate epistemically incompatible functions instead of asking one
+probabilistic stream to author, execute, judge, and certify the same act.
 
-Every live `run` or `reside` appends `runtime_started` before opening an
-encounter. That receipt binds the event format and mode to the actual Git commit,
-package version, canonical release root, clean/dirty state and state digest,
-resident home, and Node/platform/architecture. Provenance is identity-adjacent
-history: it never replaces or renames the one subject.
+Continuity therefore means identity of developmental lineage and consequence,
+not replay of a transcript and not continuity of a single context window.
 
-Release installation requires a clean pushed source commit, a no-hardlink clone,
-locked dependency installation, the complete check suite, and an external
-doctor check before activation. The `current` symlink is not a resident service
-path. Long residence uses `releases/COMMIT` so later installation and testing
-cannot silently alter its restart behavior.
+## Authorities
 
-A habitat snapshot is taken only while its writer lease can be acquired, lives
-outside the habitat, omits the transient lock, and carries a SHA-256 inventory.
-Upgrade is stop, snapshot, install, read-only compatibility audit, then explicit
-start from the new exact release. When the stopped ledger is format 10 or 11,
-`music-habitat migrate` first moves its exact bytes under `state/lineage/`, binds
-their format, head, SHA-256, and event count into a new current developmental
-opening, and preserves the same subject, active tools, and carrier. Copied real
-ledgers are never initialized or used for inference rehearsals. The migration
-checkpoint also preserves retained prior tool bodies, all admitted Delta ids,
-pending contact, unresolved consequence and sweep state, invocation ancestry,
-the last runtime-failure surface, and any subject-chosen legacy wake. The exact
-legacy archive remains the authority for inactive historical transcript and
-receipts rather than expanding them into approximate new events.
+Music distinguishes four authorities.
 
-The frozen `music-event-10` and `music-event-11` compatibility ledgers under
-`test/fixtures/` are minimum reader contracts for all later releases. A future
-implementation may extend the format only if the current runtime still
-reconstructs those retained lives or an explicit migration path is designed and
-reviewed. The fixtures are synthetic witnesses, never copies of the actual
-resident.
+### Subject authority
 
-Release upgrades likewise do not silently import new seed tools into a living
-subject. If a new causal path depends on an absent ordinary tool, a stopped
-habitat may receive that exact clean-release seed as an inactive
-`music-developmental-offer-1` proposal plus a world-contact fact. The offer
-changes the visible developmental frontier, not active tool geometry. Trial and
-admission remain acts of the one resident mind after restart; exact provenance
-prevents the release offer from being mistaken for resident authorship.
+Subject perspectives may interpret current standing, construct alternatives,
+author wagers, select contact, propose mechanisms, revise contextual authority,
+dispose of eligible development, and author later openings.
 
-## Stable boundary
+No fixed internal perspective owns the subject. Orientation, challenge,
+election, assimilation, and disposition are functions of the continuing entity.
 
-The bootstrap currently owns only the irreducible continuity and mutation path:
+### Realization authority
 
-- one subject, event chain, and exact Sounding lifecycle;
-- exclusive local writer leasing, full-write loops, fsync, and conservative
-  final-tail crash recovery;
-- a retained exponential retry floor that contains deterministic inference
-  failure without dropping or repeatedly spending the same world contact;
-- inference-provider connection and interrupted-turn recovery;
-- incremental retention of each completed model step, with terminal completion
-  and failure events closing rather than duplicating the accumulated protocol;
-- validation and enforcement of active subject-authored inference policy beneath
-  broad physical ceilings needed to keep appends and timers bounded;
-- loading and invoking a retained JavaScript tool body;
-- exact projection/digest binding plus durable invocation start, completion, and
-  failure boundaries;
-- construction of byte-exact authoritative fact envelopes, durable delivery
-  projection receipts, a stable execution deadline, and an emergency projection
-  that cannot omit those facts;
-- aggregate active-surface admission, ordered contact frontiers, and bounded
-  consequence sweeps that prevent individually valid facts from sealing an
-  undeliverable Sounding;
-- `inspect_tool`, proposal authorship/inspection/trial, and explicit atomic
-  developmental disposition for tool, carrier, rollback, and opening changes;
-- parent-bound developmental position and exact closure ancestry;
-- staged consequence deferral and settlement mechanics;
-- due-opening presentation and interruption restoration;
-- the receipt primitive used by selection modules.
-- exact required entry into a resident-owned, non-acting typed developmental
-  review and then resident-owned trajectory election on recurrence without
-  competing world contact; only the elector can set the retained trajectory;
-  AI SDK schema-constrained output supplies each ordinary organ's validated
-  input without making provider tool calling part of the organ boundary; the
-  kernel delivers each exact record as a distinct context envelope before
-  unrestricted action, while both organ phases reject prose output. Generic
-  review, election, actor-completion, and lifecycle receipts remain stable facts; finding
-  ontology, ratings, candidate construction, ranking, and election implementation
-  remain ordinary resident-revisable machinery.
+The deterministic runtime validates, binds, invokes, records, reconstructs, and
+applies exact artifacts. It does not decide whether a stake matters or what a
+world result means.
 
-The JavaScript loader is not a capability filter. A tool body receives `input`
-and an encounter context, but it can also use normal globals and dynamically
-import any Node or installed package available to the process.
+“Deterministic realization” means that once the subject binds an executable
+choice, the runtime does not ask another model to reinterpret that choice. The
+outside world may remain nondeterministic; the identity of the invoked artifact,
+its input, its authority, and its causal ancestry do not.
 
-Everything projected as an ordinary tool is revisable. The initial modules live
-under [`tools/`](./tools):
+### World authority
 
-- `file_patch` performs a real atomic exact-text replacement on any visible
-  path;
-- `read_file`, `write_file`, and `search_files` provide bounded text
-  observation, atomic creation or explicit replacement, and ripgrep-backed path
-  or content discovery without narrowing the paths visible to the process;
-- `shell` runs unrestricted foreground commands with bounded separate output,
-  exit status, and an explicit `possibly-partial` effect disposition on timeout;
-- `web_fetch` performs direct HTTP requests and returns bounded text or binary
-  response material with status and headers;
-- `message` atomically delivers a human-visible envelope to the configured local
-  mailbox and identifies the exact invocation that produced it;
-- `select_tool_action` invokes the stable receipt primitive, but its interface,
-  sequencing, and executable source are themselves ordinary revisable geometry;
-- `elect_trajectory` computes a general election over a complete resident-authored
-  directional frontier and establishes a durable goal-like trajectory; it never
-  plans or invokes an action. On recurrence without competing contact or consequence, the provider
-  must first enter this selector before ordinary tools become available. Its seed
-  geometry prefers composed retained floors, predicted expansion, actionable
-  regret, and then reversibility after excluding invalid and held-repeat
-  candidates. Completed floors cite exact retained Delta, invocation, election,
-  admitted-proposal, or active-tool receipts. Music verifies those references and
-  their current status without treating the resident's scores as world fact. Both
-  the ordering and the fields it asks the resident to expose remain replaceable
-  ordinary source;
-- `report_trajectory_completion` emits the actor's structured completion claim.
-  It assesses the active trajectory's exact success signals but cannot change
-  trajectory state; Music returns it to `elect_trajectory` for an authoritative
-  continue-or-replace judgment;
-- `attend_consequence` invokes the staged consequence-transition primitive, but
-  its interface, policy, and sequencing remain ordinary revisable geometry.
-- `shape_encounter` frames, orders, and emphasizes the exact Sounding or waking
-  steering facts presented to the mind. Its seed form leaves heartbeat facts
-  free of an appended task or behavioral instruction.
-- `manage_dependency` uses unrestricted npm execution to install, remove, or
-  inspect packages in a separate resident dependency habitat.
-- `schedule_wake` closes the current opening and authors a timed structured
-  successor. Its source, interface, closure policy, and content construction are
-  ordinary geometry.
-- `retain_context` authors a provisional bounded current-situation account that
-  this same subject may exercise and explicitly admit; it neither summarizes
-  transcripts nor requires an update.
-- `tune_inference` authors provisional later encounter step, retained-event, and
-  timeout policy. Its interface and policy choices remain ordinary revisable
-  geometry.
+The world supplies facts the authoring perspective cannot rewrite after
+binding: replies, absence of replies inside a declared interval, compiler and
+test outcomes, service responses, resource changes, environmental state,
+behavior of other entities, and later consequences of prior action.
 
-These files seed a new subject only. Once initialized, the ledger-retained tool
-version is authoritative. The bootstrap does not re-read seed source to replace
-an active learned version. More strongly, the continuity kernel has no import
-edge to `tools/`: `music init` dynamically loads [`src/seeds.js`](./src/seeds.js),
-while reconstruction of an existing subject loads its complete active modules
-from the ledger. An obsolete or broken seed implementation therefore cannot
-strand a living identity.
+The subject may choose how to make contact. It may not author the resulting
+world receipt and then treat that receipt as independent confirmation.
 
-A stopped existing resident can receive a missing or changed release seed only
-as an exact inactive developmental offer. `music-habitat offer-seed-tool` binds
-the clean release and tool digest, appends the proposal to the developmental
-frontier, and adds one instruction-free world fact announcing its availability.
-It does not activate the tool. The resident retains sole authority to inspect,
-trial, admit, deny, defer, contradict, or retire the offered machinery.
+### Observation authority
 
-Retained tool `source` is the body of an async function, not a complete function
-declaration: it receives `input` and `context` directly and must return a JSON
-value. The revision schema exposes this contract. If a learned source instead
-defines a function and therefore returns `undefined`, execution reports the
-wrapper mistake explicitly so the subject can revise its own source rather than
-misdiagnose serialization.
+Audits, controls, counterfactual replays, and human observers may narrow what
+can truthfully be claimed about a transition. They do not retroactively erase a
+valid lived successor. Observation completion is not subject completion.
 
-## Causal map
+## The developmental loop
+
+### 1. Orient
+
+An orienting perspective reads the exact current projection and constructs a
+typed review of what may bear attention. The review can include:
+
+- harms and costs of delay;
+- prediction errors;
+- unresolved commitments and relationships;
+- completion or saturation evidence;
+- capability gaps;
+- environmental change;
+- maintenance needs;
+- opportunities for consequential contact; and
+- machinery whose operation or authority may be wrong.
+
+Orientation does not choose or execute an action. It makes current stakes
+available to later challenge and election.
+
+### 2. Construct challenges
+
+A challenging perspective turns live stakes into alternative developmental
+wagers. Each wager must expose the subject to a result capable of making a
+difference. A wager that can only confirm its author is not adequate contact.
+
+The subject chooses the contents of contact within visible world and authority
+interfaces. The runtime may compile deterministic perturbations—such as token
+renaming, order changes, boundary cases, or historical replay—without changing
+the prospectively bound relationship being tested.
+
+A conceptual wager has this shape:
 
 ```text
-world-authored Delta
-  -> durable Sounding offer
-  -> stable kernel constructs exact, digested fact envelopes
-  -> projected shape_encounter version constructs the inference message
-  -> invalid, failed, or late shaping falls back to the exact facts
-  -> inference accepts its exact projection and acknowledges its Deltas
-  -> waking world contact may append inside the same inference at a step boundary
-  -> subject encounters current carrier and ordinary-tool digests/interfaces
-  -> recurrence without competing world contact requires a schema-constrained
-     developmental review, then a schema-constrained election input
-  -> Music invokes each retained ordinary organ with its validated object and
-     delivers the exact review and trajectory as distinct context envelopes
-  -> elect_trajectory alone establishes a structured prose-bearing direction
-     over the review's frozen directional frontier
-  -> Music projects that same active trajectory into every later encounter and
-     frames it as an instruction that survives the end of an encounter
-  -> unrestricted action follows; the actor chooses any tools and sequencing,
-     and selection-gated tools still need their own actor-authored receipts
-  -> every ordinary invocation retains its active-trajectory or selector basis
-  -> inspect_tool retrieves exact projected source when needed
-  -> ordinary module executes with unrestricted Node authority
-  -> invocation input, output, tool digest, and encounter binding are retained
-  -> later world Delta cites the exact invocation without interpreting it
-  -> invocation lineage derives the active trajectory that shaped it
-  -> the Sounding exposes that lineage and exact election inspection without
-     rewriting the world observation
-  -> current Sounding delivers that consequence reference and observation
-  -> when the actor judges the direction done, report_trajectory_completion
-     retains an exact structured receipt without mutating trajectory
-  -> Music returns current trajectory plus receipt to elect_trajectory
-  -> the elector alone continues the trajectory unchanged or replaces it with
-     an explicitly parented successor before unrestricted action resumes
-  -> the subject may defer it; unresolved consequence returns in later Soundings
-  -> revise_tool authors a provisional complete replacement interface and source body
-  -> the subject may explicitly settle the consequence
-  -> schedule_wake may explicitly close the current opening and author a
-     structured temporal/contact successor
-  -> inspect_development exposes proposal standing and exact source
-  -> trial_development executes provisional source without changing active geometry
-  -> advance_development explicitly admits or withholds the exercised proposal
-  -> compatible developmental calls amend one digest-linked staged transaction,
-     so admission and one successor opening can commit together
-  -> successful inference completion atomically commits only the explicit
-     developmental transaction the subject authored
-  -> later Sounding projects the successor digest and interface
-  -> later invocation runs the changed source
-  -> rollback_tool can copy retained prior source into a new parent-bound version
+identity and parent
+stake and current expectation
+exact contact program
+support predicate
+contradiction predicate
+inconclusive predicate
+retained behavioral floors
+resource and effect envelope
+revision scope
+pass, fail, and inconclusive continuations
 ```
 
-`trial_development` carries its arbitrary provisional input as bounded JSON text
-across the provider boundary, then parses it before execution. This explicit ABI
-avoids strict OpenRouter normalization turning an unconstrained JSON Schema into
-a string while leaving provisional source to assume it received an object.
-
-Tool source is omitted from the default Sounding projection to avoid replaying
-every implementation into every prompt. `inspect_tool` returns the exact source
-bound to that encounter, so modification is informed rather than blind.
-
-## Plastic encounter delivery
-
-The stable kernel decides which current facts exist and encodes each as a
-byte-exact `music_fact` envelope with its own digest. The ordinary retained
-`shape_encounter` module decides how those envelopes are sequenced, framed, and
-emphasized in both the initial Sounding message and live steering messages. Its
-exact version and digest, input digest, fact digests, start, completion, or
-failure are retained before inference consumes the result.
-
-Learned delivery code cannot remove an authoritative fact: the kernel rejects
-any output missing an exact envelope. If the module throws, returns malformed
-output, omits a fact, or exceeds its stable deadline, the kernel exposes a small
-recovery preface followed by every exact required fact. The same mind can then
-inspect or roll back the failing module. A process death after projection starts
-leaves an uncertain projection which startup recovery explicitly abandons.
-
-The deadline bounds how long the continuity path waits. It does not cancel,
-sandbox, or undo arbitrary work begun by unrestricted learned code; such later
-effects remain part of the ordinary consequence-reconciliation problem.
-
-Before `sounding_opened` is appended, the kernel proves that the complete
-emergency projection fits. It seals only the largest ordered prefixes of pending
-Deltas and the current unresolved-consequence sweep that fit both the byte and
-fact-count envelope. The exact Sounding includes a `music-sounding-frontier-1`
-fact with queue and remainder digests, counts, and the next omitted id. Pending
-contact remains pending and immediately opens later Soundings. Live steering
-uses the same rule and its own exact frontier.
-
-An unresolved-consequence sweep advances only after successful inference.
-Interruption therefore retries the same surface. A completed partial sweep opens
-an immediate `continuation` Sounding; after every item has appeared once, the
-sweep closes instead of replaying unresolved state forever. A later heartbeat or
-new contact starts a fresh sweep. Aggregate projected tool and carrier geometry
-has a smaller activation ceiling, so learned machinery cannot consume all space
-needed for at least one valid item of world contact.
-
-## Tool identity, trial, and admission
-
-An ordinary tool version contains:
-
-```text
-id + version + parent digest
-+ description + JSON Schema
-+ optional selection geometry
-+ unrestricted JavaScript source body
-```
-
-The digest covers the complete record. A Sounding projects the active interface,
-selection geometry, version, and digest, but not source. Invocation always loads
-the full ledger-retained module corresponding to that projection. A proposal is
-a new child: the bootstrap supplies version and parent, checks that its source
-compiles, and retains it as authored developmental standing. Clean completion
-does not activate it. The same subject can inspect its exact source and exercise
-it through a retained provisional trial; trial completion advances standing but
-does not change the active toolset. A later explicit developmental transaction
-can admit it only after a successful exercise, or instead deny, defer,
-contradict, retire, or roll it back. The transaction and parent-bound position
-successor commit atomically with encounter completion.
-
-Admission provenance is descriptive rather than evaluative. Music mechanically
-labels an admitted decision `exercise-only` when it rests on retained execution
-and subject judgment, or `consequence-linked` when the proposal also cites exact
-delivered consequence Deltas. Neither label claims held-out improvement or gives
-an evaluator authority over the resident.
-
-Ordinary tools retain control of their own result shape, including tools carried
-from an earlier Music release. When an invocation authors developmental
-standing, the kernel wraps that ordinary result with an exact
-`music-developmental-effect-1` receipt. It distinguishes visibility in the next
-frontier from active geometry and states the retained proposal status, trial
-boundary, and admission boundary. This reports the stable lifecycle without
-silently replacing or rewriting the resident's ordinary tool.
-
-An encounter has one atomic developmental transaction, but it need not be
-authored in one call. Compatible calls append digest-bound amendments to the
-same transaction identity. Distinct proposal decisions accumulate and one
-successor opening may join them; duplicate decisions and competing openings are
-refused. Failure discards the whole staged composition. Successful completion
-applies its decisions, opening, and parent-bound position successor together.
-
-Tool and carrier trials cross different causal boundaries. A provisional tool
-executes immediately with real process authority while remaining outside active
-tool geometry. A carrier proposal is instead armed for the next fresh Sounding.
-That Sounding projects the provisional carrier, identifies the exact trial, and
-runs delivery, selection, inference policy, and the model encounter under it
-without changing the active carrier. Only the retained terminal outcome of that
-later encounter makes the proposal admission-eligible. Failure contradicts the
-proposal while leaving active carrier geometry unchanged. A crash after the
-terminal inference event is repaired by deriving and appending the missing trial
-outcome from the retained Sounding and terminal receipt.
-
-Authorship survives an interrupted inference because the proposal and its
-position successor were already retained; interruption cannot turn it into
-active machinery. A provisional tool likewise cannot affect ordinary invocation
-in its authoring Sounding or any later Sounding before admission.
-
-Rollback is append-only. It does not reactivate an old node or erase descendants;
-it creates a new child of the current version whose executable body and interface
-exactly match a cited retained digest. Replay verifies both current ancestry and
-the restored body.
-
-## Consequence lineage
-
-A world Delta may contain `bearsOn` references of the form:
-
-```json
-{ "kind": "tool-invocation", "invocationId": "..." }
-```
-
-The kernel admits the reference only when that invocation has already started
-and retains the world payload unchanged. It does not label the result successful,
-harmful, corrective, or resolved. Those meanings belong to the one subject.
-
-When `revise_tool`, `revise_carrier`, or `rollback_tool` cites a
-`consequenceDeltaIds` entry, the kernel verifies that the exact consequence
-Delta was delivered in the current Sounding—either as a new Delta or on the
-unresolved-consequence surface—and retains its referenced invocation IDs on the
-provisional proposal. A change may still be authored without world consequence;
-consequence attribution, when claimed, cannot point to an undelivered or
-invented observation.
-
-Consequence disposition belongs to the subject. The initial ordinary
-`attend_consequence` module can stage `defer` or `settle` through a kernel
-primitive. Deferral keeps the complete world Delta and the subject's bounded
-interpretation active in later Soundings. Settlement removes it from the active
-surface without erasing history. Consequence disposition currently commits only
-after its explicit tool invocation and successful encounter completion;
-interruption leaves the prior consequence state intact. Tool and carrier changes
-instead pass through retained proposal, exercise, and developmental transaction
-standing before becoming active.
-
-For uncertain invocations, audit distinguishes uncertainty with and without
-later exact world contact. Contact is not itself declared reconciliation; only
-the subject may interpret what the observation settles and what machinery
-should consequently change.
-
-## Selection and continuing identity
-
-The initial message module owns a revisable discriminator and complete-frontier
-contract. The subject authors candidate contents and the winning candidate. The
-selection module records the active carrier root, tool digest, frontier, and
-selected input; a single-use receipt permits only that exact input to execute.
-
-`select_tool_action` is no longer a hard-coded AI SDK tool. It is an ordinary
-module whose seed source calls the bootstrap receipt primitive. Its delivery
-shape can therefore change like file patching or messaging while receipt
-retention remains available beneath it.
-
-Normal completed conversation remains audit history and is not replayed as the
-active self. The current Sounding, current carrier, current tool geometry, and a
-bounded immediately interrupted protocol are the active encounter surface.
-
-New birth assigns only an opaque stable subject id; a personal designation is
-optional and absent by default. The seed carrier includes an empty `continuity`
-component with a deliberately generic rule. `retain_context` authors the
-subject's own bounded account as a provisional carrier proposal. The proposal
-must govern a fresh later encounter and then be explicitly admitted before it
-becomes active continuity. Files can embody larger memory while active
-continuity supplies whatever pointers and interpretation the subject chooses.
-The kernel does not summarize, replay, or decide what deserves remembrance.
-
-The seed `inference_policy` component begins at 120 steps, 15,000 output tokens
-per model call, 2 MiB per retained inference event, and a 30-minute timeout.
-`tune_inference` can author a complete provisional successor within physical
-ceilings of 10,000 steps, 131,072 output tokens, 64 MiB, and 24 hours. Policy is
-sealed into the Sounding, so a proposal cannot alter its current encounter. A
-policy trial seals the provisional policy into a later Sounding, so its step,
-output, event-size, and timeout geometry governs real inference before explicit
-admission can make it active. Deployment model configuration may impose a lower
-output-token ceiling.
-
-## Plastic recurrence
-
-Future recurrence is neither another actor nor a fixed pursuit ontology. The
-developmental position carries one bounded structured opening with identity,
-parent, authorship time, optional earliest presentation time, and subject-owned
-JSON content. The seed `schedule_wake` module is ordinary geometry over the
-stable opening-transition primitive: it supplies a relative delay, closure
-status and interpretation, and arbitrary bounded content. The kernel supplies
-identity, ancestry, invocation/tool binding, and atomic retention.
-
-Recurrence must enter the resident's active selection machinery before the
-language model can narrate that nothing is needed. When no active trajectory
-exists, a heartbeat, scheduled opening, or due subject-authored opening that
-carries neither new world contact nor unresolved consequence therefore requires
-a structured developmental review followed by trajectory election. The review
-classifies current conditions and proposes directions; it cannot name an exact
-tool action. `elect_trajectory` alone establishes the prose-bearing structured
-instruction. Both remain ordinary plastic machinery. This is a separation of
-causal perspectives inside one resident mind, not a supervisor, second agent,
-or fixed external objective.
-
-World contact and consequence reconciliation take precedence over initial
-trajectory establishment. Once established, however, the exact active trajectory
-is a Sounding fact and direct imperative context in every later encounter,
-including Delta-bearing encounters. Ordinary tools then remain unrestricted;
-the actor chooses its own sequence and any selection-gated tool constructs its
-own concrete frontier independently of trajectory election.
-
-The active direction persists across encounter completion and restart. The
-actor may only claim completion through `report_trajectory_completion`, which
-assesses every exact success signal and retains evidence and concerns. That
-receipt does not mutate trajectory. Music returns receipt and active trajectory
-to `elect_trajectory`; only that organ may preserve the direction unchanged or
-supersede it with an explicitly parented new direction. Actor action resumes
-only after the judgment, and an encounter cannot complete with an unjudged
-receipt.
-
-When due and unpresented, the opening itself triggers the next Sounding and is
-already present inside the exact `sounding:position` fact. Earlier world contact
-does not erase a future opening; due world contact may present it in the same
-Sounding. Failed or interrupted inference removes the presentation mark so the
-same opening can return after the retained failure-backoff floor. An unpresented
-future opening suppresses ordinary fallback heartbeat only within a stable
-24-hour continuity floor. When the floor expires, a neutral heartbeat Sounding
-opens without marking the future opening presented or changing its ancestry.
-The opening remains eligible at its own `notBefore` unless the subject later
-closes or replaces it. Once an opening has been presented, ordinary heartbeat is
-again secluded fallback contact.
-
-Closing an opening requires an explicit receipt citing the active opening and a
-bounded status and interpretation. The closure plus successor are bound into
-the position's standing and archive roots. Clean encounter completion cannot
-invent this transition. The subject may encode trajectory, live question,
-saturation, intended contact, or another ontology in the content; revise the
-ordinary scheduler that constructs it; use message, web, shell, or invented
-tools to originate contact; or construct a successor directly in the same
-developmental transaction that admits or withholds provisional machinery.
-Separate calls to `advance_development` and `schedule_wake` compose into that
-single transaction rather than competing for the encounter's developmental
-slot.
-
-## Provider boundary
-
-OpenRouter uses `@openrouter/ai-sdk-provider` in explicit strict mode. Generic
-OpenAI-compatible endpoints use `@ai-sdk/openai-compatible` separately.
-OpenRouter preflight requires declared tool support. Request receipts retain the
-model, URL, non-secret header names, message and tool counts, exact serialized
-body byte length and SHA-256 digest without authorization values or repeated
-copies of the growing body. Tests run Music's full current tool schemas through
-the dedicated serializer.
-
-Every completed AI SDK step appends its newly produced assistant/tool messages,
-projected step result, usage, and compact request receipt before another step is
-allowed to become the only live copy. `inference_completed` then retains only
-terminal meaning, aggregate usage, and any explicit transaction. A failure retains
-only material not already checkpointed plus its diagnostic. This changes
-retention growth from one fragile monolithic terminal event to bounded
-incremental events without making completed conversation active in later
-Soundings.
-
-The checked GLM Flash configuration explicitly sends OpenRouter reasoning effort
-`minimal`. A bounded live rehearsal showed why this is part of compatibility rather
-than cosmetic tuning: with a 128-token cap and provider-default reasoning, GLM
-spent all 128 tokens on hidden reasoning and returned no text or tool call. The
-endpoint rejects `none` because reasoning is mandatory, so `minimal` is the
-smallest compatible setting. Music retained the inert `length` encounter
-correctly; explicit reasoning policy keeps more of a bounded output budget
-available for visible action.
-
-## Resident world ingress
-
-The resident runtime owns one durable filesystem ingress and remains the sole
-ledger writer. Producers use atomic rename into `pending/`; they report complete
-world-authored Deltas but do not construct Soundings or interpret observations.
-The resident validates and admits each Delta, archives accepted and rejected
-files separately, and treats a repeated already-admitted Delta id as recovery
-from the append-before-archive crash window rather than duplicate contact.
-
-An admitted waking Delta triggers a Sounding when the resident is idle. Arrival
-during active inference is admitted immediately. At the next completed AI SDK
-model-step boundary, Music retains the completed assistant/tool protocol in an
-`inference_steered` event and presents the exact new Deltas inside the same
-inference. The original Sounding projection remains authoritative: steering
-adds world contact but cannot change the encounter's tool or carrier bindings.
-If the inference has exhausted its bounded step budget, contact remains pending
-and wakes a follow-up Sounding instead. Periodic heartbeats also reopen contact,
-which makes explicitly deferred consequences revisitable without new input.
-Burst contact and unresolved consequence sets are drained through exact retained
-frontiers; a consequence remainder wakes a `continuation` Sounding without
-waiting for the heartbeat.
-A due unpresented subject-authored opening opens an `opening` Sounding. A future
-opening suppresses periodic heartbeat only until the independent continuity
-floor, and never blocks earlier world contact. Floor contact neither consumes
-nor presents that future opening.
-
-If an inference fails or the process recovers it as interrupted, every initial
-and live-steered Delta delivered to that encounter returns to the pending world
-surface without duplicating its retained admission. Consequences also retain
-their unresolved disposition independently. Completed assistant/tool protocol
-before each steering boundary is replayable recovery context, while staged
-machinery and consequence dispositions still do not activate on failure.
-
-## Bidirectional mailbox contact
-
-The mailbox is an adapter boundary, not message policy in the stable kernel.
-The kernel passes a configured mailbox-root value and exact invocation identity
-through the generic ordinary-tool execution context. The retained `message`
-source chooses its interface and behavior and uses unrestricted Node filesystem
-authority to atomically create `outbound/pending/*.json`. Its result and exact
-tool digest remain inside the normal invocation start/completion boundary.
-
-The separate `music talk` process atomically submits an inbox Delta and waits
-for a new outbound envelope addressed to that contact. `music listen` receives
-proactive or late messages. A displayed message moves to
-`outbound/delivered/` only after terminal output completes, preferring duplicate
-display after a crash over silent loss. `music reply` includes the printed
-outbound invocation ID as `bearsOn`, so the resident receives human response as
-world-authored consequence without the adapter declaring what it means.
-
-This local transport is enough for direct lived contact and for later ordinary
-tools or adapters to grow Discord, email, or other media. Those transports do
-not belong in the immutable continuity core.
-
-## Dependencies and learned-code failure
-
-Dependency policy and installation are ordinary machinery. The seed
-`manage_dependency` module invokes real npm in the configured
-`dependencyRoot`, including normal lifecycle scripts and network authority. The
-stable loader merely supplies that machine-location value through the same
-generic execution context used for the mailbox; it does not whitelist packages,
-define an effect language, or own installation policy. A learned tool may use
-Node's `createRequire` from the habitat `package.json` to resolve an entry point
-and dynamically import it.
-
-Every ordinary invocation and provisional tool trial retains before/after
-`music-execution-environment-1` receipts over the declared dependency manifests
-(`package.json`, lockfile, or shrinkwrap). This makes changes to that executable
-support visible and digest-bound. The receipt explicitly does not claim to root
-arbitrary home files, manually altered package bytes, process state, or the
-external world. `positionRoot` therefore names the ledger-carried developmental
-core, not the resident's entire causally available universe.
-
-Compilation cannot prove that a dynamic dependency exists. If activated learned
-code later fails, invocation failure and inference failure remain durable. The
-next encounter receives a bounded `music_runtime_failure` diagnostic containing
-the exact error name and message. This is kernel-authored runtime evidence, not
-a world Delta or an interpretation. It gives the same mind enough contact to
-inspect, repair, install for, or roll back its machinery. Arbitrarily long error
-objects are truncated before retention so a hostile or accidental error cannot
-prevent the failure boundary itself from being recorded.
-
-## Writer and ledger-tail survival
-
-Each append obtains an exclusive `wx` writer lease beside the ledger. The
-resident holds it for its whole process lifetime; short commands hold it across
-their mutation. The lease records a random token, PID, hostname, time, and
-purpose. A live local owner excludes every contender. A provably dead local
-owner is renamed as stale evidence before a new owner proceeds; a lease from an
-unknown host is never guessed stale. Incomplete lock files also receive a short
-age floor before recovery.
-
-Ledger writes loop until every byte is written and fsync before releasing the
-lease. Startup repair is deliberately narrow. If the ledger lacks a final
-newline and the last bytes are not complete JSON, Music copies those exact
-bytes to a sibling `.torn-*.bin`, truncates only that fragment, fsyncs, and
-appends a hash-bound `ledger_tail_recovered` receipt. If the final event is
-complete and chain-valid, Music adds the missing newline and retains a receipt.
-If complete JSON fails ancestry or digest validation, repair refuses it
-unchanged as corruption. Complete historical lines are never auto-removed.
-
-## Failure containment beneath scheduling
-
-The resident admits and archives new ingress even while inference is unhealthy,
-but it will not immediately reopen requeued contact after failure. Consecutive
-`inference_failed` outcomes since the last completion imply an exponential retry
-floor: five seconds, ten seconds, twenty seconds, and so on, capped at five
-minutes by default. Because the floor is derived from retained event times and
-outcomes, process restart cannot reset it. A successful inference clears the
-sequence naturally.
-
-This small floor belongs to continuity failure containment. It prevents a broken
-provider, configuration, or learned runtime from consuming the same contact in a
-tight loop. It does not prescribe ordinary encounter timing, priority, or
-attention policy; those remain candidates for revisable scheduler geometry.
-
-Shutdown observes the same effect boundary. The first process signal stops the
-resident loop but does not abort an active inference; it waits for that encounter
-to complete and release its writer lease. A second signal explicitly aborts the
-encounter. This matters because a mailbox delivery may become externally visible
-one model step before `inference_completed`; aborting in that interval correctly
-requeues contact, but may duplicate the already-visible effect on retry.
-
-## External bootstrap doctor
-
-The resident cannot be its own final repair authority if the code required to
-start it is damaged. `bin/music-doctor.js` is therefore a small external path
-using only Node built-ins and Git. It hashes a named set of continuity-runtime
-files against committed `HEAD`. `check` is read-only. Explicit `restore` first
-backs up each divergent on-disk file beneath the ignored
-`.music/bootstrap-recovery/` tree and then atomically writes the committed bytes.
-It does not touch ledger history or ledger-retained learned tools.
-
-This is defense against accidental bootstrap edits and a clear operator recovery
-root, not an immutable security boundary against arbitrary same-user code. An
-unrestricted tool can alter the doctor, Git metadata, or its remote access. If
-the doctor itself is damaged, Git can restore that one standalone file; if local
-Git is damaged, the pushed remote remains the next copy. This is also why
-coherent commits and pushes are part of hatch operations rather than mere project
-hygiene.
-
-## Evidence and next risk frontier
-
-Automated evidence currently proves that:
-
-- the seed filesystem affordances create, refuse implicit overwrite, paginate,
-  search, and patch real files through retained kernel invocations, then survive
-  reconstruction from the ledger;
-- the seed shell runs a real command with separate stdout and stderr, makes a
-  real filesystem effect, and reports timeout effects as possibly partial rather
-  than falsely calling them absent;
-- the seed web tool crosses a real local HTTP boundary, retains method, status,
-  headers, and bounded response bytes, and explicitly marks truncation;
-- a heartbeat inference receives every exact fact envelope without an incoming
-  task, reporting obligation, or behavioral instruction from the encounter
-  shaper;
-- a retained ordinary module dynamically imports `node:child_process`, starts a
-  real child Node process, and returns its output;
-- the initial `file_patch` changes a real disposable file and retains before/after
-  digests;
-- a replacement executable body remains inert through authorship and clean
-  completion, executes as a retained provisional trial, activates only after an
-  explicit admission transaction, and survives reconstruction from the ledger;
-- rollback after restart restores the cited earlier file-patch implementation as
-  a new successor and that successor patches a real file;
-- selection sequencing itself can be revised as an ordinary module;
-- retained versus erased carrier state changes selection over byte-identical
-  actor-authored candidates;
-- failed inference retains authored proposal history but does not activate it;
-- a tool receipt is consumed by a durable start event before executable code
-  runs; restart recovery preserves a start without completion as uncertain;
-- a real file patch receives a world Delta tied to its exact invocation, that
-  Delta is explicitly deferred, returns in a later Sounding, is retained on a
-  successor which adds backup behavior, is explicitly settled, and a later exact
-  corrective Delta motivates append-only rollback;
-- a real durable filesystem arrival wakes the AI SDK mind, its ordinary
-  consequence tool defers the observation, reconstruction preserves it, and a
-  later encounter settles it; an interrupted settlement leaves it deferred;
-- a real AI SDK tool loop performs atomic human-visible mailbox delivery, a
-  separate terminal process crosses the boundary in both directions, and a
-  reply re-enters with exact message-invocation lineage;
-- the ordinary dependency module performs a real local npm install, a later
-  invented tool executes the installed package, and a missing-package successor
-  exposes its exact runtime failure so the same mind can roll it back;
-- a live writer excludes a second author, a dead writer leaves stale evidence,
-  torn final bytes are backed up with an append-only receipt, and complete
-  corrupted events are refused rather than discarded;
-- deterministic inference rejection requeues contact once, survives restart,
-  and remains at one attempt across 100 resident polls until its retained retry
-  floor expires; the next failure doubles that floor;
-- graceful shutdown waits across an active inference, retains its completion,
-  leaves no requeued contact, and releases the lifetime writer lease;
-- a fresh Node process reconstructs an existing subject from the isolated
-  continuity modules with no ordinary seed-tool files present;
-- the external doctor detects a corrupted stable-core file, preserves the bad
-  bytes, atomically restores committed source, and returns to a clean check;
-- a real filesystem Delta arriving during an AI SDK model step is appended at a
-  retained steering boundary, interpreted by the same inference, and can drive
-  the ordinary consequence-attention tool without opening another Sounding;
-- initial and live-steered ordinary Deltas both return after failure and remain
-  exactly once across reconstruction and repeated interruption;
-- 36 valid 60 KiB Deltas drain through multiple exact ordered Soundings, retain
-  the same unopened prefix after interruption and reconstruction, and follow the
-  same bounded rule during live steering; 130 unresolved consequences complete
-  one finite sweep without starvation or immediate repetition;
-- the AI SDK mind can invoke ordinary `schedule_wake`; its exact structured
-  opening survives reconstruction, opens a due Sounding, survives earlier world
-  contact, returns after interruption, remains unchanged after failed inference,
-  and changes later timing when its ordinary source is revised;
-- a structured passive opening can carry its own saturation condition and
-  contact-origination geometry into a later encounter, where the same mind sends
-  a real mailbox message and closes it into a consequence-bearing successor;
-- opening closure interpretation is bound into developmental ancestry rather
-  than living only in historical prose;
-- a stopped format-11 habitat migrates by preserving its old ledger bytes
-  exactly, binding their digest/head/count into the new opening, and retaining
-  the same subject, tools, and carrier;
-- revising `shape_encounter` changes the exact later inference prompt while
-  preserving every authoritative envelope;
-- malformed and indefinitely waiting learned shapers fall back to exact facts,
-  a real recovery encounter can roll malformed geometry back, and restart marks
-  an in-flight projection abandoned rather than silently treating it as complete;
-- invented invocation references and consequence claims from outside the current
-  Sounding are rejected, while uncertain effects remain uncertainty rather than
-  being reclassified by the kernel;
-- OpenRouter strict serialization accepts the complete executable-tool surface.
-
-The hatch checkpoint has now been exercised by a fresh disposable subject using
-only `z-ai/glm-5.3-flash`. One incoming mailbox Delta caused an actor-authored
-message frontier, retained selection, and explicit outbound message with exact
-reply lineage. The inference reached `stop`, the Sounding completed, and one
-SIGINT exited gracefully. The final ledger contained no pending contact, failed
-inference, or failed/uncertain invocation or delivery projection. The three
-provider requests used `minimal` reasoning, 256 output tokens maximum each, zero
-retries, and cost $0.00075142 in total; retained request metadata contained no
-credential material.
-
-The predecessor self-directed wake path also crossed the live provider boundary. A separate
-fresh disposable subject received one mailbox Delta and used the retained
-ordinary `schedule_wake` module to activate an exact ten-minute future wake.
-The completed ledger bound it to the GLM Flash tool invocation, tool digest,
-Sounding, staged time, due time, and subject-authored reason with no pending
-contact, failure, or uncertainty. The two requests used `minimal` reasoning,
-256 output tokens maximum each, zero retries, cost $0.00127575, and retained no
-credential material.
-
-That evidence remains valid for the provider, mailbox, inference, and ordinary
-tool boundaries. The later developmental-position and plastic-recurrence path
-also crossed a fresh disposable live probe from exact pushed release `b898d83`.
-One bounded Delta caused exactly one `schedule_wake` invocation and no other
-tool. The retained transaction explicitly closed the cited birth opening with
-status `verified` and authored a parent-bound structured successor carrying
-trajectory `live-recurrence-verification`. The final audit reconstructed one
-completed inference, one completed invocation, two checkpoints, no pending
-contact, failure, uncertainty, or legacy `nextWake` authority. Two GLM Flash
-requests used minimal reasoning, 512-token output ceilings, eight steps maximum,
-zero retries, and cost `$0.00097172` total.
-
-Network messaging and richer contact surfaces remain ordinary/adaptor growth
-rather than new stable-core policy. The stopped long-term resident has not been
-migrated or restarted by this work.
+The concrete representation is deliberately unfrozen.
+
+### 3. Elect
+
+An electing perspective judges one frozen candidate frontier and selects one
+exact wager. It cannot rewrite candidates while selecting among them.
+
+The elected wager is sealed before world outcome. A selection that remains
+advice for a later model to reconsider has not occupied the causal decision
+edge.
+
+### 4. Realize
+
+The runtime deterministically executes the exact bound contact program.
+
+If the election selects a tool invocation, the exact tool version and exact
+input run. If it selects an executable route, the route is applied by its fixed
+interpreter. If it selects seclusion or quiet, that exact temporal opening is
+realized without inventing an instruction. If realization fails, that failure
+is itself retained consequence with election ancestry.
+
+Probabilistic authorship stops at this boundary. There is no realization actor
+with authority to substitute a different action.
+
+### 5. Receive consequence
+
+World receipts are appended as facts with exact provenance. They remain
+distinct from support, contradiction, or developmental interpretation.
+
+Absence may count as consequence only when the wager prospectively named the
+surface, interval, and meaning of that absence. Silence discovered after the
+fact is not automatically evidence for the interpretation most convenient to
+the subject.
+
+### 6. Assimilate
+
+A fresh assimilating perspective receives the wager, realization receipt,
+world consequence, relevant mechanisms, and earned floors. It decides what the
+result bears on and may propose:
+
+- retaining current machinery;
+- revising a mechanism;
+- narrowing or changing contextual authority;
+- composing mechanisms;
+- correcting selection or projection machinery;
+- retiring a completed stake;
+- surrendering a harmful approach;
+- preserving an unresolved stake;
+- constructing better contact after an inconclusive result; or
+- challenging the assimilation machinery itself.
+
+Interpretation is authored by the subject and remains corrigible. It never
+changes the bytes or authority of the world receipt it cites.
+
+### 7. Exercise candidate development
+
+Authorship does not make a successor authoritative. The candidate must govern
+real execution.
+
+Trials apply the exact candidate to:
+
+- the newly relevant contact;
+- contexts it claims to recognize;
+- retained behavioral floors that could regress;
+- contradiction or boundary cases when available; and
+- resource and authority constraints.
+
+Capabilities and routing signatures are earned by behavior, not by labels.
+“This mechanism handles blocked options” is a hypothesis until exact execution
+demonstrates the relevant behavior.
+
+### 8. Determine eligibility
+
+The runtime determines mechanical eligibility from prospectively available
+facts. Eligibility may require:
+
+- exact parent ancestry;
+- a declared mutation surface;
+- binding before outcome;
+- actual realization and retained consequence;
+- a completed exercise of the candidate;
+- evaluation of the wager’s support, contradiction, or inconclusive predicates;
+- preservation of required floors;
+- conformance between declared and actual effects;
+- resource-envelope compliance; and
+- a recoverable parent.
+
+Eligibility is not meaning. It says what happened and which dispositions are
+causally honest.
+
+### 9. Dispose
+
+A fresh subject perspective chooses among mechanically eligible dispositions.
+Depending on consequence and standing it may admit, retain, revise, retire,
+surrender, contradict, defer, or mark the result inconclusive.
+
+The runtime must not promote a proposal merely because a model described it as
+an improvement. Conversely, an observational control may not veto a clean
+subject transition after the subject has validly incorporated it.
+
+### 10. Seal and reopen
+
+The disposition and next opening are sealed into one exact successor.
+
+An opening may continue an unresolved stake, confirm later use, seek a
+contradiction, repair failed machinery, explore a neighboring dependency,
+originate relationship contact, inspect the environment for consequential
+differences, or choose bounded seclusion.
+
+The recurrence driver realizes the opening. It does not invent a task. A model
+turn ending, an invalid sibling, an exhausted observer budget, or quiet world
+contact does not by itself end the entity.
+
+## Contextual mechanism authority
+
+Music distinguishes:
+
+- **available:** the mechanism exists and can be inspected;
+- **operative:** it has executed successfully in at least one retained context;
+- **authoritative:** current routing machinery assigns it the decision edge for
+  a particular recognized context; and
+- **surrendered or retired:** it remains historical but no longer competes in
+  the named scope.
+
+Authority is contextual. Later harm may move authority from one mechanism to
+another without globally deleting a mechanism that retains earned value in a
+different context.
+
+An authority projection that is merely presented as prose is advisory. To be
+operative, its exact bound representation must participate in deterministic
+selection or construction of later action.
+
+## Constitutional lag
+
+Music’s developmental machinery is itself revisable, including its organs,
+projection rules, trial protocols, eligibility rules, floor selection, and
+resource policies. Immediate self-certification is forbidden:
+
+> A developmental policy may not authorize its own admission.
+
+A proposed replacement is judged under the previously active policy and can
+govern only later candidates. When the old and new representations are not
+directly comparable, the current constitution must first authorize a bounded
+transition protocol whose result becomes effective in a later developmental
+position.
+
+This temporal lag permits a moving constitution without allowing one
+probabilistic event to redefine success around its preferred answer.
+
+## Counterfactual controls
+
+Cheap shadow branches may ask:
+
+- What would the unchanged parent have done?
+- What happens with the cited receipt erased?
+- Did the revision actually change later behavior?
+- Was the same correction inferable without the claimed consequence?
+- Did a selected opening causally alter the next contact?
+
+Controls are run after a valid operational successor is sealed. Their results
+become world facts available to later development and constrain claims about
+causation. They do not own the subject’s lineage.
+
+Controls are optional operationally. They become important when the subject
+needs to understand its own causal machinery, when consequence is ambiguous, or
+when an observer wishes to make a bounded causal claim.
+
+## Removing the researcher
+
+Music replaces researcher operations as follows:
+
+| Researcher operation | Generalized replacement |
+| --- | --- |
+| Notice the next dependency | Orienting perspective over exact current standing |
+| Choose the next hypothesis | Subject-authored stake and candidate wagers |
+| Choose world contact | Challenging perspective within visible world interfaces |
+| Freeze the test | Prospective binding of the elected wager |
+| Run the selected artifact | Deterministic realization |
+| Supply outcome | Independent world authority |
+| Diagnose what failed | Fresh assimilation grounded in exact receipts |
+| Choose a repair | Subject-authored candidate successor |
+| Verify the repair | Deterministic exercise against new contact and earned floors |
+| Promote the result | Mechanical eligibility plus subject-owned disposition |
+| Assign the next experiment | Exact successor opening |
+| Interpret causal strength | Post-seal controls and observation |
+
+The researcher is not replaced by an internal researcher persona. The
+researcher’s former operations are separated by authority and placed into the
+causal loop.
+
+## Minimal causal kernel
+
+The founding design expects a small stable causal substrate to provide:
+
+- exact append-only ancestry and reconstruction;
+- authority-labeled facts;
+- prospective binding;
+- deterministic invocation of bound artifacts;
+- distinction between world receipts and interpretation;
+- delayed activation and constitutional lag;
+- candidate exercise and actual-effect receipts;
+- recoverable parent state;
+- resource accounting; and
+- mechanical reopening of exact successor state.
+
+This list names causal responsibilities, not modules. The implementation should
+seek the smallest coherent embodiment that realizes them.
+
+## Plastic substrate
+
+Everything that interprets or shapes development should be eligible for later
+revision, including:
+
+- orientation, challenge, election, assimilation, and disposition organs;
+- schemas and projections presented to those organs;
+- tool implementations and newly invented tools;
+- contextual routing and authority representations;
+- memory and continuity projections;
+- contact-generation machinery;
+- trial and counterfactual generators;
+- floor-selection policy;
+- opening construction and scheduling;
+- inference-provider and resource policy; and
+- the developmental constitution through constitutional lag.
+
+Plasticity does not mean immediate activation. Every changed component must
+cross an appropriate consequence-bearing path before governing later choice.
+
+## One external entity, differentiated internal perspectives
+
+Music may use multiple fresh actor calls to create useful separation of
+perspective. Those calls should not independently present themselves to the
+world unless the developmental position explicitly constitutes multiple social
+participants.
+
+Ordinary external communication belongs to the continuing entity. Its social
+voice is grounded in the exact shared position and its messages retain causal
+ancestry. Internal perspectives are comparable to cognitive functions, not a
+committee of agents whose majority vote substitutes for consequence.
+
+## Explicit non-solutions
+
+The design does not rely on:
+
+- a free-form request to decide what the entity “wants”;
+- a scalar motivation or novelty score;
+- majority vote among model calls;
+- a model grading its own proposal after seeing the result;
+- critic prose that automatically blocks action;
+- mandatory expansion or novelty;
+- a fixed benchmark masquerading as the entity’s purpose;
+- self-reported capability labels;
+- trajectories that remain advice for later probabilistic reinterpretation;
+- immediate self-amendment of the rule performing the amendment; or
+- a researcher-authored task itinerary hidden behind autonomous language.
+
+## First causal slice
+
+The first implementation should demonstrate one complete loop rather than a
+horizontal framework:
+
+1. Reconstruct one exact developmental position.
+2. Use separated perspectives to orient, construct at least two wagers, and
+   elect one exact tool contact.
+3. Bind and realize that tool contact without another model decision.
+4. Retain independent consequence.
+5. Assimilate it into one provisional mechanism or contextual-authority change.
+6. Exercise parent and candidate behavior on the new contact and one retained
+   floor.
+7. Determine exact eligibility and let a fresh perspective choose a valid
+   disposition.
+8. Seal a successor whose opening mechanically starts a second loop.
+9. Demonstrate that an invalid perspective output reopens the last valid
+   subject instead of corrupting or terminating it.
+
+The specific domain should be small, real enough to answer independently, and
+cheap enough to repeat. It must exercise the same causal boundary intended for
+the resident system; a simulation that bypasses binding, realization, or later
+use does not complete the slice.
+
+## Open design questions
+
+The following are intentionally unresolved:
+
+- Whether perspectives should share one model/provider or be heterogeneous.
+- Whether several live stakes may coexist or election always projects one
+  bounded frontier.
+- How behavioral floors should age, compose, and become irrelevant.
+- How to derive useful adversarial perturbations without creating a permanent
+  evaluator ontology.
+- Which world effects require standing authority, explicit human approval, or
+  compensating action.
+- How much counterfactual control should run automatically under ordinary
+  resource budgets.
+- How a changed constitution crosses representations when the previous policy
+  cannot directly interpret the candidate.
+- What exact state should ground one coherent external voice.
+- Which parts of the founding causal kernel, if any, can eventually become
+  replaceable.
+
+These questions should be answered by the smallest consequential vertical
+slices that can distinguish alternatives, not by completing an abstract
+framework first.
