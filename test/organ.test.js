@@ -349,3 +349,103 @@ test('a restart resumes a bound wager without rerunning orientation, challenge, 
   assert.equal(result.realized.position.memory['bound-before-restart'], true);
   assert.equal(kernel.state().perspectives.size, 0);
 });
+
+test('a provisional tool-authority policy must shape a fresh frontier and election before admission', async t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-authority-trial-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  let sequence = 0;
+  const kernel = new MusicKernel(habitat, {
+    clock: () => new Date(1_788_220_800_000 + sequence++ * 1_000), id: () => `id-${sequence++}`,
+  });
+  kernel.governance.set('local.read', true, 'test operator');
+  kernel.governance.set('local.execute', true, 'test operator');
+  const initial = kernel.initialize();
+  writeFileSync(join(habitat, 'blue.txt'), 'blue');
+  writeFileSync(join(habitat, 'alpha.txt'), 'alpha');
+  writeFileSync(join(habitat, 'beta.txt'), 'beta');
+  const { compileWager } = await import('../src/wager-compiler.js');
+  const originatingIntent = candidate('authority-origin', initial.position.mechanisms.read_file.artifact, 'blue.txt', 'alpha');
+  originatingIntent.developmentScope = ['/memory', '/authority'];
+  const originating = compileWager(originatingIntent, { position: initial.position, readTool: id => kernel.artifacts.readJson(id) });
+  kernel.bindWager(originating);
+  await kernel.realize(originating.id);
+  const developmentId = kernel.proposeDevelopment({
+    wagerId: originating.id,
+    invocationId: 'authority-assimilation',
+    proposal: {
+      proposedDevelopment: {
+        kind: 'tool-authority', allowedToolIds: ['read_file'],
+        opening: { kind: 'continue', notBefore: null, focus: 'Exercise the bounded read-only tool frontier.' },
+      },
+    },
+  });
+  const outputs = {
+    orientation: { harms: [], opportunities: [], unresolved: [], machineryConcerns: [] },
+    challenge: { candidates: [
+      candidate('authority-alpha', initial.position.mechanisms.read_file.artifact, 'alpha.txt', 'alpha'),
+      candidate('authority-beta', initial.position.mechanisms.read_file.artifact, 'beta.txt', 'beta'),
+    ] },
+    election: {
+      selectedWagerId: 'authority-alpha',
+      assessments: [
+        { wagerId: 'authority-alpha', consequenceExposure: 'strong', cost: 'low', delayHarm: 'low', admissibilityRisk: 'low' },
+        { wagerId: 'authority-beta', consequenceExposure: 'adequate', cost: 'low', delayHarm: 'low', admissibilityRisk: 'low' },
+      ],
+    },
+    disposition: {
+      choice: 'admit', opening: { kind: 'continue', notBefore: null, focus: 'Unused.' },
+      basis: { trialEligible: true, floorsPreserved: true, consequenceBearing: 'strong' },
+    },
+  };
+  let challengeProjection;
+  const perspectives = new PerspectiveEngine(kernel, { infer: async ({ kind, projection }) => {
+    if (kind === 'challenge') challengeProjection = projection;
+    return { output: outputs[kind], model: 'test/fresh' };
+  } });
+  const result = await new DevelopmentalOrgan(kernel, perspectives).open();
+  assert.equal(result.trial.runtime, 'music-v2-tool-authority-trial-1');
+  assert.equal(result.trial.authorityExercise.selectedTool, 'read_file');
+  assert.deepEqual(challengeProjection.tools.map(tool => tool.manifest.id), ['read_file']);
+  assert.deepEqual(result.position.authority.toolSelection.allowedToolIds, ['read_file']);
+  assert.equal(result.realized.evaluation.kind, 'support');
+  assert.deepEqual(kernel.state().position.authority.toolSelection.allowedToolIds, ['read_file']);
+  assert.equal(kernel.state().development.get(developmentId).status, 'admit');
+});
+
+test('a restart after authority election resumes at disposition and preserves the elected wager', async t => {
+  const habitat = mkdtempSync(join(tmpdir(), 'music-v2-authority-resume-'));
+  t.after(() => rmSync(habitat, { recursive: true, force: true }));
+  const kernel = new MusicKernel(habitat);
+  kernel.governance.set('local.read', true, 'test operator');
+  const initial = kernel.initialize();
+  writeFileSync(join(habitat, 'origin.txt'), 'blue');
+  writeFileSync(join(habitat, 'selected.txt'), 'alpha');
+  const { compileWager } = await import('../src/wager-compiler.js');
+  const originIntent = candidate('authority-resume-origin', initial.position.mechanisms.read_file.artifact, 'origin.txt', 'alpha');
+  originIntent.developmentScope = ['/memory', '/authority'];
+  const origin = compileWager(originIntent, { position: initial.position, readTool: id => kernel.artifacts.readJson(id) });
+  kernel.bindWager(origin); await kernel.realize(origin.id);
+  const developmentId = kernel.proposeDevelopment({
+    wagerId: origin.id, invocationId: 'assimilation',
+    proposal: { proposedDevelopment: { kind: 'tool-authority', allowedToolIds: ['read_file'], opening: { kind: 'continue', notBefore: null, focus: 'Exercise.' } } },
+  });
+  const candidatePosition = kernel.developmentCandidate(developmentId);
+  const selected = compileWager(candidate('authority-resumed-selection', initial.position.mechanisms.read_file.artifact, 'selected.txt', 'alpha'), {
+    position: candidatePosition, readTool: id => kernel.artifacts.readJson(id),
+  });
+  kernel.trialAuthorityDevelopment(developmentId, {
+    candidatePosition: candidatePosition.id, selectedWager: selected,
+    perspectiveReceipts: { orientation: 'a'.repeat(64), challenge: 'b'.repeat(64), election: 'c'.repeat(64) },
+  });
+  const perspectives = new PerspectiveEngine(kernel, { infer: async ({ kind }) => {
+    assert.equal(kind, 'disposition');
+    return { output: {
+      choice: 'admit', opening: { kind: 'continue', notBefore: null, focus: 'Unused.' },
+      basis: { trialEligible: true, floorsPreserved: true, consequenceBearing: 'strong' },
+    }, model: 'test/fresh' };
+  } });
+  const result = await new DevelopmentalOrgan(kernel, perspectives).open();
+  assert.equal(result.realized.evaluation.kind, 'support');
+  assert.equal(kernel.state().position.memory['authority-resumed-selection'], true);
+  assert.equal([...kernel.state().perspectives.values()].length, 1);
+});

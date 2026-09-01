@@ -63,13 +63,19 @@ const ToolDevelopmentSchema = z.object({
   opening: OpeningSchema,
 });
 
+const ToolAuthorityDevelopmentSchema = z.object({
+  kind: z.literal('tool-authority'),
+  allowedToolIds: z.array(IdentifierSchema).min(1).max(64),
+  opening: OpeningSchema,
+});
+
 export const AssimilationSchema = z.object({
   consequenceClass: z.enum(['ambiguous', 'conflicting', 'insufficient', 'novel']),
   bearsOn: z.array(z.string().min(1).max(1024)).min(1).max(16),
   harm: z.enum(['none', 'low', 'medium', 'high', 'critical']),
   urgency: z.enum(['background', 'soon', 'now']),
   disposition: z.enum(['retain', 'revise', 'defer', 'surrender']),
-  proposedDevelopment: z.discriminatedUnion('kind', [PositionDevelopmentSchema, ToolDevelopmentSchema]),
+  proposedDevelopment: z.discriminatedUnion('kind', [PositionDevelopmentSchema, ToolDevelopmentSchema, ToolAuthorityDevelopmentSchema]),
   evidence: z.array(z.object({ observationId: z.string(), bearing: z.string().min(1).max(1024) })).max(32),
 });
 
@@ -89,22 +95,25 @@ export class DevelopmentalOrgan {
     this.perspectives = perspectives;
   }
 
-  projection() {
+  projection(positionOverride = null) {
     const state = this.kernel.state();
     if (!state.subject) throw new Error('Music subject does not exist');
     const grants = this.kernel.governance.read();
     const granted = new Set(grants.filter(value => value.active).map(value => value.capability));
+    const position = positionOverride ?? state.position;
+    const allowed = position.authority?.toolSelection?.allowedToolIds;
     return {
       subject: state.subject,
-      position: state.position,
+      position,
       observations: state.observations.slice(-64),
-      tools: Object.values(state.position.mechanisms)
+      tools: Object.values(position.mechanisms)
         .filter(value => value?.kind === 'tool')
         .map(value => ({
           artifact: value.artifact,
           manifest: value.manifest,
           standing: value.standing,
-          selectable: value.manifest.effects.every(effect => granted.has(effect)),
+          selectable: value.manifest.effects.every(effect => granted.has(effect)) &&
+            (!Array.isArray(allowed) || allowed.includes(value.manifest.id)),
         })),
       effectGrants: grants,
     };
@@ -146,6 +155,26 @@ export class DevelopmentalOrgan {
         prior: { orientation: null, challenge: null, election: null },
       });
     }
+    const elected = await this.electWager(projection);
+    const { orientation, challenge, election, selected } = elected;
+    this.kernel.bindWager(selected.wager, {
+      invocation: election.invocation.id,
+      output: election.receipt.output,
+    });
+    const realized = await this.kernel.realize(selected.wager.id);
+    if (realized.evaluation.kind !== 'underdetermined') {
+      return { orientation, challenge, election, realized, assimilation: null };
+    }
+    return this.assimilate({
+      projection,
+      wager: selected.wager,
+      receipt: realized.receipt,
+      evaluation: realized.evaluation,
+      prior: { orientation, challenge, election },
+    });
+  }
+
+  async electWager(projection) {
     const orientation = await this.perspectives.invoke({
       kind: 'orientation',
       schemaId: 'music.orientation-1',
@@ -189,7 +218,7 @@ export class DevelopmentalOrgan {
     }
     const admissible = compiled.map(wager => ({
       wager,
-      admission: this.admit(wager),
+      admission: this.admit(wager, projection.position),
     })).filter(candidate => candidate.admission.admissible);
     if (admissible.length < 2) {
       throw new Error(`challenge produced fewer than two admissible wagers: ${admissible.length}; compilation failures: ${JSON.stringify(compilationFailures)}`);
@@ -215,21 +244,7 @@ export class DevelopmentalOrgan {
         election.output.assessments.some(value => !admissible.some(candidate => candidate.wager.id === value.wagerId))) {
       throw new Error('election did not assess the exact frozen frontier');
     }
-    this.kernel.bindWager(selected.wager, {
-      invocation: election.invocation.id,
-      output: election.receipt.output,
-    });
-    const realized = await this.kernel.realize(selected.wager.id);
-    if (realized.evaluation.kind !== 'underdetermined') {
-      return { orientation, challenge, election, realized, assimilation: null };
-    }
-    return this.assimilate({
-      projection,
-      wager: selected.wager,
-      receipt: realized.receipt,
-      evaluation: realized.evaluation,
-      prior: { orientation, challenge, election },
-    });
+    return { orientation, challenge, election, selected, admissible };
   }
 
   async assimilate({ projection, wager, receipt, evaluation, prior }) {
@@ -260,6 +275,12 @@ export class DevelopmentalOrgan {
   }
 
   async continueDevelopment(development, projection, prior) {
+    if (development.status === 'proposed' && development.proposal.proposedDevelopment.kind === 'tool-authority') {
+      return this.exerciseAuthorityDevelopment(development, prior);
+    }
+    if (development.status === 'trialed' && development.proposal.proposedDevelopment.kind === 'tool-authority') {
+      return this.finishAuthorityDevelopment(development, development.trial, this.projection(development.trial.candidate), prior, null);
+    }
     const standing = this.kernel.state();
     const wager = standing.wagers.get(development.wagerId)?.wager;
     if (!wager) throw new Error(`development lacks retained wager: ${development.id}`);
@@ -306,10 +327,65 @@ export class DevelopmentalOrgan {
     };
   }
 
-  admit(wager) {
+  async exerciseAuthorityDevelopment(development, prior) {
+    const candidate = this.kernel.developmentCandidate(development.id);
+    const candidateProjection = this.projection(candidate);
+    const elected = await this.electWager(candidateProjection);
+    const trial = this.kernel.trialAuthorityDevelopment(development.id, {
+      candidatePosition: candidate.id,
+      selectedWager: elected.selected.wager,
+      perspectiveReceipts: {
+        orientation: elected.orientation.receipt.output,
+        challenge: elected.challenge.receipt.output,
+        election: elected.election.receipt.output,
+      },
+    });
+    return this.finishAuthorityDevelopment(development, trial, candidateProjection, prior, elected);
+  }
+
+  async finishAuthorityDevelopment(development, trial, candidateProjection, prior, elected) {
+    const disposition = await this.perspectives.invoke({
+      kind: 'disposition', schemaId: 'music.disposition-1', schema: DispositionSchema,
+      projection: { position: this.kernel.state().position, proposal: development.proposal, trial },
+      task: 'A provisional tool-selection authority policy shaped a fresh challenge frontier and election. Choose a disposition from the exact exercise receipt. You may not rewrite the policy or selected wager.',
+      maxOutputTokens: budget(candidateProjection, 'disposition', 4_096),
+      reasoningEffort: effort(candidateProjection), providerOrder: providers(candidateProjection),
+    });
+    if (disposition.output.basis.trialEligible !== trial.eligible ||
+        disposition.output.basis.floorsPreserved !== (trial.requiredFloorIds.length === trial.passedFloorIds.length)) {
+      throw new Error('disposition misstated mechanical authority-trial facts');
+    }
+    const position = this.kernel.disposeDevelopment(development.id, disposition.output, {
+      invocation: disposition.invocation.id, output: disposition.receipt.output,
+    });
+    if (disposition.output.choice !== 'admit') {
+      return { ...prior, authorityExercise: elected ?? trial.authorityExercise, trial, disposition, position, realized: null };
+    }
+    const selectedWager = elected?.selected.wager ?? trial.authorityExercise.selectedWager;
+    this.kernel.bindWager(selectedWager, {
+      invocation: elected?.election.invocation.id ?? null,
+      output: elected?.election.receipt.output ?? trial.authorityExercise.perspectiveReceipts.election,
+      authorityTrial: development.id,
+    });
+    const realized = await this.kernel.realize(selectedWager.id);
+    if (realized.evaluation.kind !== 'underdetermined') {
+      return { ...prior, authorityExercise: elected ?? trial.authorityExercise, trial, disposition, position, realized };
+    }
+    return this.assimilate({
+      projection: this.projection(), wager: selectedWager,
+      receipt: realized.receipt, evaluation: realized.evaluation,
+      prior: {
+        orientation: elected?.orientation ?? null,
+        challenge: elected?.challenge ?? null,
+        election: elected?.election ?? null,
+      },
+    });
+  }
+
+  admit(wager, positionOverride = null) {
     const state = this.kernel.state();
     return admitWager(wager, {
-      position: state.position,
+      position: positionOverride ?? state.position,
       grants: this.kernel.governance.read(),
       artifactExists: id => this.kernel.artifacts.has(id),
       toolContract: id => {

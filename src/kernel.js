@@ -245,6 +245,7 @@ export class MusicKernel {
       wagerId,
       invocationId,
       proposal,
+      proposedAt: this.clock().toISOString(),
     });
     return id;
   }
@@ -254,8 +255,11 @@ export class MusicKernel {
     const development = state.development.get(id);
     if (!development || development.status !== 'proposed') throw new Error(`development is not proposed: ${id}`);
     if (development.parentPosition !== state.position.id) throw new Error('development parent is no longer active');
+    if (development.proposal.proposedDevelopment.kind === 'tool-authority') {
+      throw new Error('tool authority requires a later selection exercise');
+    }
     const transition = this.developmentTransition(development.proposal);
-    const candidate = applyTransition(state.position, transition, this.clock().toISOString());
+    const candidate = this.developmentCandidate(id);
     const requiredFloorIds = state.position.floors
       .filter(floor => affectedPaths(transition).some(path => pathsOverlap(floor.scope, path)))
       .map(floor => floor.id);
@@ -309,6 +313,14 @@ export class MusicKernel {
   developmentTransition(proposal) {
     const development = proposal.proposedDevelopment;
     if (development?.kind === 'position') return TransitionSchema.parse(development.transition);
+    if (development?.kind === 'tool-authority') {
+      return TransitionSchema.parse({
+        kind: 'position.transition',
+        set: { '/authority/toolSelection': { kind: 'allow-list', allowedToolIds: [...new Set(development.allowedToolIds)].sort() } },
+        remove: [],
+        opening: development.opening,
+      });
+    }
     if (development?.kind !== 'tool') throw new Error('unknown proposed development kind');
     const tool = ToolArtifactSchema.parse(development.tool);
     const artifact = this.artifacts.putJson(tool);
@@ -323,6 +335,46 @@ export class MusicKernel {
       remove: [],
       opening: development.opening,
     });
+  }
+
+  developmentCandidate(id) {
+    const state = this.state();
+    const development = state.development.get(id);
+    if (!development || development.status !== 'proposed') throw new Error(`development is not proposed: ${id}`);
+    if (development.parentPosition !== state.position.id) throw new Error('development parent is no longer active');
+    return applyTransition(state.position, this.developmentTransition(development.proposal), development.proposedAt);
+  }
+
+  trialAuthorityDevelopment(id, evidence) {
+    const state = this.state();
+    const development = state.development.get(id);
+    if (!development || development.status !== 'proposed') throw new Error(`development is not proposed: ${id}`);
+    if (development.proposal.proposedDevelopment.kind !== 'tool-authority') throw new Error('development is not a tool-authority proposal');
+    const candidate = this.developmentCandidate(id);
+    if (evidence.candidatePosition !== candidate.id) throw new Error('authority exercise used the wrong candidate position');
+    const allowed = candidate.authority.toolSelection.allowedToolIds;
+    const selectedTool = ToolArtifactSchema.parse(this.artifacts.readJson(evidence.selectedWager.contact.tool)).manifest.id;
+    const requiredFloorIds = state.position.floors.filter(floor => pathsOverlap(floor.scope, '/authority/toolSelection')).map(floor => floor.id);
+    const passedFloorIds = state.position.floors.filter(floor => requiredFloorIds.includes(floor.id) && evaluatePredicate(candidate, floor.predicate)).map(floor => floor.id);
+    const trial = {
+      candidate,
+      transition: this.developmentTransition(development.proposal),
+      requiredFloorIds,
+      passedFloorIds,
+      probeReceipts: [],
+      authorityExercise: {
+        candidatePosition: candidate.id,
+        allowedToolIds: allowed,
+        selectedTool,
+        selectedWager: structuredClone(evidence.selectedWager),
+        perspectiveReceipts: structuredClone(evidence.perspectiveReceipts),
+      },
+      eligible: allowed.includes(selectedTool) && requiredFloorIds.length === passedFloorIds.length,
+      runtime: 'music-v2-tool-authority-trial-1',
+      completedAt: this.clock().toISOString(),
+    };
+    this.ledger.append('development.trialed', { id, trial });
+    return trial;
   }
 
   toolEnvironment() {
