@@ -62,7 +62,7 @@ export class OpenRouterActor {
     this.identity = digest({
       format: 'music-v3-actor-adapter-1',
       kind: 'openrouter',
-      implementation: 'music-v3-openrouter-validated-json-text-1',
+      implementation: 'music-v3-openrouter-validated-json-text-2',
       model,
       settings: { maxOutputTokens, temperature, reasoningEffort },
     });
@@ -96,7 +96,7 @@ export class OpenRouterActor {
       prompt: `${task}\n\nReturn one raw JSON value conforming to TARGET_SCHEMA. Do not wrap it in markdown or in another envelope.\n\nTARGET_SCHEMA:\n${JSON.stringify(z.toJSONSchema(schema))}\n\nRETAINED_PROJECTION:\n${JSON.stringify(projection)}`,
     });
     let output;
-    try { output = schema.parse(JSON.parse(result.text)); }
+    try { output = schema.parse(parseOpenRouterJson(result.text)); }
     catch (error) { error.rawOutput = result.text; throw error; }
     return {
       output,
@@ -105,6 +105,12 @@ export class OpenRouterActor {
       usage: result.totalUsage ?? result.usage ?? null,
     };
   }
+}
+
+function parseOpenRouterJson(text) {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/i);
+  return JSON.parse(fenced ? fenced[1] : trimmed);
 }
 
 export class CodexExecActor {

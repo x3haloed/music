@@ -40,6 +40,23 @@ test('OpenRouter actor uses one locally validated fresh request and binds reason
   assert.match(request.prompt[1].content[0].text, /"retained":"exact"/);
 });
 
+test('OpenRouter actor accepts one bare JSON fence but never extracts JSON from prose', async () => {
+  let text = '```json\n{"summary":"Fenced.","liveStakes":[],"recommendedNext":"Proceed."}\n```';
+  const model = new MockLanguageModelV4({
+    doGenerate: async () => ({
+      content: [{ type: 'text', text }],
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: { inputTokens: { total: 1 }, outputTokens: { total: 1 } },
+      warnings: [],
+    }),
+  });
+  const actor = new OpenRouterActor({ model: 'requested/model', languageModel: model });
+  const request = { role: 'orient', schema: RoleSchemas.orient, task: 'Orient.', projection: { subject: { generation: 0 } } };
+  assert.equal((await actor.invoke(request)).output.summary, 'Fenced.');
+  text = 'Here is the result:\n```json\n{"summary":"Hidden.","liveStakes":[],"recommendedNext":"Proceed."}\n```';
+  await assert.rejects(() => actor.invoke(request), /Unexpected token|Unexpected non-whitespace/);
+});
+
 test('Codex exec actor uses an ephemeral schema-bound process without retaining its workspace', async t => {
   const root = mkdtempSync(join(tmpdir(), 'music-v3-fake-codex-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
