@@ -195,10 +195,16 @@ function verifyQuiescent(state, snapshot) {
   if (state.openSoundingId !== null) failures.push(`open Sounding ${state.openSoundingId}`);
   if (state.activeEncounter !== null && state.activeEncounter !== undefined) failures.push('active encounter');
   if ((state.pendingDeltas?.length ?? 0) > 0) failures.push(`${state.pendingDeltas.length} pending Deltas`);
+  const unsettled = [...(state.consequences?.values?.() ?? [])].filter(value => value.status !== 'settled');
+  if (unsettled.length > 0) failures.push(`${unsettled.length} unsettled consequences`);
   if ((state.activeToolInvocations?.size ?? state.activeToolInvocations?.length ?? 0) > 0) failures.push('active tool invocations');
+  if ((state.activeDeliveryProjections?.size ?? state.activeDeliveryProjections?.length ?? 0) > 0) failures.push('active delivery projections');
+  if (state.pendingTrajectoryCompletionReceiptId) failures.push('pending trajectory completion receipt');
   if (state.stagedCarrierTransition) failures.push('staged carrier transition');
   if (state.stagedWakeTransition) failures.push('staged wake transition');
   if (state.stagedDevelopmentalTransaction) failures.push('staged developmental transaction');
+  if ((state.stagedConsequenceIds?.size ?? state.stagedConsequenceIds?.length ?? 0) > 0) failures.push('staged consequences');
+  if ((state.stagedConsequenceTransitions?.size ?? state.stagedConsequenceTransitions?.length ?? 0) > 0) failures.push('staged consequence transitions');
   if ((state.stagedRevisions?.size ?? state.stagedRevisions?.length ?? 0) > 0) failures.push('staged revisions');
   const pendingMailbox = mailboxPending(snapshot);
   if (pendingMailbox.length > 0) failures.push(`pending mailbox files: ${pendingMailbox.join(', ')}`);
