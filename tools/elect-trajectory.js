@@ -5,7 +5,7 @@ export function initialTrajectoryElectionTool() {
     id: 'elect_trajectory',
     version: 1,
     parent: null,
-    description: 'Run the resident\'s current general trajectory-election geometry over a complete actor-authored frontier. The ordinary module computes the winner and directly asks Music to execute that exact selected action before returning; quiet executes nothing. Completed floors are exact retained references whose existence and current status Music verifies without interpreting them.',
+    description: 'Run the resident\'s current general trajectory-election geometry over a complete actor-authored frontier containing at least one executable alternative. The ordinary module computes the winner and directly asks Music to execute that exact selected action before returning; quiet executes nothing. When the elected tool has its own selection geometry, include one trajectory candidate for every required tool action; Music derives and binds the nested selection from this same frontier. Completed floors are exact retained references whose existence and current status Music verifies without interpreting them.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -95,7 +95,10 @@ async function electTrajectory(input, context) {
     return candidate;
   });
   const eligible = candidates.filter(candidate => candidate.geometry.worldValid
-    && candidate.geometry.reversible && !candidate.geometry.heldRepeat);
+    && !candidate.geometry.heldRepeat);
+  if (!candidates.some(candidate => candidate.action.kind === 'tool')) {
+    throw new Error('trajectory frontier needs at least one executable alternative');
+  }
   if (eligible.length === 0) {
     throw new Error('trajectory frontier has no world-valid, reversible, non-repeated candidate');
   }
@@ -105,6 +108,7 @@ async function electTrajectory(input, context) {
     return rightComposition - leftComposition
       || right.geometry.predictedExpansion - left.geometry.predictedExpansion
       || right.geometry.actionableRegret - left.geometry.actionableRegret
+      || Number(right.geometry.reversible) - Number(left.geometry.reversible)
       || right.id.localeCompare(left.id);
   });
   return context.executeTrajectoryElection({

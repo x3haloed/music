@@ -1086,7 +1086,9 @@ test('instruction-free recurrence retains one plastic trajectory election throug
   const { kernel, root } = harness();
   const sounding = kernel.openSounding('heartbeat');
   assert.equal(sounding.trajectoryElection.occasion, 'instruction-free-recurrence');
-  assert.equal(sounding.trajectoryElection.obligation, false);
+  assert.equal(sounding.trajectoryElection.entry, 'required');
+  assert.equal(sounding.trajectoryElection.actionObligation, false);
+  assert.equal(sounding.trajectoryElection.quietPermitted, true);
   assert.equal(sounding.trajectoryElection.selector.id, 'elect_trajectory');
   const inferenceId = begin(kernel, sounding.id);
   const scheduleDigest = toolModuleDigest(kernel.state().tools.get('schedule_wake'));
@@ -1168,6 +1170,80 @@ test('instruction-free recurrence retains one plastic trajectory election throug
   }]);
 });
 
+test('recurrence cannot complete by bypassing election or offering only quiet narration', async () => {
+  const { kernel } = harness();
+  const sounding = kernel.openSounding('heartbeat');
+  const inferenceId = begin(kernel, sounding.id);
+  assert.throws(() => complete(kernel, inferenceId), /requires exactly one retained trajectory election/);
+  kernel.failInference(inferenceId, new Error('The required recurrence election was absent.'));
+
+  const retry = kernel.openSounding('heartbeat');
+  const retryInference = begin(kernel, retry.id);
+  await assert.rejects(() => kernel.invokeTool(retryInference, retry.id, 'elect_trajectory', {
+    candidates: [
+      {
+        id: 'quiet_one', description: 'Quiet one.', action: { kind: 'quiet' },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 1, actionableRegret: 0, basis: 'First quiet candidate.',
+        },
+      },
+      {
+        id: 'quiet_two', description: 'Quiet two.', action: { kind: 'quiet' },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 0, actionableRegret: 0, basis: 'Second quiet candidate.',
+        },
+      },
+    ],
+  }), /at least one executable alternative/);
+  assert.throws(() => complete(kernel, retryInference), /requires exactly one retained trajectory election/);
+  kernel.failInference(retryInference, new Error('The all-quiet frontier was refused.'));
+});
+
+test('one trajectory frontier derives nested selection for an elected selection-gated tool', async () => {
+  const { kernel } = harness();
+  const sounding = kernel.openSounding('heartbeat');
+  const inferenceId = begin(kernel, sounding.id);
+  const result = await kernel.invokeTool(inferenceId, sounding.id, 'elect_trajectory', {
+    candidates: [
+      {
+        id: 'quiet', description: 'Remain quiet.', action: { kind: 'quiet' },
+        geometry: {
+          worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 0, actionableRegret: 0, basis: 'Quiet remains possible.',
+        },
+      },
+      {
+        id: 'ask', description: 'Ask for new contact.',
+        action: { kind: 'tool', tool: 'message', input: { action: 'ask', recipient: 'Chad', question: 'What changed?' } },
+        geometry: {
+          worldValid: true, reversible: false, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 3, actionableRegret: 2, basis: 'A question can expose new consequence.',
+        },
+      },
+      {
+        id: 'send', description: 'Send a statement.',
+        action: { kind: 'tool', tool: 'message', input: { action: 'send', recipient: 'Chad', content: 'I am here.' } },
+        geometry: {
+          worldValid: true, reversible: false, heldRepeat: false, completedFloors: [],
+          predictedExpansion: 1, actionableRegret: 0, basis: 'A statement is the alternate message action.',
+        },
+      },
+    ],
+  });
+  assert.equal(result.selectedCandidateId, 'ask');
+  assert.equal(result.action.tool, 'message');
+  const election = kernel.events().findLast(event => event.type === 'trajectory_election_recorded').payload;
+  const selection = kernel.events().findLast(event => event.type === 'tool_selection_recorded').payload;
+  assert.equal(selection.trajectoryElectionReceipt, election.electionId);
+  assert.equal(selection.selectedCandidateId, 'ask');
+  assert.equal(selection.candidates.length, 2);
+  complete(kernel, inferenceId);
+  assert.equal(kernel.audit().trajectoryElections, 1);
+  assert.equal(kernel.audit().electedActions, 1);
+});
+
 test('trajectory provenance distinguishes ad-hoc action and refuses invented completed floors', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding('heartbeat');
@@ -1185,7 +1261,8 @@ test('trajectory provenance distinguishes ad-hoc action and refuses invented com
         },
       },
       {
-        id: 'invented_floor', description: 'Pretend an absent capability is complete.', action: { kind: 'quiet' },
+        id: 'invented_floor', description: 'Pretend an absent capability is complete.',
+        action: { kind: 'tool', tool: 'read_file', input: { path: kernel.ledgerPath, limit: 1 } },
         geometry: {
           worldValid: true, reversible: true, heldRepeat: false,
           completedFloors: [{ kind: 'tool-invocation', id: 'never-happened' }],

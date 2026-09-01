@@ -586,7 +586,7 @@ export class MusicKernel {
     return transition;
   }
 
-  selectToolAction(inferenceId, soundingId, toolId, frontier) {
+  selectToolAction(inferenceId, soundingId, toolId, frontier, trajectoryElectionReceipt = null) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
     const binding = encounter.toolBindings.get(toolId);
@@ -601,6 +601,7 @@ export class MusicKernel {
       projection: encounter.projection,
       carrierRoot: encounter.sounding.carrier.root,
       tool: { id: binding.manifest.id, version: binding.manifest.version, digest: binding.digest },
+      ...(trajectoryElectionReceipt === null ? {} : { trajectoryElectionReceipt }),
       ...selection,
     });
     return {
@@ -635,6 +636,7 @@ export class MusicKernel {
     return {
       format: 'music-trajectory-election-1',
       trajectoryElectionReceipt: electionId,
+      candidates: structuredClone(election.candidates),
       selectedCandidateId: election.selectedCandidateId,
       selected: structuredClone(election.selected),
       floorGrounding: structuredClone(floorGrounding),
@@ -660,12 +662,26 @@ export class MusicKernel {
     if (action.tool === TRAJECTORY_ELECTION_TOOL_ID) {
       throw new Error('a trajectory election cannot recursively select itself');
     }
+    const state = this.state();
+    const target = state.activeEncounter?.toolBindings.get(action.tool)?.manifest;
+    if (!target) throw new Error(`elected trajectory action names unavailable tool: ${action.tool}`);
+    let selectionReceipt = action.selectionReceipt ?? null;
+    if (target.selection && selectionReceipt === null) {
+      const nested = trajectoryToolSelectionFrontier(target, election);
+      selectionReceipt = this.selectToolAction(
+        inferenceId,
+        soundingId,
+        action.tool,
+        nested,
+        election.trajectoryElectionReceipt,
+      ).selectionReceipt;
+    }
     const invoked = await this.invokeToolRetained(
       inferenceId,
       soundingId,
       action.tool,
       action.input,
-      action.selectionReceipt ?? null,
+      selectionReceipt,
       election.trajectoryElectionReceipt,
     );
     return {
@@ -796,6 +812,7 @@ export class MusicKernel {
   completeInference(inferenceId, result) {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
+    requireRecurrenceElection(state, inferenceId);
     const stagedRevisions = state.stagedRevisions.map(revision => structuredClone(revision));
     const stagedCarrierTransition = state.stagedCarrierTransition ? structuredClone(state.stagedCarrierTransition) : null;
     const stagedConsequenceTransitions = state.stagedConsequenceTransitions.map(transition => structuredClone(transition));
@@ -1588,6 +1605,17 @@ function reduceEvents(events) {
           throw new Error('tool selection is not bound to projected geometry');
         }
         const selection = validateSelectionFrontier(binding.manifest, event.payload);
+        if (event.payload.trajectoryElectionReceipt !== undefined) {
+          const election = state.trajectoryElections.get(event.payload.trajectoryElectionReceipt);
+          if (!election) throw new Error('tool selection cites an unknown trajectory election');
+          const derived = validateSelectionFrontier(
+            binding.manifest,
+            trajectoryToolSelectionFrontier(binding.manifest, election),
+          );
+          if (digest(selection) !== digest(derived)) {
+            throw new Error('tool selection does not match its trajectory-election frontier');
+          }
+        }
         state.selections.set(event.payload.selectionId, {
           selectionId: event.payload.selectionId,
           inferenceId: event.payload.inferenceId,
@@ -1595,6 +1623,9 @@ function reduceEvents(events) {
           projection: event.payload.projection,
           carrierRoot: event.payload.carrierRoot,
           tool: structuredClone(event.payload.tool),
+          ...(event.payload.trajectoryElectionReceipt === undefined
+            ? {}
+            : { trajectoryElectionReceipt: event.payload.trajectoryElectionReceipt }),
           ...selection,
         });
         state.selectionCount += 1;
@@ -1783,6 +1814,7 @@ function reduceEvents(events) {
       case 'inference_completed': {
         if (state.activeInferenceId !== event.payload.inferenceId) throw new Error('completed inference is not active');
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
+        requireRecurrenceElection(state, event.payload.inferenceId);
         assertInferencePayloadFits(state, event.payload, 'inference result');
         if ([...state.activeToolInvocations.values()].some(invocation => invocation.inferenceId === event.payload.inferenceId)) {
           throw new Error('cannot complete inference with an uncertain tool invocation');
@@ -2809,22 +2841,43 @@ function validateWakeTransition(value) {
 }
 
 function trajectoryElectionOpportunity(state, trigger) {
-  if (trigger !== 'heartbeat') return {};
+  if (!['opening', 'scheduled', 'heartbeat'].includes(trigger)) return {};
+  if ((state.pendingDeltas?.length ?? 0) > 0
+    || (state.consequences instanceof Map && projectUnresolvedConsequences(state).length > 0)) return {};
   const selector = state.tools.get(TRAJECTORY_ELECTION_TOOL_ID);
   if (!selector) return {};
   return {
     trajectoryElection: {
       format: 'music-trajectory-election-opportunity-1',
-      occasion: 'instruction-free-recurrence',
+      occasion: trigger === 'heartbeat' ? 'instruction-free-recurrence' : 'subject-opening-recurrence',
       selector: {
         id: selector.id,
         version: selector.version,
         digest: toolModuleDigest(selector),
       },
       consequenceAddressable: true,
-      obligation: false,
+      entry: 'required',
+      actionObligation: false,
+      quietPermitted: true,
+      frontier: {
+        minimumCandidates: 2,
+        minimumExecutableCandidates: 1,
+      },
     },
   };
+}
+
+function requireRecurrenceElection(state, inferenceId) {
+  const opportunity = state.activeEncounter?.sounding?.trajectoryElection;
+  if (opportunity?.entry !== 'required') return;
+  const elections = [...state.trajectoryElections.values()]
+    .filter(election => election.inferenceId === inferenceId);
+  if (elections.length !== 1) {
+    throw new Error(`recurrence inference requires exactly one retained trajectory election; found ${elections.length}`);
+  }
+  if (!elections[0].candidates.some(candidate => candidate?.action?.kind === 'tool')) {
+    throw new Error('recurrence trajectory frontier requires at least one executable contact candidate');
+  }
 }
 
 function planSoundingSurface(state, base, { includeCausalLineage = true } = {}) {
@@ -3365,6 +3418,18 @@ function validateTrajectoryElectionFrontier(frontier) {
   }
   const selected = candidates.find(candidate => candidate.id === frontier.selectedCandidateId);
   return { candidates, selectedCandidateId: frontier.selectedCandidateId, selected };
+}
+
+function trajectoryToolSelectionFrontier(manifest, election) {
+  if (!manifest.selection) throw new Error(`tool ${manifest.id} does not require nested selection geometry`);
+  const candidates = election.candidates
+    .filter(candidate => candidate?.action?.kind === 'tool' && candidate.action.tool === manifest.id)
+    .map(candidate => ({ id: candidate.id, input: structuredClone(candidate.action.input) }));
+  return {
+    tool: manifest.id,
+    candidates,
+    selectedCandidateId: election.selectedCandidateId,
+  };
 }
 
 function groundTrajectoryFloors(candidates, state) {

@@ -58,6 +58,14 @@ design unless later observation demonstrates that it is absolutely necessary.
   allocation errors, and successively corrected that machinery until it governed
   a later admitted action. The remaining OT-0100 failure was in assimilation
   protocol rather than election, consequence, or execution.
+- **A live unresolved opening must be able to enter resident-owned selection
+  without first depending on a fresh model encounter to volunteer that anything
+  should happen.**
+  **Evidence:** The first resident received repeated instruction-free election
+  opportunities but invoked none, classified the empty world as requiring
+  nothing, and continued passive polling. OT-0120 through OT-0124 instead place
+  the retained executable selector in the causal path before the next world
+  surface opens.
 
 - **World consequence remains distinguishable from the subject's interpretation
   of it.**
@@ -317,6 +325,13 @@ minimal reasoning, a 512-token ceiling, eight steps maximum, zero retries, and
 cost $0.00097172 total.
 
 ## Prediction errors
+
+- The optional instruction-free election opportunity did not become an
+  expansion gradient. The live resident bypassed it in every observed
+  recurrence and all ordinary actions remained ad hoc. The unresolved question
+  is now narrower: once entry into election is structural, how much candidate
+  generation should remain fresh same-mind inference versus retained executable
+  contact-generation machinery.
 
 - The live resident authored four successive `inbox_check` revisions using a
   complete `async function` declaration as `source`. Music's retained source
