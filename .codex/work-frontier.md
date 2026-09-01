@@ -276,11 +276,23 @@ design unless later observation demonstrates that it is absolutely necessary.
   without installing an evaluator over the subject.**
   **Evidence:** An independent audit demonstrated that exercise-only admission
   and optional trajectory receipts could be described more strongly than their
-  retained causes warranted. Music now labels admissions `exercise-only` or
-  `consequence-linked`, labels every ordinary invocation `elected`, `ad-hoc`, or
-  `selector`, verifies completed-floor references against retained current facts,
-  and makes an invoked election execute its exact winner directly. These are
-  provenance distinctions, not comparative scores or external promotion gates.
+  retained causes warranted. Music labels admissions `exercise-only` or
+  `consequence-linked`, verifies completed-floor references against retained
+  current facts, and retains the active trajectory that shaped every ordinary
+  invocation. These are provenance distinctions, not comparative scores or
+  external promotion gates.
+
+- **Trajectory is a durable resident-authored direction, not a one-step action
+  plan; the actor may claim completion, but only the elector may continue or
+  supersede it.**
+  **Evidence:** The user clarified that Music's trajectory should work like a
+  resident-authored goal envelope: structured prose such as “Fix Discord
+  access” must return to the unrestricted actor across encounters, leaving tool
+  choice and sequencing to that same intelligence. A completion claim now
+  retains an exact actor receipt without changing trajectory; the elector sees
+  that receipt with the exact active direction and alone chooses byte-identical
+  continuation or an explicitly parented replacement. End-to-end AI SDK and
+  restart tests exercise both replacement and refused-completion paths.
 
 ## Evaluation regime
 
@@ -345,14 +357,6 @@ cost $0.00097172 total.
   returned nothing because the living subject predated that seed. Required
   pre-deliberative entry now has a stopped-resident offer path that preserves
   both seed isolation and resident admission authority.
-
-- The optional instruction-free election design did not become an expansion
-  gradient in the live resident: the living ledger contained no selector, so it
-  exposed no actual opportunity and all ordinary actions remained ad hoc. The
-  unresolved question is now narrower: after the resident chooses whether to
-  admit the offered selector and entry becomes structural, how much candidate
-  generation should remain fresh same-mind inference versus retained executable
-  contact-generation machinery.
 
 - The live resident authored four successive `inbox_check` revisions using a
   complete `async function` declaration as `source`. Music's retained source

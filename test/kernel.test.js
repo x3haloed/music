@@ -1133,13 +1133,13 @@ test('only the exact selected input can execute and a selection receipt is singl
   await assert.rejects(() => kernel.invokeTool(inferenceId, sounding.id, 'message', selected, receipt), /already used/);
 });
 
-test('instruction-free recurrence retains one plastic trajectory election through action and later consequence', async () => {
+test('instruction-free recurrence retains one directional trajectory through unrestricted action and later consequence', async () => {
   const { kernel, root } = harness();
   const sounding = kernel.openSounding('heartbeat');
   assert.equal(sounding.trajectoryElection.occasion, 'instruction-free-recurrence');
   assert.equal(sounding.trajectoryElection.entry, 'required');
   assert.equal(sounding.trajectoryElection.actionObligation, false);
-  assert.equal(sounding.trajectoryElection.quietPermitted, true);
+  assert.equal(sounding.trajectoryElection.frontier.candidateKind, 'directional-trajectory');
   assert.equal(sounding.trajectoryElection.selector.id, 'elect_trajectory');
   const inferenceId = begin(kernel, sounding.id);
   const scheduleDigest = toolModuleDigest(kernel.state().tools.get('schedule_wake'));
@@ -1175,25 +1175,21 @@ test('instruction-free recurrence retains one plastic trajectory election throug
       },
     ]);
   assert.equal(elected.selectedCandidateId, 'compose_and_return');
-  assert.equal(elected.selected.action.kind, 'tool');
-  assert.equal(elected.selected.action.tool, 'schedule_wake');
+  assert.equal(elected.selected.action, undefined);
   kernel.deliverTrajectoryContext(inferenceId);
-  const action = await kernel.invokeTool(
-    inferenceId, sounding.id, 'schedule_wake', wakeInput, null, elected.trajectoryElectionReceipt,
-  );
+  await kernel.invokeTool(inferenceId, sounding.id, 'schedule_wake', wakeInput);
   complete(kernel, inferenceId);
 
   const electionId = elected.trajectoryElectionReceipt;
   const reconstructed = new MusicKernel(join(root, 'events.jsonl'));
   assert.equal(reconstructed.state().trajectoryElections.get(electionId).selected.id, 'compose_and_return');
   assert.equal(reconstructed.audit().trajectoryElections, 1);
-  assert.equal(reconstructed.audit().activeTrajectory.reviewId, elected.reviewId);
-  assert.equal(reconstructed.audit().activeTrajectory.trajectory.objective, elected.trajectory.objective);
-  assert.equal(reconstructed.audit().electedActions, 1);
+  assert.equal(reconstructed.audit().activeTrajectory.establishedBy.reviewId, elected.reviewId);
+  assert.equal(reconstructed.audit().activeTrajectory.trajectory.objective, elected.trajectory.trajectory.objective);
+  assert.equal(reconstructed.audit().electedActions, 0);
   const actionInvocationId = kernel.state().invocations.find(invocation => invocation.tool.id === 'schedule_wake').invocationId;
   const actionInvocation = reconstructed.state().invocationHistory.get(actionInvocationId);
-  assert.equal(actionInvocation.trajectoryBasis.kind, 'elected');
-  assert.equal(actionInvocation.trajectoryBasis.electionId, electionId);
+  assert.deepEqual(actionInvocation.trajectoryBasis, { kind: 'active-trajectory', trajectoryId: electionId });
   reconstructed.admitDelta({
     authority: 'world', id: 'election-consequence', stream: 'world', at: '2026-08-30T13:00:00.000Z',
     bearsOn: [{ kind: 'tool-invocation', invocationId: actionInvocationId }],
@@ -1390,7 +1386,7 @@ test('a newly admitted reviewer does not deadlock recurrence against an incompat
   assert.equal(sounding.trajectoryElection, undefined);
 });
 
-test('recurrence cannot complete by bypassing structured review and election or offering only quiet narration', async () => {
+test('recurrence cannot bypass structured review and election, while directional candidates need no tool plan', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding('heartbeat');
   const inferenceId = begin(kernel, sounding.id);
@@ -1399,7 +1395,7 @@ test('recurrence cannot complete by bypassing structured review and election or 
 
   const retry = kernel.openSounding('heartbeat');
   const retryInference = begin(kernel, retry.id);
-  await assert.rejects(() => reviewAndElect(kernel, retryInference, retry.id, [
+  const election = await reviewAndElect(kernel, retryInference, retry.id, [
       {
         id: 'quiet_one', description: 'Quiet one.', action: { kind: 'quiet' },
         geometry: {
@@ -1414,12 +1410,14 @@ test('recurrence cannot complete by bypassing structured review and election or 
           predictedExpansion: 0, actionableRegret: 0, basis: 'Second quiet candidate.',
         },
       },
-    ]), /at least one executable contact candidate/);
-  assert.throws(() => complete(kernel, retryInference), /requires exactly one retained developmental review/);
-  kernel.failInference(retryInference, new Error('The all-quiet frontier was refused.'));
+    ]);
+  assert.equal(election.decision, 'establish');
+  assert.equal(election.selected.action, undefined);
+  kernel.deliverTrajectoryContext(retryInference);
+  complete(kernel, retryInference);
 });
 
-test('one trajectory frontier derives nested selection for an elected selection-gated tool', async () => {
+test('a directional trajectory leaves later selection-gated action to the unrestricted actor', async () => {
   const { kernel } = harness();
   const sounding = kernel.openSounding('heartbeat');
   const inferenceId = begin(kernel, sounding.id);
@@ -1449,27 +1447,84 @@ test('one trajectory frontier derives nested selection for an elected selection-
       },
     ]);
   assert.equal(result.selectedCandidateId, 'ask');
-  assert.equal(result.selected.action.tool, 'message');
+  assert.equal(result.selected.action, undefined);
   kernel.deliverTrajectoryContext(inferenceId);
-  const selectedInput = result.selected.action.input;
+  const selectedInput = { action: 'ask', recipient: 'Chad', question: 'What changed?' };
   const selection = kernel.selectToolAction(inferenceId, sounding.id, 'message', {
-    candidates: result.candidates
-      .filter(candidate => candidate.action.kind === 'tool' && candidate.action.tool === 'message')
-      .map(candidate => ({ id: candidate.id, input: candidate.action.input })),
-    selectedCandidateId: result.selectedCandidateId,
-  }, result.trajectoryElectionReceipt);
+    candidates: [
+      { id: 'ask', input: selectedInput },
+      { id: 'send', input: { action: 'send', recipient: 'Chad', content: 'I am here.' } },
+    ],
+    selectedCandidateId: 'ask',
+  });
   await kernel.invokeTool(
     inferenceId, sounding.id, 'message', selectedInput,
-    selection.selectionReceipt, result.trajectoryElectionReceipt,
+    selection.selectionReceipt,
   );
   const election = kernel.events().findLast(event => event.type === 'trajectory_election_recorded').payload;
   const retainedSelection = kernel.events().findLast(event => event.type === 'tool_selection_recorded').payload;
-  assert.equal(retainedSelection.trajectoryElectionReceipt, election.electionId);
+  assert.equal(retainedSelection.trajectoryElectionReceipt, undefined);
   assert.equal(retainedSelection.selectedCandidateId, 'ask');
   assert.equal(retainedSelection.candidates.length, 2);
   complete(kernel, inferenceId);
   assert.equal(kernel.audit().trajectoryElections, 1);
-  assert.equal(kernel.audit().electedActions, 1);
+  assert.equal(kernel.audit().electedActions, 0);
+  const action = kernel.state().invocations.find(invocation => invocation.tool.id === 'message');
+  assert.deepEqual(action.trajectoryBasis, { kind: 'active-trajectory', trajectoryId: election.electionId });
+});
+
+test('an actor completion claim cannot end trajectory until the elector judges it, and continue preserves it exactly', async () => {
+  const { kernel, root } = harness();
+  const sounding = kernel.openSounding('heartbeat');
+  const inferenceId = begin(kernel, sounding.id);
+  const elected = await reviewAndElect(kernel, inferenceId, sounding.id, [
+    {
+      id: 'ground', description: 'Ground the current habitat before moving on.', action: { kind: 'quiet' },
+      geometry: {
+        worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+        predictedExpansion: 2, actionableRegret: 1, basis: 'Grounding protects later outward action.',
+      },
+    },
+    {
+      id: 'reach', description: 'Reach outward immediately.', action: { kind: 'quiet' },
+      geometry: {
+        worldValid: true, reversible: true, heldRepeat: false, completedFloors: [],
+        predictedExpansion: 1, actionableRegret: 0, basis: 'Contact remains possible after grounding.',
+      },
+    },
+  ]);
+  kernel.deliverTrajectoryContext(inferenceId);
+  const trajectoryBefore = structuredClone(kernel.audit().activeTrajectory);
+  const claimed = await kernel.invokeTool(inferenceId, sounding.id, 'report_trajectory_completion', {
+    trajectoryId: trajectoryBefore.trajectoryId,
+    summary: 'I believe the grounding direction is done.',
+    successSignals: [{
+      signal: 'The selected direction produces an observable consequence.',
+      status: 'uncertain', evidence: ['No external confirmation has arrived.'],
+    }],
+    remainingConcerns: ['The claimed consequence remains uncertain.'],
+    evidence: [`ledger:${root}`],
+  });
+  assert.deepEqual(kernel.audit().activeTrajectory, trajectoryBefore, 'the actor receipt cannot mutate trajectory');
+  assert.throws(() => complete(kernel, inferenceId), /still awaits elector judgment/);
+  kernel.deliverTrajectoryCompletionContext(inferenceId);
+  const judged = await kernel.invokeTool(inferenceId, sounding.id, 'elect_trajectory', {
+    reviewId: null,
+    completionReceiptId: claimed.completionReceiptId,
+    decision: 'continue',
+    assessments: [],
+    trajectory: null,
+    rationale: 'The actor marked the sole success signal uncertain, so movement is premature.',
+  });
+  assert.equal(judged.decision, 'continue');
+  assert.equal(judged.trajectory.trajectoryId, elected.trajectory.trajectoryId);
+  assert.deepEqual(kernel.audit().activeTrajectory, trajectoryBefore);
+  kernel.deliverTrajectoryContext(inferenceId);
+  complete(kernel, inferenceId);
+
+  const reconstructed = new MusicKernel(kernel.ledgerPath);
+  assert.deepEqual(reconstructed.audit().activeTrajectory, trajectoryBefore);
+  assert.equal(reconstructed.audit().pendingTrajectoryCompletionReceipt, null);
 });
 
 test('trajectory provenance distinguishes ad-hoc action and refuses invented completed floors', async () => {
@@ -1502,12 +1557,11 @@ test('trajectory provenance distinguishes ad-hoc action and refuses invented com
   assert.equal(kernel.audit().adHocActions, 1);
 });
 
-test('a failed elected action remains bound to the election that caused it', async () => {
+test('a failed unrestricted action remains bound to the active directional trajectory', async () => {
   const { kernel, root } = harness();
   const sounding = kernel.openSounding('heartbeat');
   const inferenceId = begin(kernel, sounding.id);
-  await assert.rejects(() => kernel.invokeTool(inferenceId, sounding.id, 'elect_trajectory', {
-    candidates: [
+  const elected = await reviewAndElect(kernel, inferenceId, sounding.id, [
       {
         id: 'quiet', description: 'Remain quiet.', action: { kind: 'quiet' },
         geometry: {
@@ -1523,15 +1577,18 @@ test('a failed elected action remains bound to the election that caused it', asy
           predictedExpansion: 1, actionableRegret: 0, basis: 'The attempted observation may expose a boundary.',
         },
       },
-    ],
-  }), /ENOENT/);
+    ]);
+  kernel.deliverTrajectoryContext(inferenceId);
+  await assert.rejects(() => kernel.invokeTool(
+    inferenceId, sounding.id, 'read_file', { path: join(root, 'absent.txt') },
+  ), /ENOENT/);
   const state = kernel.state();
   const election = [...state.trajectoryElections.values()].at(-1);
   const failedAction = [...state.invocationHistory.values()]
     .find(invocation => invocation.tool.id === 'read_file');
   assert.equal(failedAction.status, 'failed');
-  assert.deepEqual(failedAction.trajectoryBasis, { kind: 'elected', electionId: election.electionId });
-  assert.equal(kernel.audit().electedActions, 1);
+  assert.deepEqual(failedAction.trajectoryBasis, { kind: 'active-trajectory', trajectoryId: election.electionId });
+  assert.equal(elected.trajectory.trajectoryId, election.electionId);
 });
 
 test('tampering with retained history is detected', () => {
@@ -1702,17 +1759,21 @@ async function reviewAndElect(kernel, inferenceId, soundingId, candidates) {
       costOfDelay: 'medium', condition: 'The current recurrence needs an explicitly judged direction.',
       evidence: [`sounding:${soundingId}`],
     }],
-    candidates: candidates.map(({ geometry: ignored, ...candidate }) => ({
-      ...candidate,
-      action: candidate.action.kind === 'quiet'
-        ? { ...candidate.action, tool: 'quiet', input: {} }
-        : candidate.action,
+    candidates: candidates.map(candidate => ({
+      id: candidate.id,
+      objective: candidate.description,
+      direction: candidate.geometry.basis,
+      horizon: 'near',
+      successSignals: ['The direction produces an observable consequence.'],
+      reconsiderWhen: ['World contact changes the basis.'],
       addressesFindingIds: ['whole_position'],
     })),
   });
   kernel.deliverDevelopmentalReviewContext(inferenceId);
   return kernel.invokeTool(inferenceId, soundingId, 'elect_trajectory', {
     reviewId: reviewed.reviewId,
+    completionReceiptId: null,
+    decision: 'establish',
     assessments: candidates.map(candidate => ({
       candidateId: candidate.id,
       ...candidate.geometry,
@@ -1725,6 +1786,7 @@ async function reviewAndElect(kernel, inferenceId, soundingId, candidates) {
       successSignals: ['The selected direction produces an observable consequence.'],
       reconsiderWhen: ['The selected basis is contradicted or its cost of delay changes.'],
     },
+    rationale: 'The assessed expansion and regret support this direction.',
   });
 }
 

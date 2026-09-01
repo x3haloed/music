@@ -86,7 +86,8 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.has('message'));
     assert.ok(tools.has('file_patch'));
     assert.ok(tools.has('select_tool_action'));
-    assert.ok(tools.has('elect_trajectory'));
+    assert.equal(tools.has('elect_trajectory'), false, 'the actor surface cannot mutate trajectory directly');
+    assert.ok(tools.has('report_trajectory_completion'));
     assert.ok(tools.has('shape_encounter'));
     assert.ok(tools.has('manage_dependency'));
     assert.ok(tools.has('read_file'));
@@ -102,10 +103,7 @@ test('dedicated OpenRouter strict serialization accepts Music carrier and select
     assert.ok(tools.has('rollback_tool'));
     assert.ok(tools.has('revise_carrier'));
     assert.ok(tools.get('message').required.includes('selectionReceipt'));
-    assert.equal(tools.get('message').properties.trajectoryElectionReceipt.type, 'string');
-    assert.equal(tools.get('elect_trajectory').properties.trajectoryElectionReceipt, undefined);
-    assert.equal(tools.get('review_developmental_position').properties.findings.minItems, 1);
-    assert.equal(tools.get('elect_trajectory').properties.assessments.minItems, 2);
+    assert.equal(tools.get('message').properties.trajectoryElectionReceipt, undefined);
     assert.equal(tools.get('select_tool_action').properties.candidates.items.properties.input.type, 'object');
     assert.deepEqual(tools.get('shape_encounter').properties.phase.enum, ['sounding', 'steering']);
     assert.deepEqual(tools.get('shape_encounter').properties.trigger.enum, ['delta', 'continuation', 'opening', 'scheduled', 'heartbeat', 'manual']);
@@ -153,11 +151,13 @@ test('OpenRouter receives named structured review and election phases before unr
       costOfDelay: 'medium', condition: 'The recurrence needs an explicitly judged direction.',
       evidence: ['sounding:heartbeat'],
     }],
-    candidates: candidates.map(({ geometry: ignored, ...candidate }) => ({
-      ...candidate,
-      action: candidate.action.kind === 'quiet'
-        ? { ...candidate.action, tool: 'quiet', input: {} }
-        : candidate.action,
+    candidates: candidates.map(candidate => ({
+      id: candidate.id,
+      objective: candidate.description,
+      direction: candidate.geometry.basis,
+      horizon: 'near',
+      successSignals: ['The direction produces an observable consequence.'],
+      reconsiderWhen: ['World contact changes the basis.'],
       addressesFindingIds: ['current_position'],
     })),
   };
@@ -174,6 +174,8 @@ test('OpenRouter receives named structured review and election phases before unr
       return jsonResponse(completion({
         content: JSON.stringify({
               reviewId: match[1],
+              completionReceiptId: null,
+              decision: 'establish',
               assessments: candidates.map(candidate => ({ candidateId: candidate.id, ...candidate.geometry })),
               trajectory: {
                 objective: 'Preserve seclusion while keeping a contact alternative explicit.',
@@ -182,6 +184,7 @@ test('OpenRouter receives named structured review and election phases before unr
                 successSignals: ['The elected disposition has an observable consequence.'],
                 reconsiderWhen: ['World contact changes the current developmental position.'],
               },
+              rationale: 'The structured review supports this durable direction.',
             }),
       }, 'stop'));
     }

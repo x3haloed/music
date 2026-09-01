@@ -405,8 +405,8 @@ test('a saturated passive opening can carry contact origination into later actio
   assert.equal(election.selectedCandidateId, 'ask_chad');
   assert.equal(selection.selectedCandidateId, 'ask_candidate');
   const messageInvocation = kernel.state().invocations.find(invocation => invocation.tool.id === 'message');
-  assert.equal(messageInvocation.trajectoryBasis.kind, 'elected');
-  assert.equal(messageInvocation.trajectoryElectionReceipt, election.electionId);
+  assert.deepEqual(messageInvocation.trajectoryBasis, { kind: 'active-trajectory', trajectoryId: election.electionId });
+  assert.equal(messageInvocation.trajectoryElectionReceipt, null);
   assert.equal(kernel.audit().activeOpening.content.content.trajectory, 'await-contact-consequence');
   const closure = kernel.events().filter(event => event.type === 'developmental_transaction_staged').at(-1).payload.opening.closes;
   assert.equal(closure.status, 'contact-originated');
@@ -663,7 +663,7 @@ test('a recurrence organ cannot substitute prose for its schema-constrained reco
   assert.equal(kernel.audit().failedInferences, 1);
 });
 
-test('instruction-free recurrence lets resident-owned election geometry select and bind later action', async () => {
+test('instruction-free recurrence establishes direction before later unrestricted action', async () => {
   const wakeInput = {
     afterMs: 90_000,
     reason: 'Reopen after the elected composition has had time to bear consequence.',
@@ -706,12 +706,11 @@ test('instruction-free recurrence lets resident-owned election geometry select a
       }
       if (call === 3) {
         const election = findTrajectoryContext(options.prompt);
-        electionReceipt = election.trajectoryId;
+        electionReceipt = election.trajectory.trajectoryId;
         assert.equal(election.selectedCandidateId, 'compose');
-        assert.equal(election.selected.action.kind, 'tool');
-        assert.equal(election.selected.action.tool, 'schedule_wake');
+        assert.equal(election.selected.action, undefined);
         assert.match(JSON.stringify(options.prompt), /music_trajectory_context/);
-        return toolCallResult('schedule_wake', { ...wakeInput, trajectoryElectionReceipt: electionReceipt });
+        return toolCallResult('schedule_wake', wakeInput);
       }
       return textResult('The elected trajectory now has a retained successor.');
     },
@@ -726,8 +725,87 @@ test('instruction-free recurrence lets resident-owned election geometry select a
   const election = kernel.events().find(event => event.type === 'trajectory_election_recorded').payload;
   assert.equal(election.selectedCandidateId, 'compose');
   const action = kernel.state().invocations.find(invocation => invocation.tool.id === 'schedule_wake');
-  assert.equal(action.trajectoryElectionReceipt, election.electionId);
+  assert.equal(action.trajectoryElectionReceipt, null);
+  assert.deepEqual(action.trajectoryBasis, { kind: 'active-trajectory', trajectoryId: electionReceipt });
   assert.equal(kernel.audit().activeOpening.content.content.trajectory, 'compose-retained-capacities');
+});
+
+test('actor completion receipt returns to the elector, which replaces the durable trajectory before action resumes', async () => {
+  let call = 0;
+  let firstTrajectoryId;
+  let completionReceiptId;
+  const candidates = recurrenceCandidates();
+  const model = new MockLanguageModelV4({
+    doGenerate: async options => {
+      call += 1;
+      if (call === 1) return textResult(JSON.stringify(reviewInput(candidates)));
+      if (call === 2) {
+        const review = findReviewContext(options.prompt);
+        return textResult(JSON.stringify(electionInput(review.reviewId, candidates, review.completedFloorCatalog)));
+      }
+      if (call === 3) {
+        const context = findTrajectoryContext(options.prompt);
+        firstTrajectoryId = context.trajectory.trajectoryId;
+        assert.match(context.trajectory.trajectory.objective, /consequence-bearing contact/);
+        return toolCallResult('read_file', { path: 'package.json', offset: 1, limit: 4, maxChars: 2_048 });
+      }
+      if (call === 4) {
+        return toolCallResult('report_trajectory_completion', {
+          trajectoryId: firstTrajectoryId,
+          summary: 'The bounded grounding pass is complete.',
+          successSignals: [{
+            signal: 'The selected direction produces an observable consequence.',
+            status: 'met', evidence: ['read_file returned the retained package manifest'],
+          }],
+          remainingConcerns: [],
+          evidence: ['tool:read_file'],
+        });
+      }
+      if (call === 5) {
+        const review = findContextEnvelope(options.prompt, 'music_trajectory_completion_review');
+        completionReceiptId = review.actorReceipt.receiptId;
+        assert.equal(review.activeTrajectory.trajectoryId, firstTrajectoryId);
+        return textResult(JSON.stringify({
+          reviewId: null,
+          completionReceiptId,
+          decision: 'replace',
+          assessments: [],
+          trajectory: {
+            objective: 'Open a new consequence-bearing contact surface.',
+            direction: 'Use unrestricted judgment to reach outward and learn from what answers.',
+            horizon: 'open-ended',
+            successSignals: ['A new external consequence bears on the chosen contact.'],
+            reconsiderWhen: ['The contact surface proves unavailable or saturated.'],
+          },
+          rationale: 'The actor receipt grounds completion of the prior direction, so movement is warranted.',
+        }));
+      }
+      const context = findLastContextEnvelope(options.prompt, 'music_trajectory_context');
+      assert.equal(context.decision, 'replace');
+      assert.match(context.trajectory.trajectory.objective, /new consequence-bearing contact surface/);
+      return textResult('I am now acting under the successor direction.');
+    },
+  });
+  const { kernel, mind } = harness(model);
+
+  await mind.receive(kernel.openSounding('heartbeat').id);
+
+  const audit = kernel.audit();
+  assert.equal(call, 6);
+  assert.equal(audit.trajectoryCompletionReceipts, 1);
+  assert.equal(audit.pendingTrajectoryCompletionReceipt, null);
+  assert.equal(audit.trajectoryElections, 2);
+  assert.notEqual(audit.activeTrajectory.trajectoryId, firstTrajectoryId);
+  assert.equal(audit.activeTrajectory.establishedBy.completionReceiptId, completionReceiptId);
+  assert.equal(audit.activeTrajectory.establishedBy.supersedes, firstTrajectoryId);
+  assert.match(audit.activeTrajectory.trajectory.objective, /new consequence-bearing contact surface/);
+  const read = kernel.state().invocations.find(invocation => invocation.tool.id === 'read_file');
+  assert.deepEqual(read.trajectoryBasis, { kind: 'active-trajectory', trajectoryId: firstTrajectoryId });
+
+  const later = kernel.openSounding('manual');
+  assert.equal(later.activeTrajectory.trajectoryId, audit.activeTrajectory.trajectoryId);
+  const restarted = new MusicKernel(kernel.ledgerPath);
+  assert.deepEqual(restarted.audit().activeTrajectory, audit.activeTrajectory);
 });
 
 test('broken learned delivery geometry exposes exact recovery facts and can be rolled back by the same mind', async () => {
@@ -1113,6 +1191,23 @@ function findContextEnvelope(prompt, tag) {
   return null;
 }
 
+function findLastContextEnvelope(prompt, tag) {
+  const prefix = `<${tag}>`;
+  const suffix = `</${tag}>`;
+  for (const message of [...prompt].reverse()) {
+    if (message.role !== 'user') continue;
+    const content = typeof message.content === 'string'
+      ? message.content
+      : Array.isArray(message.content)
+        ? message.content.filter(part => part?.type === 'text').map(part => part.text).join('')
+        : '';
+    const start = content.indexOf(prefix);
+    const end = content.indexOf(suffix);
+    if (start >= 0 && end > start) return JSON.parse(content.slice(start + prefix.length, end));
+  }
+  return null;
+}
+
 function recurrenceCandidates() {
   return [
     {
@@ -1141,11 +1236,13 @@ function reviewInput(candidates) {
       costOfDelay: 'medium', condition: 'The current recurrence needs an explicitly judged direction.',
       evidence: ['sounding:current'],
     }],
-    candidates: candidates.map(({ geometry: ignored, ...candidate }) => ({
-      ...candidate,
-      action: candidate.action.kind === 'quiet'
-        ? { ...candidate.action, tool: 'quiet', input: {} }
-        : candidate.action,
+    candidates: candidates.map(candidate => ({
+      id: candidate.id,
+      objective: candidate.description,
+      direction: candidate.geometry.basis,
+      horizon: 'near',
+      successSignals: ['The direction produces an observable consequence.'],
+      reconsiderWhen: ['World contact changes the basis.'],
       addressesFindingIds: ['current_position'],
     })),
   };
@@ -1154,6 +1251,8 @@ function reviewInput(candidates) {
 function electionInput(reviewId, candidates, completedFloorCatalog = []) {
   return {
     reviewId,
+    completionReceiptId: null,
+    decision: 'establish',
     assessments: candidates.map(candidate => ({
       candidateId: candidate.id,
       ...candidate.geometry,
@@ -1171,6 +1270,7 @@ function electionInput(reviewId, candidates, completedFloorCatalog = []) {
       successSignals: ['The selected direction produces an observable consequence.'],
       reconsiderWhen: ['World contact contradicts the selected basis.'],
     },
+    rationale: 'The assessed expansion and regret support this direction.',
   };
 }
 

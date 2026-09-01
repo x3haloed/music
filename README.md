@@ -110,10 +110,11 @@ world Delta -> Sounding -> active carrier
             -> exact fact envelopes -> revisable encounter shape
             -> exact prior invocation reference
             -> typed non-acting developmental review
-            -> required recurrence election (action may still be quiet)
-            -> authoritative trajectory context -> unrestricted action
+            -> resident-owned directional trajectory election
+            -> durable goal-like trajectory context -> unrestricted action
             -> actor-authored alternatives -> selected executable input
             -> unrestricted tool module -> retained invocation
+            -> actor completion receipt -> elector continuation or replacement
             -> provisional source -> real execution trial -> explicit admission
             -> provisional carrier -> later governed encounter -> explicit admission
             -> changed later execution
@@ -154,28 +155,26 @@ schema-constrained object using the active review tool's exact input schema,
 then invokes that retained ordinary module with the validated object. It must
 retain a bounded typed record: findings classified as harm,
 constraint, unresolved stake, opportunity, or maintenance; explicit severity,
-urgency, and cost-of-delay ratings; evidence; and quiet or concrete tool-contact
-candidates. It cannot act or set a trajectory. Music delivers that exact review
+urgency, and cost-of-delay ratings; evidence; and structured directional
+candidates. A candidate names an objective, direction, horizon, success signals,
+and reconsideration conditions—not a tool or exact input. It cannot act or set a trajectory. Music delivers that exact review
 as a structured context envelope, requests a second schema-constrained object
 using the elector's retained interface, and invokes the elector. It must assess
 every frozen candidate and is the sole authority that may create or replace the
 trajectory record.
 
-Every review candidate carries a uniform complete action record. Executable
-candidates name the exact ordinary tool and full input; quiet is represented by
-`kind: "quiet", tool: "quiet", input: {}`. This keeps required fields explicit
-under provider JSON-schema generation instead of relying on conditional omission.
-
 Neither organ phase accepts assistant prose or provider tool-call emulation as
 its result. After election,
 Music injects the exact retained trajectory as a distinct user-role
 `music_trajectory_context` envelope, analogous to a durable goal envelope, and
-removes both organs from the action surface. The same resident mind then regains
-all ordinary tools and may act, inspect, revise, communicate, or remain quiet
-under that context. The elected contact is not executed inside selection.
+removes both organs from the action surface. The trajectory is projected into
+every later Sounding and also delivered as a direct imperative context item. It
+survives encounter completion and restart. The same resident mind then regains
+all ordinary tools and may take any multi-step course it judges useful under
+that direction. Election never selects or executes a tool invocation.
 
-The review must contain quiet plus at least one executable tool action. Election
-assessments carry the current factual basis for validity, reversibility, held
+The review contains at least two possible directions. Election assessments
+carry the current factual basis for validity, reversibility, held
 repetition, completed-floor composition, predicted expansion, and actionable
 regret. The
 ordinary selector body—not the kernel—computes the winner.
@@ -192,18 +191,22 @@ verifies their existence and current status without endorsing the resident's
 expansion, regret, or validity judgments; invented floor ids cannot satisfy the
 election schema.
 
-The trajectory envelope names the retained `trajectoryElectionReceipt`, which
-authorizes only the elected tool and exact input in that encounter. If the
-elected tool has its own selection gate, the resident first constructs that
-tool's complete frontier and then supplies both receipts to the exact action.
-Every ordinary invocation is retained as `elected`,
-`ad-hoc`, or `selector`. The resulting invocation retains the receipt, so
-ordinary consequence bearing on the action also derives exact ancestry to the
-election that selected it. Soundings carry that derived lineage beside the
-unaltered world Delta, and `inspect_trajectory_election` retrieves the exact
-selector, frontier, and winner. A world adapter may alternatively cite the election
-directly with a `trajectory-election` `bearsOn` reference. In either case a
-later tool or carrier proposal can retain both consequence and election lineage.
+Every ordinary actor invocation made while a trajectory is active retains that
+trajectory as its causal basis without requiring or accepting an exact-action
+authorization receipt. Selection-gated tools still use their own actor-authored
+frontiers. Consequence bearing on an invocation therefore derives ancestry to
+the active trajectory that shaped it, while the actor remains free to use
+several tools, invent another tool, wait, communicate, or revise its approach.
+
+`report_trajectory_completion` lets the unrestricted actor emit a structured
+claim that the active trajectory is done. It must assess every exact success
+signal and retain evidence and remaining concerns. That receipt does not change
+the trajectory. Music stops the actor phase, returns the exact receipt together
+with the exact active trajectory to `elect_trajectory`, and requires the elector
+to choose `continue` or `replace`. Continue preserves the trajectory byte-for-byte;
+replace records explicit ancestry and installs a new structured direction before
+unrestricted action resumes. An encounter cannot complete while a receipt still
+awaits elector judgment.
 
 When inventing or revising a tool, `source` contains executable async-function
 body statements. It uses `input` and `context` directly and returns a JSON value;

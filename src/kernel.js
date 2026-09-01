@@ -20,6 +20,7 @@ const WRITER_FORMAT = 'music-writer-1';
 const ENCOUNTER_SHAPE_TOOL_ID = 'shape_encounter';
 const DEVELOPMENTAL_REVIEW_TOOL_ID = 'review_developmental_position';
 const TRAJECTORY_ELECTION_TOOL_ID = 'elect_trajectory';
+const TRAJECTORY_COMPLETION_TOOL_ID = 'report_trajectory_completion';
 const MAX_TOOLS = 32;
 const MAX_SELECTION_CANDIDATES = 16;
 const MAX_SELECTION_BYTES = 64 * 1_024;
@@ -176,6 +177,7 @@ export class MusicKernel {
       ...(state.position ? { position: projectDevelopmentalPosition(state.position) } : {}),
       development: projectDevelopmentalFrontier(state),
       ...(carrierTrial ? { developmentalTrial: projectArmedCarrierTrial(carrierTrial, soundingCarrier.root) } : {}),
+      ...(state.currentTrajectory ? { activeTrajectory: projectActiveTrajectory(state.currentTrajectory) } : {}),
       ...trajectoryElectionOpportunity(state, trigger),
     };
     if (trigger === 'opening' && !dueUnpresentedOpening(state, Date.parse(base.at))) {
@@ -503,6 +505,10 @@ export class MusicKernel {
             format: 'music-developmental-review-preview-1',
             ...validateDevelopmentalReview(frontier, encounter),
           }),
+          recordTrajectoryCompletion: candidate => ({
+            format: 'music-trajectory-completion-preview-1',
+            ...validateTrajectoryCompletionReceipt(candidate, state.currentTrajectory),
+          }),
           stageConsequenceTransition: candidate => previewConsequenceTransition(candidate, state, encounter),
           stageCarrierTransition: candidate => createCarrierTransition(state.carrier, candidate),
           stageWakeTransition: candidate => previewOpeningTransition(candidate, this.clock),
@@ -639,6 +645,91 @@ export class MusicKernel {
     return structuredClone(election);
   }
 
+  recordTrajectoryCompletion(inferenceId, soundingId, invocationId, candidate) {
+    const state = this.state();
+    const encounter = requireActiveEncounter(state, inferenceId, soundingId);
+    const invocation = state.activeToolInvocations.get(invocationId);
+    if (!invocation || invocation.inferenceId !== inferenceId || invocation.soundingId !== soundingId
+      || invocation.tool.id !== TRAJECTORY_COMPLETION_TOOL_ID) {
+      throw new Error('trajectory completion receipt requires its active ordinary actor invocation');
+    }
+    if (!state.currentTrajectory) throw new Error('there is no active trajectory to report complete');
+    if (state.pendingTrajectoryCompletionReceiptId) {
+      throw new Error('the active trajectory already has an unjudged completion receipt');
+    }
+    const receipt = validateTrajectoryCompletionReceipt(candidate, state.currentTrajectory);
+    const receiptId = this.id();
+    this.append('trajectory_completion_reported', {
+      receiptId,
+      inferenceId,
+      soundingId,
+      projection: encounter.projection,
+      actorInvocationId: invocationId,
+      actor: structuredClone(invocation.tool),
+      trajectoryId: activeTrajectoryId(state.currentTrajectory),
+      trajectoryDigest: digest(projectActiveTrajectory(state.currentTrajectory)),
+      ...receipt,
+    });
+    return {
+      format: 'music-trajectory-completion-receipt-1',
+      completionReceiptId: receiptId,
+      authority: 'resident-actor',
+      effect: 'completion-claimed-selector-judgment-pending',
+      trajectoryId: receipt.trajectoryId,
+    };
+  }
+
+  pendingTrajectoryCompletion(inferenceId = null) {
+    const state = this.state();
+    const receipt = state.pendingTrajectoryCompletionReceiptId
+      ? state.trajectoryCompletionReceipts.get(state.pendingTrajectoryCompletionReceiptId)
+      : null;
+    if (!receipt) return null;
+    if (inferenceId !== null && receipt.inferenceId !== inferenceId) return null;
+    return structuredClone(receipt);
+  }
+
+  deliverActiveTrajectoryContext(inferenceId) {
+    const state = this.state();
+    if (state.activeInferenceId !== inferenceId || !state.activeEncounter) {
+      throw new Error(`inference is not active: ${inferenceId}`);
+    }
+    if (!state.currentTrajectory) return null;
+    if (state.deliveredActiveTrajectoryInferenceIds.has(inferenceId)) {
+      throw new Error('active trajectory context was delivered more than once in this inference');
+    }
+    const message = activeTrajectoryContextMessage(state.currentTrajectory);
+    this.append('active_trajectory_context_delivered', {
+      inferenceId,
+      soundingId: state.activeEncounter.sounding.id,
+      projection: state.activeEncounter.projection,
+      trajectoryId: activeTrajectoryId(state.currentTrajectory),
+      message,
+    });
+    return structuredClone(message);
+  }
+
+  deliverTrajectoryCompletionContext(inferenceId) {
+    const state = this.state();
+    if (state.activeInferenceId !== inferenceId || !state.activeEncounter) {
+      throw new Error(`inference is not active: ${inferenceId}`);
+    }
+    const receipt = this.pendingTrajectoryCompletion();
+    if (!receipt) throw new Error('trajectory completion context requires an unjudged receipt');
+    if (state.deliveredTrajectoryCompletionReceiptIds.has(receipt.receiptId)) {
+      throw new Error('trajectory completion context was delivered more than once');
+    }
+    const message = trajectoryCompletionContextMessage(state.currentTrajectory, receipt);
+    this.append('trajectory_completion_context_delivered', {
+      inferenceId,
+      soundingId: state.activeEncounter.sounding.id,
+      projection: state.activeEncounter.projection,
+      receiptId: receipt.receiptId,
+      message,
+    });
+    return structuredClone(message);
+  }
+
   stageConsequenceTransition(inferenceId, soundingId, proposal) {
     const state = this.state();
     const encounter = requireActiveEncounter(state, inferenceId, soundingId);
@@ -689,8 +780,21 @@ export class MusicKernel {
       throw new Error('trajectory election requires its active ordinary selector invocation');
     }
     const election = validateTrajectoryElectionFrontier(frontier, state);
-    const floorGrounding = groundTrajectoryFloors(election.candidates, state);
+    const floorGrounding = groundTrajectoryFloors(election.candidates ?? [], state);
     const electionId = this.id();
+    if (election.lifecycle === 'directional' && election.decision !== 'continue') {
+      assertActiveGeometryFits(state.tools, state.carrier, state.subject, state.position, {
+        format: 'music-active-trajectory-1', trajectoryId: electionId, status: 'active',
+        establishedAt: this.clock().toISOString(),
+        establishedBy: {
+          electionId, selector: structuredClone(invocation.tool),
+          ...(election.reviewId ? { reviewId: election.reviewId } : {}),
+          ...(election.completionReceiptId ? { completionReceiptId: election.completionReceiptId } : {}),
+          ...(election.priorTrajectoryId ? { supersedes: election.priorTrajectoryId } : {}),
+        },
+        trajectory: structuredClone(election.trajectory),
+      });
+    }
     this.append('trajectory_election_recorded', {
       electionId,
       inferenceId,
@@ -702,6 +806,21 @@ export class MusicKernel {
       floorGrounding,
       ...election,
     });
+    if (election.lifecycle === 'directional') {
+      const retained = this.state().trajectoryElections.get(electionId);
+      return {
+        format: 'music-trajectory-decision-1',
+        trajectoryElectionReceipt: electionId,
+        decision: retained.decision,
+        priorTrajectoryId: retained.priorTrajectoryId,
+        trajectory: projectActiveTrajectory(this.state().currentTrajectory),
+        rationale: retained.rationale,
+        selectedCandidateId: retained.selectedCandidateId,
+        selected: retained.selected ? structuredClone(retained.selected) : null,
+        ...(retained.reviewId ? { reviewId: retained.reviewId, reviewDigest: retained.reviewDigest } : {}),
+        ...(retained.completionReceiptId ? { completionReceiptId: retained.completionReceiptId } : {}),
+      };
+    }
     return {
       format: election.reviewId ? 'music-trajectory-election-2' : 'music-trajectory-election-1',
       trajectoryElectionReceipt: electionId,
@@ -738,7 +857,7 @@ export class MusicKernel {
       ...review,
     });
     return {
-      format: 'music-developmental-review-1',
+      format: review.directional ? 'music-developmental-review-2' : 'music-developmental-review-1',
       reviewId,
       findings: structuredClone(review.findings),
       candidates: structuredClone(review.candidates),
@@ -750,7 +869,8 @@ export class MusicKernel {
     if (state.activeInferenceId !== inferenceId || !state.activeEncounter) {
       throw new Error(`inference is not active: ${inferenceId}`);
     }
-    const elections = [...state.trajectoryElections.values()].filter(election => election.inferenceId === inferenceId);
+    const elections = [...state.trajectoryElections.values()].filter(election =>
+      election.inferenceId === inferenceId && !state.deliveredTrajectoryContextIds.has(election.electionId));
     if (elections.length !== 1) throw new Error('trajectory context requires exactly one election in this inference');
     const election = elections[0];
     const message = trajectoryContextMessage(election);
@@ -859,6 +979,7 @@ export class MusicKernel {
     const trajectoryElection = authorizeTrajectoryElection(
       state, encounter, tool, input, trajectoryElectionReceipt,
     );
+    const activeTrajectory = state.currentTrajectory ? projectActiveTrajectory(state.currentTrajectory) : null;
     const invocationId = this.id();
     const executionEnvironmentBefore = executionEnvironmentReceipt(this.toolEnvironment);
     this.append('tool_invocation_started', {
@@ -869,7 +990,7 @@ export class MusicKernel {
       tool: { id: tool.id, version: tool.version, digest: toolModuleDigest(tool) },
       selectionReceipt: selection?.selectionId ?? null,
       trajectoryElectionReceipt: trajectoryElection?.electionId ?? null,
-      trajectoryBasis: trajectoryBasis(tool.id, trajectoryElection?.electionId ?? null),
+      trajectoryBasis: trajectoryBasis(tool.id, trajectoryElection?.electionId ?? null, activeTrajectory?.trajectoryId ?? null),
       executionEnvironmentBefore,
       input: structuredClone(input),
     });
@@ -888,6 +1009,9 @@ export class MusicKernel {
         ),
         recordDevelopmentalReview: frontier => this.recordDevelopmentalReview(
           inferenceId, soundingId, invocationId, frontier,
+        ),
+        recordTrajectoryCompletion: candidate => this.recordTrajectoryCompletion(
+          inferenceId, soundingId, invocationId, candidate,
         ),
         executeTrajectoryElection: frontier => this.executeTrajectoryElection(
           inferenceId, soundingId, invocationId, frontier,
@@ -962,6 +1086,7 @@ export class MusicKernel {
     const state = this.state();
     if (state.activeInferenceId !== inferenceId) throw new Error(`inference is not active: ${inferenceId}`);
     requireRecurrenceElection(state, inferenceId);
+    requireTrajectoryCompletionJudged(state);
     const stagedRevisions = state.stagedRevisions.map(revision => structuredClone(revision));
     const stagedCarrierTransition = state.stagedCarrierTransition ? structuredClone(state.stagedCarrierTransition) : null;
     const stagedConsequenceTransitions = state.stagedConsequenceTransitions.map(transition => structuredClone(transition));
@@ -1228,7 +1353,11 @@ export class MusicKernel {
       developmentalReviews: state.developmentalReviewIds.size,
       trajectoryElections: state.trajectoryElectionIds.size,
       activeTrajectory: structuredClone(state.currentTrajectory),
+      trajectoryCompletionReceipts: state.trajectoryCompletionReceiptIds.size,
+      pendingTrajectoryCompletionReceipt: state.pendingTrajectoryCompletionReceiptId,
       electedActions: state.usedTrajectoryElectionIds.size,
+      trajectoryShapedActions: [...state.invocationHistory.values()]
+        .filter(invocation => invocation.trajectoryBasis?.kind === 'active-trajectory').length,
       adHocActions: [...state.invocationHistory.values()]
         .filter(invocation => invocation.trajectoryBasis?.kind === 'ad-hoc').length,
       selectorInvocations: [...state.invocationHistory.values()]
@@ -1346,6 +1475,11 @@ function reduceEvents(events) {
     usedTrajectoryElectionIds: new Set(),
     deliveredTrajectoryContextIds: new Set(),
     deliveredDevelopmentalReviewContextIds: new Set(),
+    trajectoryCompletionReceipts: new Map(),
+    trajectoryCompletionReceiptIds: new Set(),
+    pendingTrajectoryCompletionReceiptId: null,
+    deliveredTrajectoryCompletionReceiptIds: new Set(),
+    deliveredActiveTrajectoryInferenceIds: new Set(),
     inferenceIds: new Set(),
     completedInferences: 0,
     failedInferences: 0,
@@ -1437,6 +1571,10 @@ function reduceEvents(events) {
             && digest(sounding.development) !== digest(projectDevelopmentalFrontier(state))) {
             throw new Error('Sounding developmental frontier projection mismatch');
           }
+          if (digest(sounding.activeTrajectory ?? null)
+            !== digest(state.currentTrajectory ? projectActiveTrajectory(state.currentTrajectory) : null)) {
+            throw new Error('Sounding active trajectory projection mismatch');
+          }
           if (sounding.trajectoryElection !== undefined) {
             const projected = digest({ trajectoryElection: sounding.trajectoryElection });
             const accepted = [
@@ -1475,6 +1613,7 @@ function reduceEvents(events) {
             ...(sounding.position ? { position: sounding.position } : {}),
             ...(sounding.development ? { development: sounding.development } : {}),
             ...(sounding.developmentalTrial ? { developmentalTrial: sounding.developmentalTrial } : {}),
+            ...(sounding.activeTrajectory ? { activeTrajectory: sounding.activeTrajectory } : {}),
             ...(sounding.trajectoryElection ? { trajectoryElection: sounding.trajectoryElection } : {}),
             wake: sounding.wake ?? null,
           }, { includeCausalLineage });
@@ -1874,7 +2013,70 @@ function reduceEvents(events) {
           ...election,
         };
         state.trajectoryElections.set(event.payload.electionId, retainedElection);
-        state.currentTrajectory = structuredClone(retainedElection);
+        if (election.lifecycle === 'directional') {
+          if (election.decision === 'continue') {
+            if (!state.currentTrajectory
+              || activeTrajectoryId(state.currentTrajectory) !== election.priorTrajectoryId) {
+              throw new Error('continued trajectory is not the retained active trajectory');
+            }
+          } else {
+            state.currentTrajectory = {
+              format: 'music-active-trajectory-1',
+              trajectoryId: event.payload.electionId,
+              status: 'active',
+              establishedAt: event.at,
+              establishedBy: {
+                electionId: event.payload.electionId,
+                selector: structuredClone(event.payload.selector),
+                ...(election.reviewId ? { reviewId: election.reviewId } : {}),
+                ...(election.completionReceiptId ? { completionReceiptId: election.completionReceiptId } : {}),
+                ...(election.priorTrajectoryId ? { supersedes: election.priorTrajectoryId } : {}),
+              },
+              trajectory: structuredClone(election.trajectory),
+            };
+          }
+          if (election.completionReceiptId) state.pendingTrajectoryCompletionReceiptId = null;
+        } else {
+          state.currentTrajectory = structuredClone(retainedElection);
+        }
+        break;
+      }
+      case 'trajectory_completion_reported': {
+        const encounter = requireActiveEncounter(
+          state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection,
+        );
+        if (!state.currentTrajectory) throw new Error('trajectory completion has no active trajectory');
+        if (state.pendingTrajectoryCompletionReceiptId) {
+          throw new Error('trajectory completion overlaps an unjudged receipt');
+        }
+        if (typeof event.payload.receiptId !== 'string' || !event.payload.receiptId
+          || state.trajectoryCompletionReceiptIds.has(event.payload.receiptId)) {
+          throw new Error('trajectory completion needs a unique bounded receipt id');
+        }
+        const invocation = state.activeToolInvocations.get(event.payload.actorInvocationId);
+        if (!invocation || invocation.tool.id !== TRAJECTORY_COMPLETION_TOOL_ID
+          || invocation.inferenceId !== event.payload.inferenceId
+          || invocation.soundingId !== encounter.sounding.id
+          || digest(invocation.tool) !== digest(event.payload.actor)) {
+          throw new Error('trajectory completion is not bound to its actor invocation');
+        }
+        if (event.payload.trajectoryId !== activeTrajectoryId(state.currentTrajectory)
+          || event.payload.trajectoryDigest !== digest(projectActiveTrajectory(state.currentTrajectory))) {
+          throw new Error('trajectory completion is not bound to the active trajectory');
+        }
+        const receipt = {
+          receiptId: event.payload.receiptId,
+          inferenceId: event.payload.inferenceId,
+          soundingId: event.payload.soundingId,
+          projection: event.payload.projection,
+          actorInvocationId: event.payload.actorInvocationId,
+          actor: structuredClone(event.payload.actor),
+          trajectoryDigest: event.payload.trajectoryDigest,
+          ...validateTrajectoryCompletionReceipt(event.payload, state.currentTrajectory),
+        };
+        state.trajectoryCompletionReceiptIds.add(receipt.receiptId);
+        state.trajectoryCompletionReceipts.set(receipt.receiptId, receipt);
+        state.pendingTrajectoryCompletionReceiptId = receipt.receiptId;
         break;
       }
       case 'developmental_review_recorded': {
@@ -1933,7 +2135,12 @@ function reduceEvents(events) {
         if (event.payload.trajectoryElectionReceipt) {
           state.usedTrajectoryElectionIds.add(event.payload.trajectoryElectionReceipt);
         }
-        const basis = trajectoryBasis(binding.manifest.id, event.payload.trajectoryElectionReceipt ?? null);
+        const basis = trajectoryBasis(
+          binding.manifest.id,
+          event.payload.trajectoryElectionReceipt ?? null,
+          ['active-trajectory', 'actor-completion'].includes(event.payload.trajectoryBasis?.kind)
+            && state.currentTrajectory ? activeTrajectoryId(state.currentTrajectory) : null,
+        );
         if (event.payload.trajectoryBasis !== undefined && digest(event.payload.trajectoryBasis) !== digest(basis)) {
           throw new Error('tool invocation trajectory basis mismatch');
         }
@@ -2039,6 +2246,46 @@ function reduceEvents(events) {
         state.deliveredTrajectoryContextIds.add(event.payload.electionId);
         break;
       }
+      case 'active_trajectory_context_delivered': {
+        requireActiveEncounter(
+          state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection,
+        );
+        if (!state.currentTrajectory
+          || event.payload.trajectoryId !== activeTrajectoryId(state.currentTrajectory)) {
+          throw new Error('active trajectory context is not bound to current trajectory');
+        }
+        if (state.deliveredActiveTrajectoryInferenceIds.has(event.payload.inferenceId)) {
+          throw new Error('active trajectory context was delivered more than once in one inference');
+        }
+        const expected = activeTrajectoryContextMessage(state.currentTrajectory);
+        if (digest(event.payload.message) !== digest(expected)) {
+          throw new Error('active trajectory context message mismatch');
+        }
+        state.activeTurnMessages.push(structuredClone(expected));
+        state.messages.push(structuredClone(expected));
+        state.deliveredActiveTrajectoryInferenceIds.add(event.payload.inferenceId);
+        break;
+      }
+      case 'trajectory_completion_context_delivered': {
+        requireActiveEncounter(
+          state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection,
+        );
+        const receipt = state.trajectoryCompletionReceipts.get(event.payload.receiptId);
+        if (!receipt || state.pendingTrajectoryCompletionReceiptId !== receipt.receiptId) {
+          throw new Error('trajectory completion context lacks its pending receipt');
+        }
+        if (state.deliveredTrajectoryCompletionReceiptIds.has(receipt.receiptId)) {
+          throw new Error('trajectory completion context was delivered more than once');
+        }
+        const expected = trajectoryCompletionContextMessage(state.currentTrajectory, receipt);
+        if (digest(event.payload.message) !== digest(expected)) {
+          throw new Error('trajectory completion context message mismatch');
+        }
+        state.activeTurnMessages.push(structuredClone(expected));
+        state.messages.push(structuredClone(expected));
+        state.deliveredTrajectoryCompletionReceiptIds.add(receipt.receiptId);
+        break;
+      }
       case 'developmental_review_context_delivered': {
         const encounter = requireActiveEncounter(
           state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection,
@@ -2088,6 +2335,7 @@ function reduceEvents(events) {
         if (state.activeInferenceId !== event.payload.inferenceId) throw new Error('completed inference is not active');
         requireActiveEncounter(state, event.payload.inferenceId, event.payload.soundingId, event.payload.projection);
         requireRecurrenceElection(state, event.payload.inferenceId);
+        requireTrajectoryCompletionJudged(state);
         assertInferencePayloadFits(state, event.payload, 'inference result');
         if ([...state.activeToolInvocations.values()].some(invocation => invocation.inferenceId === event.payload.inferenceId)) {
           throw new Error('cannot complete inference with an uncertain tool invocation');
@@ -2237,6 +2485,9 @@ function reduceEvents(events) {
         state.usedSelectionIds = new Set();
         state.activeInputMessage = null;
         state.activeTurnMessages = [];
+        if (state.pendingTrajectoryCompletionReceiptId) {
+          state.deliveredTrajectoryCompletionReceiptIds.delete(state.pendingTrajectoryCompletionReceiptId);
+        }
         state.failedInferences += 1;
         break;
       default:
@@ -2458,7 +2709,7 @@ function assertDevelopmentalTransactionFits(state, transaction) {
     }
   }
   const position = developmentalSuccessorForCompletion(state, { developmentalTransaction: transaction });
-  assertActiveGeometryFits(tools, carrier, state.subject, position ?? state.position);
+  assertActiveGeometryFits(tools, carrier, state.subject, position ?? state.position, state.currentTrajectory);
 }
 
 function applyDevelopmentalTransaction(state, transaction) {
@@ -3041,7 +3292,9 @@ function causalLineage(delta, state) {
     .filter(reference => reference.kind === 'trajectory-election')
     .map(reference => reference.electionId));
   for (const invocationId of invocationIds) {
-    const electionId = state.invocationHistory.get(invocationId)?.trajectoryElectionReceipt;
+    const invocation = state.invocationHistory.get(invocationId);
+    const electionId = invocation?.trajectoryElectionReceipt
+      ?? (invocation?.trajectoryBasis?.kind === 'active-trajectory' ? invocation.trajectoryBasis.trajectoryId : null);
     if (electionId) electionIds.add(electionId);
   }
   return {
@@ -3116,16 +3369,30 @@ function validateWakeTransition(value) {
 }
 
 function trajectoryElectionOpportunity(state, trigger) {
-  if (!['opening', 'scheduled', 'heartbeat'].includes(trigger)) return {};
-  if ((state.pendingDeltas?.length ?? 0) > 0
-    || (state.consequences instanceof Map && projectUnresolvedConsequences(state).length > 0)) return {};
   const selector = state.tools.get(TRAJECTORY_ELECTION_TOOL_ID);
   const reviewer = state.tools.get(DEVELOPMENTAL_REVIEW_TOOL_ID);
   if (!supportsStructuredRecurrenceOrgan(reviewer, selector)) return {};
+  if (state.pendingTrajectoryCompletionReceiptId) {
+    return {
+      trajectoryElection: {
+        format: 'music-trajectory-election-opportunity-3',
+        occasion: 'actor-completion-review',
+        selector: {
+          id: selector.id, version: selector.version, digest: toolModuleDigest(selector),
+        },
+        completionReceiptId: state.pendingTrajectoryCompletionReceiptId,
+        entry: 'completion-required',
+      },
+    };
+  }
+  if (state.currentTrajectory) return {};
+  if (!['opening', 'scheduled', 'heartbeat'].includes(trigger)) return {};
+  if ((state.pendingDeltas?.length ?? 0) > 0
+    || (state.consequences instanceof Map && projectUnresolvedConsequences(state).length > 0)) return {};
   return {
     trajectoryElection: {
-      format: 'music-trajectory-election-opportunity-2',
-      occasion: trigger === 'heartbeat' ? 'instruction-free-recurrence' : 'subject-opening-recurrence',
+      format: 'music-trajectory-election-opportunity-3',
+      occasion: trigger === 'heartbeat' ? 'instruction-free-recurrence' : 'trajectory-establishment',
       reviewer: {
         id: reviewer.id,
         version: reviewer.version,
@@ -3139,10 +3406,9 @@ function trajectoryElectionOpportunity(state, trigger) {
       consequenceAddressable: true,
       entry: 'required',
       actionObligation: false,
-      quietPermitted: true,
       frontier: {
         minimumCandidates: 2,
-        minimumExecutableCandidates: 1,
+        candidateKind: 'directional-trajectory',
       },
     },
   };
@@ -3155,9 +3421,11 @@ function supportsStructuredRecurrenceOrgan(reviewer, selector) {
     reviewer && selector
     && reviewProperties?.findings?.type === 'array'
     && reviewProperties?.candidates?.type === 'array'
-    && selectorProperties?.reviewId?.type === 'string'
+    && Array.isArray(selectorProperties?.reviewId?.type)
+    && Array.isArray(selectorProperties?.completionReceiptId?.type)
+    && selectorProperties?.decision?.type === 'string'
     && selectorProperties?.assessments?.type === 'array'
-    && selectorProperties?.trajectory?.type === 'object',
+    && Array.isArray(selectorProperties?.trajectory?.type),
   );
 }
 
@@ -3192,7 +3460,7 @@ function requireRecurrenceElection(state, inferenceId) {
     throw new Error(`recurrence inference requires exactly one retained developmental review; found ${reviews.length}`);
   }
   const elections = [...state.trajectoryElections.values()]
-    .filter(election => election.inferenceId === inferenceId);
+    .filter(election => election.inferenceId === inferenceId && election.reviewId === reviews[0].reviewId);
   if (elections.length !== 1) {
     throw new Error(`recurrence inference requires exactly one retained trajectory election; found ${elections.length}`);
   }
@@ -3202,8 +3470,14 @@ function requireRecurrenceElection(state, inferenceId) {
   if (!state.deliveredTrajectoryContextIds.has(elections[0].electionId)) {
     throw new Error('recurrence inference must receive its retained trajectory context before completion');
   }
-  if (!elections[0].candidates.some(candidate => candidate?.action?.kind === 'tool')) {
-    throw new Error('recurrence trajectory frontier requires at least one executable contact candidate');
+  if (elections[0].lifecycle === 'directional' && elections[0].decision !== 'establish') {
+    throw new Error('trajectory establishment recurrence must establish a direction');
+  }
+}
+
+function requireTrajectoryCompletionJudged(state) {
+  if (state.pendingTrajectoryCompletionReceiptId) {
+    throw new Error(`trajectory completion receipt ${state.pendingTrajectoryCompletionReceiptId} still awaits elector judgment`);
   }
 }
 
@@ -3331,6 +3605,8 @@ function soundingProjectionInput(sounding) {
       ...(sounding.development ? [projectionFact('sounding:development', sounding.development)] : []),
       ...(sounding.developmentalTrial
         ? [projectionFact('sounding:developmental-trial', sounding.developmentalTrial)] : []),
+      ...(sounding.activeTrajectory
+        ? [projectionFact('sounding:active-trajectory', sounding.activeTrajectory)] : []),
       ...(sounding.trajectoryElection
         ? [projectionFact('sounding:trajectory-election', sounding.trajectoryElection)] : []),
       projectionFact('sounding:frontier', sounding.frontier),
@@ -3372,10 +3648,10 @@ function assertProspectiveGeometryFits(state, { tool = null, carrierTransition =
   let carrier = state.carrier;
   if (state.stagedCarrierTransition) carrier = applyCarrierTransition(carrier, state.stagedCarrierTransition);
   if (carrierTransition) carrier = applyCarrierTransition(carrier, carrierTransition);
-  assertActiveGeometryFits(tools, carrier, state.subject, state.position);
+  assertActiveGeometryFits(tools, carrier, state.subject, state.position, state.currentTrajectory);
 }
 
-function assertActiveGeometryFits(tools, carrier, subject, position = null) {
+function assertActiveGeometryFits(tools, carrier, subject, position = null, activeTrajectory = null) {
   inferencePolicyFromCarrier(carrier);
   const binding = tools.get(ENCOUNTER_SHAPE_TOOL_ID);
   if (!binding) throw new Error(`active geometry requires ${ENCOUNTER_SHAPE_TOOL_ID}`);
@@ -3392,7 +3668,8 @@ function assertActiveGeometryFits(tools, carrier, subject, position = null) {
       format: 'music-developmental-frontier-1', available: 0, included: 0, remaining: 0,
       queueDigest: digest([]), page: { index: 0, count: 1 }, proposals: [],
     },
-    ...trajectoryElectionOpportunity({ tools }, 'heartbeat'),
+    ...(activeTrajectory ? { activeTrajectory: projectActiveTrajectory(activeTrajectory) } : {}),
+    ...trajectoryElectionOpportunity({ tools, currentTrajectory: activeTrajectory }, 'heartbeat'),
     wake: null,
     deltaLineage: [],
     deltas: [],
@@ -3427,6 +3704,8 @@ function projectionInput(state, encounter, phase, deltaIds) {
           ...(sounding.development ? [projectionFact('sounding:development', sounding.development)] : []),
           ...(sounding.developmentalTrial
             ? [projectionFact('sounding:developmental-trial', sounding.developmentalTrial)] : []),
+          ...(sounding.activeTrajectory
+            ? [projectionFact('sounding:active-trajectory', sounding.activeTrajectory)] : []),
           ...(sounding.trajectoryElection
             ? [projectionFact('sounding:trajectory-election', sounding.trajectoryElection)] : []),
           ...(sounding.deltaLineage?.length
@@ -3803,12 +4082,12 @@ function validateDevelopmentalReview(frontier, encounter) {
     return structuredClone(finding);
   });
   const candidateIds = new Set();
+  const directional = value.candidates.every(candidate => candidate?.objective !== undefined);
   let executable = 0;
   const candidates = value.candidates.map(candidate => {
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)
       || typeof candidate.id !== 'string' || !/^[a-z][a-z0-9_-]{0,47}$/.test(candidate.id)
       || candidateIds.has(candidate.id)
-      || typeof candidate.description !== 'string' || !candidate.description.trim() || candidate.description.length > 2_048
       || !Array.isArray(candidate.addressesFindingIds) || candidate.addressesFindingIds.length < 1
       || candidate.addressesFindingIds.length > 24
       || new Set(candidate.addressesFindingIds).size !== candidate.addressesFindingIds.length
@@ -3816,6 +4095,18 @@ function validateDevelopmentalReview(frontier, encounter) {
       throw new Error('invalid developmental review candidate');
     }
     candidateIds.add(candidate.id);
+    if (directional) {
+      validateTrajectoryEnvelope(candidate);
+      if (Object.keys(candidate).some(key => ![
+        'id', 'objective', 'direction', 'horizon', 'successSignals', 'reconsiderWhen', 'addressesFindingIds',
+      ].includes(key))) {
+        throw new Error(`directional review candidate ${candidate.id} contains action-plan fields`);
+      }
+      return structuredClone(candidate);
+    }
+    if (typeof candidate.description !== 'string' || !candidate.description.trim() || candidate.description.length > 2_048) {
+      throw new Error('invalid legacy developmental review candidate');
+    }
     const action = candidate.action;
     if (!action || typeof action !== 'object' || Array.isArray(action) || !['tool', 'quiet'].includes(action.kind)) {
       throw new Error(`review candidate ${candidate.id} needs a typed action`);
@@ -3834,8 +4125,8 @@ function validateDevelopmentalReview(frontier, encounter) {
     }
     return structuredClone(candidate);
   });
-  if (executable < 1) throw new Error('developmental review needs at least one executable contact candidate');
-  return { findings, candidates };
+  if (!directional && executable < 1) throw new Error('developmental review needs at least one executable contact candidate');
+  return { findings, candidates, ...(directional ? { directional: true } : {}) };
 }
 
 function validateTrajectoryEnvelope(value) {
@@ -3855,6 +4146,79 @@ function validateTrajectoryEnvelope(value) {
 function validateTrajectoryElectionFrontier(frontier, state = null, { requireDeliveredReview = true } = {}) {
   if (!frontier || typeof frontier !== 'object' || Array.isArray(frontier)) {
     throw new Error('trajectory election frontier must be an object');
+  }
+  if (frontier.decision !== undefined) {
+    if (!state) throw new Error('directional trajectory decision needs retained state');
+    const rationale = typeof frontier.rationale === 'string' ? frontier.rationale.trim() : '';
+    if (!rationale || rationale.length > 2_048) throw new Error('trajectory decision needs a bounded rationale');
+    if (!['establish', 'continue', 'replace'].includes(frontier.decision)) {
+      throw new Error('invalid directional trajectory decision');
+    }
+    if (frontier.completionReceiptId !== null) {
+      if (frontier.reviewId !== null || !state.currentTrajectory) {
+        throw new Error('completion judgment must cite the active trajectory rather than a review');
+      }
+      const receipt = state.trajectoryCompletionReceipts.get(frontier.completionReceiptId);
+      if (!receipt || state.pendingTrajectoryCompletionReceiptId !== receipt.receiptId) {
+        throw new Error('trajectory decision cites no pending actor completion receipt');
+      }
+      if (requireDeliveredReview && !state.deliveredTrajectoryCompletionReceiptIds.has(receipt.receiptId)) {
+        throw new Error('trajectory completion receipt was not delivered with the active trajectory');
+      }
+      if (frontier.decision === 'establish') throw new Error('an active trajectory cannot be established again');
+      if (!Array.isArray(frontier.assessments) || frontier.assessments.length !== 0) {
+        throw new Error('completion judgment does not accept stale review assessments');
+      }
+      if (frontier.decision === 'continue' && frontier.trajectory !== null
+        && digest(frontier.trajectory) !== digest(projectActiveTrajectory(state.currentTrajectory).trajectory)) {
+        throw new Error('continuing must preserve the active trajectory unchanged');
+      }
+      if (frontier.decision === 'replace' && frontier.trajectory === null) {
+        throw new Error('replacing a trajectory requires a new directional envelope');
+      }
+      return {
+        lifecycle: 'directional',
+        decision: frontier.decision,
+        reviewId: null,
+        completionReceiptId: receipt.receiptId,
+        priorTrajectoryId: activeTrajectoryId(state.currentTrajectory),
+        rationale,
+        assessments: [], candidates: [], selectedCandidateId: null, selected: null,
+        trajectory: frontier.decision === 'continue'
+          ? structuredClone(projectActiveTrajectory(state.currentTrajectory).trajectory)
+          : validateTrajectoryEnvelope(frontier.trajectory),
+      };
+    }
+    if (frontier.decision !== 'establish' || frontier.reviewId === null || state.currentTrajectory) {
+      throw new Error('review-bound trajectory decision must establish the first active trajectory');
+    }
+    const review = state.developmentalReviews.get(frontier.reviewId);
+    if (!review?.directional) throw new Error('directional trajectory establishment needs a directional review');
+    if (review.inferenceId !== state.activeInferenceId
+      || review.soundingId !== state.activeEncounter?.sounding?.id
+      || review.projection !== state.activeEncounter?.projection) {
+      throw new Error('trajectory election review is not bound to the active encounter');
+    }
+    if (requireDeliveredReview && !state.deliveredDevelopmentalReviewContextIds.has(review.reviewId)) {
+      throw new Error('trajectory election review was not delivered as structured context');
+    }
+    if (!Array.isArray(frontier.assessments) || frontier.assessments.length !== review.candidates.length) {
+      throw new Error('trajectory election must assess every frozen review candidate exactly once');
+    }
+    const assessed = validateTrajectoryAssessments(frontier.assessments, review, state);
+    const eligible = assessed.candidates.filter(candidate => candidate.geometry.worldValid && !candidate.geometry.heldRepeat);
+    if (eligible.length < 1) throw new Error('trajectory frontier has no world-valid, non-repeated candidate');
+    if (!frontier.trajectory) throw new Error('trajectory establishment needs a directional envelope');
+    const selectedCandidateId = selectTrajectoryCandidate(frontier.assessments);
+    return {
+      lifecycle: 'directional', decision: 'establish', reviewId: review.reviewId,
+      reviewDigest: digest({ findings: review.findings, candidates: review.candidates }),
+      completionReceiptId: null, priorTrajectoryId: null, rationale,
+      assessments: structuredClone(frontier.assessments), candidates: assessed.candidates,
+      selectedCandidateId,
+      selected: structuredClone(assessed.candidates.find(candidate => candidate.id === selectedCandidateId)),
+      trajectory: validateTrajectoryEnvelope(frontier.trajectory),
+    };
   }
   if (frontier.reviewId !== undefined) {
     if (!state) throw new Error('review-bound trajectory election needs retained state');
@@ -3944,6 +4308,28 @@ function validateTrajectoryElectionFrontier(frontier, state = null, { requireDel
 }
 
 function trajectoryContextMessage(election) {
+  if (election.lifecycle === 'directional') {
+    const envelope = {
+      format: 'music-trajectory-envelope-2',
+      authority: 'resident-trajectory-elector',
+      decisionId: election.electionId,
+      decision: election.decision,
+      priorTrajectoryId: election.priorTrajectoryId,
+      selectedCandidateId: election.selectedCandidateId,
+      selected: election.selected ? structuredClone(election.selected) : null,
+      trajectory: {
+        format: 'music-active-trajectory-1',
+        trajectoryId: election.decision === 'continue' ? election.priorTrajectoryId : election.electionId,
+        status: 'active',
+        trajectory: structuredClone(election.trajectory),
+      },
+      rationale: election.rationale,
+    };
+    return {
+      role: 'user',
+      content: `<music_trajectory_context>${canonical(envelope)}</music_trajectory_context>\n\nPursue this active resident-authored trajectory now. Use your unrestricted tools and judgment to make real progress. The trajectory is a direction, not a preselected action plan. Ending this encounter does not complete, narrow, or erase it. When you judge it done, call report_trajectory_completion with an exact structured receipt; only the trajectory elector can decide whether to continue or replace it.`,
+    };
+  }
   const envelope = {
     format: 'music-trajectory-envelope-1',
     authority: 'resident-trajectory-elector',
@@ -3968,6 +4354,132 @@ function trajectoryContextMessage(election) {
     role: 'user',
     content: `<music_trajectory_context>${canonical(envelope)}</music_trajectory_context>`,
   };
+}
+
+function activeTrajectoryContextMessage(active) {
+  const envelope = projectActiveTrajectory(active);
+  return {
+    role: 'user',
+    content: `<music_trajectory_context>${canonical(envelope)}</music_trajectory_context>\n\nContinue pursuing this active resident-authored trajectory. Use your unrestricted tools and judgment. It is a direction, not a one-step plan. Ending this encounter does not complete, narrow, or erase it. When you judge it done, call report_trajectory_completion with an exact structured receipt; only the trajectory elector can decide whether to continue or replace it.`,
+  };
+}
+
+function trajectoryCompletionContextMessage(active, receipt) {
+  return {
+    role: 'user',
+    content: `<music_trajectory_completion_review>${canonical({
+      format: 'music-trajectory-completion-review-1',
+      authority: 'resident-trajectory-elector',
+      activeTrajectory: projectActiveTrajectory(active),
+      actorReceipt: structuredClone(receipt),
+    })}</music_trajectory_completion_review>\n\nJudge the actor's completion claim against the exact active trajectory and receipt. Continue preserves the trajectory byte-for-byte; replace accepts movement beyond it and authors the next directional instruction. Produce only the elect_trajectory schema.`,
+  };
+}
+
+function projectActiveTrajectory(active) {
+  if (active?.format === 'music-active-trajectory-1') return structuredClone(active);
+  return {
+    format: 'music-active-trajectory-legacy-1',
+    trajectoryId: active?.electionId,
+    status: 'active',
+    trajectory: active?.trajectory ? structuredClone(active.trajectory) : {
+      objective: active?.selected?.description ?? 'Continue under the retained legacy election.',
+      direction: active?.selected?.geometry?.basis ?? 'Let later world contact correct this direction.',
+      horizon: 'near',
+      successSignals: ['The direction bears observable consequence.'],
+      reconsiderWhen: ['World contact contradicts the retained basis.'],
+    },
+  };
+}
+
+function activeTrajectoryId(active) {
+  return projectActiveTrajectory(active).trajectoryId;
+}
+
+function validateTrajectoryCompletionReceipt(candidate, active) {
+  if (!active) throw new Error('trajectory completion needs an active trajectory');
+  const value = jsonValue(candidate, 'trajectory completion receipt');
+  const projected = projectActiveTrajectory(active);
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || value.trajectoryId !== projected.trajectoryId
+    || typeof value.summary !== 'string' || !value.summary.trim() || value.summary.length > 4_096
+    || !Array.isArray(value.successSignals) || value.successSignals.length !== projected.trajectory.successSignals.length
+    || !Array.isArray(value.remainingConcerns) || value.remainingConcerns.length > 16
+    || value.remainingConcerns.some(item => typeof item !== 'string' || !item.trim() || item.length > 512)
+    || !Array.isArray(value.evidence) || value.evidence.length > 32
+    || value.evidence.some(item => typeof item !== 'string' || !item.trim() || item.length > 512)) {
+    throw new Error('invalid trajectory completion receipt');
+  }
+  const expectedSignals = new Set(projected.trajectory.successSignals);
+  const seen = new Set();
+  for (const assessment of value.successSignals) {
+    if (!assessment || typeof assessment !== 'object' || Array.isArray(assessment)
+      || typeof assessment.signal !== 'string' || !expectedSignals.has(assessment.signal) || seen.has(assessment.signal)
+      || !['met', 'unmet', 'uncertain'].includes(assessment.status)
+      || !Array.isArray(assessment.evidence) || assessment.evidence.length > 16
+      || assessment.evidence.some(item => typeof item !== 'string' || !item.trim() || item.length > 512)) {
+      throw new Error('trajectory completion must assess every exact success signal once');
+    }
+    seen.add(assessment.signal);
+  }
+  return {
+    trajectoryId: value.trajectoryId,
+    summary: value.summary.trim(),
+    successSignals: structuredClone(value.successSignals),
+    remainingConcerns: structuredClone(value.remainingConcerns),
+    evidence: structuredClone(value.evidence),
+  };
+}
+
+function validateTrajectoryAssessments(assessments, review, state) {
+  const floorCatalog = new Map(completedFloorCatalog(state).map(entry => [entry.token, entry.reference]));
+  const byId = new Map();
+  for (const assessment of assessments) {
+    if (!assessment || typeof assessment !== 'object' || Array.isArray(assessment)
+      || typeof assessment.candidateId !== 'string' || byId.has(assessment.candidateId)
+      || !review.candidates.some(candidate => candidate.id === assessment.candidateId)
+      || typeof assessment.worldValid !== 'boolean' || typeof assessment.reversible !== 'boolean'
+      || typeof assessment.heldRepeat !== 'boolean'
+      || !Array.isArray(assessment.completedFloors) || assessment.completedFloors.length > 16
+      || new Set(assessment.completedFloors).size !== assessment.completedFloors.length
+      || assessment.completedFloors.some(token => typeof token !== 'string' || !floorCatalog.has(token))
+      || !Number.isInteger(assessment.predictedExpansion) || !Number.isInteger(assessment.actionableRegret)
+      || typeof assessment.basis !== 'string' || !assessment.basis.trim() || assessment.basis.length > 2_048) {
+      throw new Error('invalid trajectory candidate assessment');
+    }
+    byId.set(assessment.candidateId, structuredClone(assessment));
+  }
+  return {
+    candidates: review.candidates.map(candidate => {
+      const assessment = byId.get(candidate.id);
+      return {
+        ...structuredClone(candidate),
+        geometry: {
+          worldValid: assessment.worldValid,
+          reversible: assessment.reversible,
+          heldRepeat: assessment.heldRepeat,
+          completedFloors: assessment.completedFloors.map(token => structuredClone(floorCatalog.get(token))),
+          predictedExpansion: assessment.predictedExpansion,
+          actionableRegret: assessment.actionableRegret,
+          basis: assessment.basis,
+        },
+      };
+    }),
+  };
+}
+
+function selectTrajectoryCandidate(assessments) {
+  const eligible = assessments.filter(assessment => assessment.worldValid && !assessment.heldRepeat);
+  eligible.sort((left, right) => {
+    const leftComposition = left.completedFloors.length >= 2 ? 1 : 0;
+    const rightComposition = right.completedFloors.length >= 2 ? 1 : 0;
+    return rightComposition - leftComposition
+      || right.predictedExpansion - left.predictedExpansion
+      || right.actionableRegret - left.actionableRegret
+      || Number(right.reversible) - Number(left.reversible)
+      || right.candidateId.localeCompare(left.candidateId);
+  });
+  return eligible[0]?.candidateId ?? null;
 }
 
 function completedFloorCatalog(state) {
@@ -4128,10 +4640,14 @@ function authorizeTrajectoryElection(state, encounter, manifest, input, election
   return election;
 }
 
-function trajectoryBasis(toolId, electionId) {
+function trajectoryBasis(toolId, electionId, activeId = null) {
   if (toolId === TRAJECTORY_ELECTION_TOOL_ID) {
     return { kind: 'selector', electionId: null };
   }
+  if (toolId === TRAJECTORY_COMPLETION_TOOL_ID) {
+    return { kind: 'actor-completion', trajectoryId: activeId };
+  }
+  if (activeId) return { kind: 'active-trajectory', trajectoryId: activeId };
   return electionId
     ? { kind: 'elected', electionId }
     : { kind: 'ad-hoc', electionId: null };

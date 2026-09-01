@@ -5,13 +5,15 @@ export function initialTrajectoryElectionTool() {
     id: 'elect_trajectory',
     version: 1,
     parent: null,
-    description: 'Judge one exact frozen developmental review and set the resident\'s active trajectory envelope. Supply one assessment for every review candidate. This selector alone may create or replace the trajectory; it does not execute the selected contact. After it returns, Music delivers the retained trajectory as authoritative context and restores the full action surface.',
+    description: 'Own the resident\'s trajectory lifecycle. From a frozen developmental review, establish one directional trajectory. From an actor completion receipt plus the exact active trajectory, either continue that trajectory unchanged or replace it with a new direction. This selector alone may establish or supersede trajectory; it never executes actions.',
     inputSchema: {
       type: 'object',
       properties: {
-        reviewId: { type: 'string', minLength: 1, maxLength: 128 },
+        reviewId: { type: ['string', 'null'], maxLength: 128 },
+        completionReceiptId: { type: ['string', 'null'], maxLength: 128 },
+        decision: { type: 'string', enum: ['establish', 'continue', 'replace'] },
         assessments: {
-          type: 'array', minItems: 2, maxItems: 16,
+          type: 'array', minItems: 0, maxItems: 16,
           items: {
             type: 'object',
             properties: {
@@ -35,7 +37,7 @@ export function initialTrajectoryElectionTool() {
           },
         },
         trajectory: {
-          type: 'object',
+          type: ['object', 'null'],
           properties: {
             objective: { type: 'string', minLength: 1, maxLength: 2_048 },
             direction: { type: 'string', minLength: 1, maxLength: 2_048 },
@@ -45,8 +47,9 @@ export function initialTrajectoryElectionTool() {
           },
           required: ['objective', 'direction', 'horizon', 'successSignals', 'reconsiderWhen'], additionalProperties: false,
         },
+        rationale: { type: 'string', minLength: 1, maxLength: 2_048 },
       },
-      required: ['reviewId', 'assessments', 'trajectory'], additionalProperties: false,
+      required: ['reviewId', 'completionReceiptId', 'decision', 'assessments', 'trajectory', 'rationale'], additionalProperties: false,
     },
     source: sourceBody(electTrajectory),
   });
@@ -71,6 +74,9 @@ async function electTrajectory(input, context) {
     });
     return context.executeTrajectoryElection({ candidates, selectedCandidateId: eligible[0].id });
   }
+  if (input.completionReceiptId !== null) {
+    return context.recordTrajectoryElection(input);
+  }
   const ids = new Set();
   const assessments = input.assessments.map(assessment => {
     if (ids.has(assessment.candidateId)) throw new Error(`trajectory assessment repeats candidate: ${assessment.candidateId}`);
@@ -94,8 +100,11 @@ async function electTrajectory(input, context) {
   });
   return context.recordTrajectoryElection({
     reviewId: input.reviewId,
+    completionReceiptId: null,
+    decision: input.decision,
     assessments,
     selectedCandidateId: eligible[0].candidateId,
     trajectory: input.trajectory,
+    rationale: input.rationale,
   });
 }

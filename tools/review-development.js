@@ -5,7 +5,7 @@ export function initialDevelopmentalReviewTool() {
     id: 'review_developmental_position',
     version: 1,
     parent: null,
-    description: 'Construct the exact typed developmental frontier that trajectory election must judge. This is a non-acting review: classify current harms, constraints, unresolved stakes, opportunities, and maintenance needs; rate severity, urgency, and cost of delay; then name bounded quiet or tool-contact candidates. The kernel freezes the result. This tool cannot set a trajectory or execute an action.',
+    description: 'Construct the exact typed developmental frontier that trajectory election must judge. This is a non-acting review: classify current harms, constraints, unresolved stakes, opportunities, and maintenance needs; rate severity, urgency, and cost of delay; then propose bounded directional candidates. Candidates are possible trajectories, never tool calls or action plans. The kernel freezes the result. This tool cannot set a trajectory or execute an action.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -32,29 +32,17 @@ export function initialDevelopmentalReviewTool() {
             type: 'object',
             properties: {
               id: { type: 'string', pattern: '^[a-z][a-z0-9_-]{0,47}$' },
-              description: { type: 'string', minLength: 1, maxLength: 2_048 },
+              objective: { type: 'string', minLength: 1, maxLength: 2_048 },
+              direction: { type: 'string', minLength: 1, maxLength: 2_048 },
+              horizon: { type: 'string', enum: ['immediate', 'near', 'open-ended'] },
+              successSignals: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', minLength: 1, maxLength: 512 } },
+              reconsiderWhen: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', minLength: 1, maxLength: 512 } },
               addressesFindingIds: {
                 type: 'array', minItems: 1, maxItems: 24,
                 items: { type: 'string', pattern: '^[a-z][a-z0-9_-]{0,47}$' },
               },
-              action: {
-                type: 'object',
-                properties: {
-                  kind: { type: 'string', enum: ['tool', 'quiet'] },
-                  tool: {
-                    type: 'string', pattern: '^[a-z][a-z0-9_-]{0,47}$',
-                    description: 'The exact ordinary tool id, or the literal sentinel quiet when kind is quiet.',
-                  },
-                  input: {
-                    type: 'object', additionalProperties: true,
-                    description: 'The exact tool input, or an empty object when kind is quiet.',
-                  },
-                  observation: { type: 'string', minLength: 1, maxLength: 2_048 },
-                },
-                required: ['kind', 'tool', 'input'], additionalProperties: false,
-              },
             },
-            required: ['id', 'description', 'addressesFindingIds', 'action'], additionalProperties: false,
+            required: ['id', 'objective', 'direction', 'horizon', 'successSignals', 'reconsiderWhen', 'addressesFindingIds'], additionalProperties: false,
           },
         },
       },

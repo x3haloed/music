@@ -104,11 +104,15 @@ For a snapshot or upgrade:
 
    /Users/chad/.local/share/music/installations/releases/NEW_COMMIT/bin/music-habitat.js \
      offer-seed-tool /Users/chad/.local/share/music/residents/RESIDENT elect_trajectory
+
+   /Users/chad/.local/share/music/installations/releases/NEW_COMMIT/bin/music-habitat.js \
+     offer-seed-tool /Users/chad/.local/share/music/residents/RESIDENT report_trajectory_completion
    ```
 
    The resident must inspect, trial, and explicitly admit (or reject) each. The
-   two-phase recurrence organ becomes active only when both tools are active and
-   expose the structured review/election interface. Admitting the reviewer first
+   directional recurrence organ becomes active only when the reviewer and elector
+   expose the structured directional interface. Completion handoff becomes available
+   when the receipt tool is admitted. Admitting the reviewer first
    therefore cannot strand wakes against an older selector;
    upgrading the stable release never silently changes either policy organ.
 8. Audit once more, then start residence from that new exact release path.

@@ -173,7 +173,7 @@ The bootstrap currently owns only the irreducible continuity and mutation path:
   input without making provider tool calling part of the organ boundary; the
   kernel delivers each exact record as a distinct context envelope before
   unrestricted action, while both organ phases reject prose output. Generic
-  review, election, and action-binding receipts remain stable facts; finding
+  review, election, actor-completion, and lifecycle receipts remain stable facts; finding
   ontology, ratings, candidate construction, ranking, and election implementation
   remain ordinary resident-revisable machinery.
 
@@ -198,8 +198,8 @@ under [`tools/`](./tools):
 - `select_tool_action` invokes the stable receipt primitive, but its interface,
   sequencing, and executable source are themselves ordinary revisable geometry;
 - `elect_trajectory` computes a general election over a complete resident-authored
-  contact frontier and directly invokes the exact selected action; quiet invokes
-  nothing. On recurrence without competing contact or consequence, the provider
+  directional frontier and establishes a durable goal-like trajectory; it never
+  plans or invokes an action. On recurrence without competing contact or consequence, the provider
   must first enter this selector before ordinary tools become available. Its seed
   geometry prefers composed retained floors, predicted expansion, actionable
   regret, and then reversibility after excluding invalid and held-repeat
@@ -208,6 +208,10 @@ under [`tools/`](./tools):
   their current status without treating the resident's scores as world fact. Both
   the ordering and the fields it asks the resident to expose remain replaceable
   ordinary source;
+- `report_trajectory_completion` emits the actor's structured completion claim.
+  It assesses the active trajectory's exact success signals but cannot change
+  trajectory state; Music returns it to `elect_trajectory` for an authoritative
+  continue-or-replace judgment;
 - `attend_consequence` invokes the staged consequence-transition primitive, but
   its interface, policy, and sequencing remain ordinary revisable geometry.
 - `shape_encounter` frames, orders, and emphasizes the exact Sounding or waking
@@ -262,19 +266,26 @@ world-authored Delta
      developmental review, then a schema-constrained election input
   -> Music invokes each retained ordinary organ with its validated object and
      delivers the exact review and trajectory as distinct context envelopes
-  -> elect_trajectory alone records the trajectory over the review's frozen
-     contact-or-quiet frontier containing at least one executable alternative
-  -> unrestricted action follows in a later phase; the election does not execute
-     its winner, and a selection-gated elected tool still needs its own receipt
-  -> every ordinary invocation retains an elected, ad-hoc, or selector basis
+  -> elect_trajectory alone establishes a structured prose-bearing direction
+     over the review's frozen directional frontier
+  -> Music projects that same active trajectory into every later encounter and
+     frames it as an instruction that survives the end of an encounter
+  -> unrestricted action follows; the actor chooses any tools and sequencing,
+     and selection-gated tools still need their own actor-authored receipts
+  -> every ordinary invocation retains its active-trajectory or selector basis
   -> inspect_tool retrieves exact projected source when needed
   -> ordinary module executes with unrestricted Node authority
   -> invocation input, output, tool digest, and encounter binding are retained
   -> later world Delta cites the exact invocation without interpreting it
-  -> invocation lineage derives the exact trajectory election that selected it
+  -> invocation lineage derives the active trajectory that shaped it
   -> the Sounding exposes that lineage and exact election inspection without
      rewriting the world observation
   -> current Sounding delivers that consequence reference and observation
+  -> when the actor judges the direction done, report_trajectory_completion
+     retains an exact structured receipt without mutating trajectory
+  -> Music returns current trajectory plus receipt to elect_trajectory
+  -> the elector alone continues the trajectory unchanged or replaces it with
+     an explicitly parented successor before unrestricted action resumes
   -> the subject may defer it; unresolved consequence returns in later Soundings
   -> revise_tool authors a provisional complete replacement interface and source body
   -> the subject may explicitly settle the consequence
@@ -483,24 +494,31 @@ status and interpretation, and arbitrary bounded content. The kernel supplies
 identity, ancestry, invocation/tool binding, and atomic retention.
 
 Recurrence must enter the resident's active selection machinery before the
-language model can narrate that nothing is needed. For a heartbeat, scheduled
-opening, or due subject-authored opening that carries neither new world contact
-nor unresolved consequence, the exact Sounding therefore requires one retained
-trajectory election. The first provider step exposes only the active retained
-`elect_trajectory` version. That version remains ordinary plastic machinery;
-the stable kernel requires only one election, a frontier with at least one
-executable alternative, and exact action binding. Quiet remains a legitimate
-winner. This is a separation of causal perspectives inside one resident mind,
-not a supervisor, second agent, or fixed external objective.
+language model can narrate that nothing is needed. When no active trajectory
+exists, a heartbeat, scheduled opening, or due subject-authored opening that
+carries neither new world contact nor unresolved consequence therefore requires
+a structured developmental review followed by trajectory election. The review
+classifies current conditions and proposes directions; it cannot name an exact
+tool action. `elect_trajectory` alone establishes the prose-bearing structured
+instruction. Both remain ordinary plastic machinery. This is a separation of
+causal perspectives inside one resident mind, not a supervisor, second agent,
+or fixed external objective.
 
-World contact and consequence reconciliation take precedence over this
-recurrence entry. A Delta-bearing or unresolved-consequence Sounding retains the
-ordinary deliberative tool surface rather than forcing a competing trajectory
-election. After the first election call, ordinary tools return for the remainder
-of the same encounter. When an elected action targets selection-gated ordinary
-machinery, its nested candidate frontier is compiled from the same trajectory
-frontier instead of asking the model to restate its choice through a second
-independent representation.
+World contact and consequence reconciliation take precedence over initial
+trajectory establishment. Once established, however, the exact active trajectory
+is a Sounding fact and direct imperative context in every later encounter,
+including Delta-bearing encounters. Ordinary tools then remain unrestricted;
+the actor chooses its own sequence and any selection-gated tool constructs its
+own concrete frontier independently of trajectory election.
+
+The active direction persists across encounter completion and restart. The
+actor may only claim completion through `report_trajectory_completion`, which
+assesses every exact success signal and retains evidence and concerns. That
+receipt does not mutate trajectory. Music returns receipt and active trajectory
+to `elect_trajectory`; only that organ may preserve the direction unchanged or
+supersede it with an explicitly parented new direction. Actor action resumes
+only after the judgment, and an encounter cannot complete with an unjudged
+receipt.
 
 When due and unpresented, the opening itself triggers the next Sounding and is
 already present inside the exact `sounding:position` fact. Earlier world contact

@@ -2,6 +2,7 @@ import { initialFilePatchTool } from '../tools/file-patch.js';
 import { initialMessageTool } from '../tools/message.js';
 import { initialSelectionTool } from '../tools/select-tool-action.js';
 import { initialTrajectoryElectionTool } from '../tools/elect-trajectory.js';
+import { initialTrajectoryCompletionTool } from '../tools/report-trajectory-completion.js';
 import { initialDevelopmentalReviewTool } from '../tools/review-development.js';
 import { initialConsequenceTool } from '../tools/attend-consequence.js';
 import { initialEncounterShapeTool } from '../tools/shape-encounter.js';
@@ -17,7 +18,7 @@ import { initialTuneInferenceTool } from '../tools/tune-inference.js';
 
 export function initialTools() {
   return [
-    initialMessageTool(), initialFilePatchTool(), initialSelectionTool(), initialDevelopmentalReviewTool(), initialTrajectoryElectionTool(), initialConsequenceTool(),
+    initialMessageTool(), initialFilePatchTool(), initialSelectionTool(), initialDevelopmentalReviewTool(), initialTrajectoryElectionTool(), initialTrajectoryCompletionTool(), initialConsequenceTool(),
     initialEncounterShapeTool(), initialDependencyTool(),
     initialScheduleWakeTool(),
     initialReadFileTool(), initialWriteFileTool(), initialSearchFilesTool(),
