@@ -5,7 +5,7 @@ import process from 'node:process';
 import { DevelopmentalOrgan } from './organ.js';
 import { MusicKernel } from './kernel.js';
 import { DEFAULT_MODEL, PerspectiveEngine } from './perspective.js';
-import { nextEncounterAt } from './recurrence.js';
+import { nextEncounterAt, retainedFailureBackoff } from './recurrence.js';
 import { readHabitat } from './habitat.js';
 import { runtimeProvenance } from './runtime-provenance.js';
 import { archiveOutboundMessage, drainInboundMessages, pendingOutboundMessages, submitInboundMessage } from './mailbox.js';
@@ -93,6 +93,8 @@ async function run(kernel, options) {
   const continuityMs = integerOption(options.continuityMs ?? process.env.MUSIC_CONTINUITY_MS ?? 30 * 60 * 1000, 1_000, 24 * 60 * 60 * 1000, 'continuityMs');
   const minimumCycleMs = integerOption(options.minimumCycleMs ?? process.env.MUSIC_MINIMUM_CYCLE_MS ?? 60_000, 0, continuityMs, 'minimumCycleMs');
   const pollMs = integerOption(options.pollMs ?? process.env.MUSIC_POLL_MS ?? 250, 50, 60_000, 'pollMs');
+  const failureBackoffMs = integerOption(options.failureBackoffMs ?? process.env.MUSIC_FAILURE_BACKOFF_MS ?? 5_000, 100, 60 * 60_000, 'failureBackoffMs');
+  const maximumFailureBackoffMs = integerOption(options.maximumFailureBackoffMs ?? process.env.MUSIC_MAXIMUM_FAILURE_BACKOFF_MS ?? 5 * 60_000, failureBackoffMs, 24 * 60 * 60_000, 'maximumFailureBackoffMs');
   let stopping = false;
   let lastEncounterAt = null;
   const stop = () => { stopping = true; };
@@ -105,6 +107,11 @@ async function run(kernel, options) {
     const contact = existsSync(join(kernel.habitat, 'habitat.json'))
       ? drainInboundMessages(kernel.habitat, kernel)
       : [];
+    const backoff = retainedFailureBackoff(kernel.ledger.read(), now, failureBackoffMs, maximumFailureBackoffMs);
+    if (backoff) {
+      await interruptibleDelay(Math.min(pollMs, backoff.remainingMs), () => stopping);
+      continue;
+    }
     if (contact.length === 0) {
       const due = nextEncounterAt({
         now, notBefore: state.position.activeOpening.notBefore, lastEncounterAt, minimumCycleMs, continuityMs,
@@ -165,6 +172,7 @@ function projectStatus(state, grants) {
     activeWager: state.election,
     development: [...state.development.values()].map(value => ({ id: value.id, status: value.status, wagerId: value.wagerId })),
     grants,
+    resources: state.resources,
     ledgerHead: state.head,
   };
 }

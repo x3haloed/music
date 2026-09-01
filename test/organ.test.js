@@ -288,6 +288,34 @@ test('a tool development is provisionally executed before its exact artifact bec
   assert.equal(result.trial.probeReceipts[0].passed, true);
   assert.equal(result.position.mechanisms.uppercase_text.manifest.id, 'uppercase_text');
   assert.equal(kernel.artifacts.has(result.position.mechanisms.uppercase_text.artifact), true);
+  assert.equal(result.position.floors.length, 1);
+  assert.equal(result.position.floors[0].kind, 'tool.behavior');
+  assert.equal(result.position.floors[0].toolId, 'uppercase_text');
+
+  const { compileWager } = await import('../src/wager-compiler.js');
+  const current = kernel.state().position;
+  const revisionContact = candidate('revise-uppercase', current.mechanisms.read_file.artifact, 'a.txt', 'alpha');
+  revisionContact.developmentScope = ['/memory', '/mechanisms'];
+  const bound = compileWager(revisionContact, { position: current, readTool: id => kernel.artifacts.readJson(id) });
+  kernel.bindWager(bound); await kernel.realize(bound.id);
+  const revisionId = kernel.proposeDevelopment({
+    wagerId: bound.id, invocationId: 'regressive-revision',
+    proposal: { proposedDevelopment: {
+      kind: 'tool',
+      tool: {
+        format: 'music-v2-tool-1',
+        manifest: result.position.mechanisms.uppercase_text.manifest,
+        source: 'return { text: input.text };',
+      },
+      probes: [{ input: { text: 'hello' }, expectation: { op: 'eq', path: '/output/text', value: 'hello' } }],
+      opening: { kind: 'continue', notBefore: null, focus: 'Continue.' },
+    } },
+  });
+  const regressive = await kernel.trialDevelopment(revisionId);
+  assert.equal(regressive.eligible, false);
+  assert.deepEqual(regressive.requiredFloorIds, [result.position.floors[0].id]);
+  assert.deepEqual(regressive.passedFloorIds, []);
+  assert.equal(regressive.probeReceipts.some(receipt => receipt.source === 'retained-floor' && !receipt.passed), true);
 });
 
 test('a restart resumes a trialed development at disposition without repeating its probe', async t => {

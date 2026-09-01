@@ -106,6 +106,7 @@ export class DevelopmentalOrgan {
       subject: state.subject,
       position,
       observations: state.observations.slice(-64),
+      resourceStanding: structuredClone(state.resources),
       tools: Object.values(position.mechanisms)
         .filter(value => value?.kind === 'tool')
         .map(value => ({

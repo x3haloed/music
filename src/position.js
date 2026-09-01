@@ -18,12 +18,24 @@ export const TransitionSchema = z.object({
   opening: OpeningSchema,
 });
 
-export const FloorSchema = z.object({
+const PositionFloorSchema = z.object({
+  kind: z.literal('position').optional(),
   id: IdentifierSchema,
   scope: PointerSchema,
   predicate: PredicateSchema,
   earnedBy: z.string().min(1),
 });
+
+const ToolBehaviorFloorSchema = z.object({
+  kind: z.literal('tool.behavior'),
+  id: IdentifierSchema,
+  scope: PointerSchema,
+  toolId: IdentifierSchema,
+  probes: z.array(z.object({ input: JsonValueSchema, expectation: PredicateSchema })).min(1).max(8),
+  earnedBy: z.string().min(1),
+});
+
+export const FloorSchema = z.union([PositionFloorSchema, ToolBehaviorFloorSchema]);
 
 export const PositionSchema = z.object({
   id: z.string().regex(/^[a-f0-9]{64}$/),
@@ -75,6 +87,15 @@ export function applyTransition(positionValue, transitionValue, at) {
   for (const pointer of transition.remove) removePointer(next, pointer);
   next.activeOpening = transition.opening;
   return identify(next);
+}
+
+export function withEarnedFloor(positionValue, floorValue) {
+  const position = PositionSchema.parse(positionValue);
+  const floor = FloorSchema.parse(floorValue);
+  if (position.floors.some(value => value.id === floor.id)) throw new Error(`duplicate floor id: ${floor.id}`);
+  const { id: _, ...body } = position;
+  body.floors = [...body.floors, floor];
+  return identify(body);
 }
 
 export function affectedPaths(transitionValue) {

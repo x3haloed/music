@@ -12,6 +12,11 @@ export function reconstruct(events) {
     evaluations: new Map(),
     development: new Map(),
     pendingAssimilation: null,
+    resources: {
+      completedPerspectives: 0, failedPerspectives: 0,
+      inputTokens: 0, outputTokens: 0, totalTokens: 0,
+      toolRealizations: 0, toolFailures: 0,
+    },
     head: null,
   };
   for (const event of events) {
@@ -38,15 +43,22 @@ function applyEvent(state, event) {
     const prior = state.perspectives.get(payload.invocationId);
     if (!prior || prior.status !== 'started') throw new Error('perspective completion lacks active invocation');
     state.perspectives.set(payload.invocationId, { ...prior, status: 'completed', receipt: structuredClone(payload.receipt) });
+    state.resources.completedPerspectives += 1;
+    state.resources.inputTokens += token(payload.receipt.usage?.inputTokens);
+    state.resources.outputTokens += token(payload.receipt.usage?.outputTokens);
+    state.resources.totalTokens += token(payload.receipt.usage?.totalTokens);
   } else if (event.type === 'perspective.failed') {
     const prior = state.perspectives.get(payload.invocationId);
     if (!prior || prior.status !== 'started') throw new Error('perspective failure lacks active invocation');
     state.perspectives.set(payload.invocationId, { ...prior, status: 'failed', failure: structuredClone(payload.failure) });
+    state.resources.failedPerspectives += 1;
   } else if (event.type === 'wager.bound') {
     state.wagers.set(payload.wager.id, structuredClone(payload));
     state.election = { wagerId: payload.wager.id, event: event.hash };
   } else if (event.type === 'realization.completed') {
     state.realizations.set(payload.wagerId, structuredClone(payload.receipt));
+    state.resources.toolRealizations += 1;
+    if (payload.receipt.kind === 'tool.failure') state.resources.toolFailures += 1;
   } else if (event.type === 'predicate.evaluated') {
     state.evaluations.set(payload.wagerId, structuredClone(payload.evaluation));
   } else if (event.type === 'transition.applied') {
@@ -76,4 +88,8 @@ function applyEvent(state, event) {
   } else {
     throw new Error(`unsupported ledger event type: ${event.type}`);
   }
+}
+
+function token(value) {
+  return Number.isFinite(value) && value >= 0 ? value : 0;
 }

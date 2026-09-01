@@ -6,7 +6,7 @@ import { canonical, digest } from './canonical.js';
 import { admitWager } from './constitution.js';
 import { Governance } from './governance.js';
 import { Ledger } from './ledger.js';
-import { applyTransition, initialPosition } from './position.js';
+import { applyTransition, initialPosition, withEarnedFloor } from './position.js';
 import { affectedPaths, pathsOverlap, TransitionSchema, verifyPosition } from './position.js';
 import { reconstruct } from './state.js';
 import { executeTool, starterTools, ToolArtifactSchema } from './tools.js';
@@ -259,40 +259,47 @@ export class MusicKernel {
       throw new Error('tool authority requires a later selection exercise');
     }
     const transition = this.developmentTransition(development.proposal);
-    const candidate = this.developmentCandidate(id);
+    let candidate = this.developmentCandidate(id);
     const requiredFloorIds = state.position.floors
       .filter(floor => affectedPaths(transition).some(path => pathsOverlap(floor.scope, path)))
       .map(floor => floor.id);
-    const passedFloorIds = state.position.floors
-      .filter(floor => requiredFloorIds.includes(floor.id) && evaluatePredicate(candidate, floor.predicate))
-      .map(floor => floor.id);
+    const passedFloorIds = [];
     const probeReceipts = [];
+    for (const floor of state.position.floors.filter(value => requiredFloorIds.includes(value.id))) {
+      if (floor.kind !== 'tool.behavior') {
+        if (evaluatePredicate(candidate, floor.predicate)) passedFloorIds.push(floor.id);
+        continue;
+      }
+      const mechanism = candidate.mechanisms[floor.toolId];
+      if (!mechanism?.artifact) continue;
+      const tool = ToolArtifactSchema.parse(this.artifacts.readJson(mechanism.artifact));
+      let passed = true;
+      for (const probe of floor.probes) {
+        const receipt = await this.executeDevelopmentProbe({ tool, probe, id, wagerId: development.wagerId, index: probeReceipts.length, floorId: floor.id });
+        probeReceipts.push(receipt);
+        if (!receipt.passed) passed = false;
+      }
+      if (passed) passedFloorIds.push(floor.id);
+    }
     if (development.proposal.proposedDevelopment.kind === 'tool') {
       const tool = development.proposal.proposedDevelopment.tool;
       for (const probe of development.proposal.proposedDevelopment.probes) {
-        let output;
-        let failure = null;
-        try {
-          output = await executeTool(tool, probe.input, {
-            grants: this.governance.read(),
-            habitat: this.habitat,
-            invocationId: `${id}:probe:${probeReceipts.length}`,
-            wagerId: development.wagerId,
-            environment: this.toolEnvironment(),
-            emitObservation: value => this.receiveObservation(value),
-          });
-        } catch (error) {
-          failure = { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384) };
-        }
-        const receipt = {
-          kind: failure ? 'tool.failure' : 'tool.result',
-          input: structuredClone(probe.input),
-          ...(failure ? { failure } : { output }),
-          expectation: probe.expectation,
-          passed: !failure && evaluatePredicate({ output }, probe.expectation),
-        };
-        probeReceipts.push(receipt);
+        probeReceipts.push(await this.executeDevelopmentProbe({
+          tool, probe, id, wagerId: development.wagerId, index: probeReceipts.length, floorId: null,
+        }));
       }
+    }
+    const eligible = requiredFloorIds.length === passedFloorIds.length && probeReceipts.every(value => value.passed);
+    if (eligible && development.proposal.proposedDevelopment.kind === 'tool') {
+      const toolId = development.proposal.proposedDevelopment.tool.manifest.id;
+      candidate = withEarnedFloor(candidate, {
+        kind: 'tool.behavior',
+        id: `tool-floor:${digest({ development: id, toolId, probes: development.proposal.proposedDevelopment.probes }).slice(0, 32)}`,
+        scope: `/mechanisms/${escapePointer(toolId)}`,
+        toolId,
+        probes: development.proposal.proposedDevelopment.probes,
+        earnedBy: id,
+      });
     }
     const trial = {
       candidate,
@@ -300,7 +307,7 @@ export class MusicKernel {
       requiredFloorIds,
       passedFloorIds,
       probeReceipts,
-      eligible: requiredFloorIds.length === passedFloorIds.length && probeReceipts.every(value => value.passed),
+      eligible,
       runtime: development.proposal.proposedDevelopment.kind === 'tool'
         ? 'music-v2-tool-trial-1'
         : 'music-v2-transition-trial-1',
@@ -308,6 +315,29 @@ export class MusicKernel {
     };
     this.ledger.append('development.trialed', { id, trial });
     return trial;
+  }
+
+  async executeDevelopmentProbe({ tool, probe, id, wagerId, index, floorId }) {
+    let output;
+    let failure = null;
+    try {
+      output = await executeTool(tool, probe.input, {
+        grants: this.governance.read(), habitat: this.habitat,
+        invocationId: `${id}:probe:${index}`, wagerId, environment: this.toolEnvironment(),
+        emitObservation: value => this.receiveObservation(value),
+      });
+    } catch (error) {
+      failure = { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384) };
+    }
+    return {
+      kind: failure ? 'tool.failure' : 'tool.result',
+      source: floorId === null ? 'proposal' : 'retained-floor',
+      floorId,
+      input: structuredClone(probe.input),
+      ...(failure ? { failure } : { output }),
+      expectation: probe.expectation,
+      passed: !failure && evaluatePredicate({ output }, probe.expectation),
+    };
   }
 
   developmentTransition(proposal) {
