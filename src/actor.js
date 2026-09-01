@@ -47,14 +47,16 @@ export class FunctionActor {
 }
 
 export class OpenRouterActor {
-  constructor({ model, apiKey = process.env.OPENROUTER_API_KEY, timeoutMs = 120_000, maxOutputTokens = 15_000, temperature = 0.35, languageModel = null, providerOptions = {} } = {}) {
+  constructor({ model, apiKey = process.env.OPENROUTER_API_KEY, timeoutMs = 120_000, maxOutputTokens = 15_000, temperature = 0.35, reasoningEffort = 'low', languageModel = null, providerOptions = {} } = {}) {
     if (!model) throw new Error('OpenRouter actor requires a model');
+    if (!['none', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(reasoningEffort)) throw new Error(`unsupported OpenRouter reasoning effort: ${reasoningEffort}`);
     this.id = 'openrouter';
     this.model = model;
     this.apiKey = apiKey;
     this.timeoutMs = timeoutMs;
     this.maxOutputTokens = maxOutputTokens;
     this.temperature = temperature;
+    this.reasoningEffort = reasoningEffort;
     this.languageModel = languageModel;
     this.provider = languageModel ? null : (apiKey ? createOpenRouter({ apiKey, ...providerOptions }) : null);
     this.identity = digest({
@@ -62,7 +64,7 @@ export class OpenRouterActor {
       kind: 'openrouter',
       implementation: 'music-v3-openrouter-validated-json-text-1',
       model,
-      settings: { maxOutputTokens, temperature },
+      settings: { maxOutputTokens, temperature, reasoningEffort },
     });
   }
 
@@ -71,7 +73,7 @@ export class OpenRouterActor {
       adapter: this.id,
       model: this.model,
       adapterIdentity: this.identity,
-      settings: { maxOutputTokens: this.maxOutputTokens, temperature: this.temperature },
+      settings: { maxOutputTokens: this.maxOutputTokens, temperature: this.temperature, reasoningEffort: this.reasoningEffort },
     };
   }
 
@@ -83,6 +85,7 @@ export class OpenRouterActor {
       maxRetries: 1,
       timeout: { totalMs: this.timeoutMs },
       temperature: this.temperature,
+      providerOptions: { openrouter: { reasoning: { effort: this.reasoningEffort, exclude: true } } },
       system: [
         'You are one fresh cognitive perspective of one continuing subject.',
         `Your sole role is ${role}.`,

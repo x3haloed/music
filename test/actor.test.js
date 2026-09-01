@@ -7,7 +7,7 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { CodexExecActor, OpenRouterActor } from '../src/actor.js';
 import { RoleSchemas } from '../src/protocol.js';
 
-test('OpenRouter actor uses one structured fresh request and returns provider receipt fields', async () => {
+test('OpenRouter actor uses one locally validated fresh request and binds reasoning policy', async () => {
   let request;
   const model = new MockLanguageModelV4({
     doGenerate: async options => {
@@ -35,6 +35,8 @@ test('OpenRouter actor uses one structured fresh request and returns provider re
   assert.equal(result.model, 'provider/model-v1');
   assert.equal(result.responseId, 'response-1');
   assert.equal(request.responseFormat, undefined);
+  assert.equal(request.providerOptions.openrouter.reasoning.effort, 'low');
+  assert.equal(actor.describe().settings.reasoningEffort, 'low');
   assert.match(request.prompt[1].content[0].text, /"retained":"exact"/);
 });
 

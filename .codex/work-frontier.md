@@ -73,9 +73,11 @@ machine-owner governance without a researcher-authored transition bridge.
   give GLM Flash a reliable recursive-JSON carrier. The live provider returned
   the schema-valid placeholder `temp`, then timed out on retry, while an
   otherwise identical plain-JSON call returned valid content in five seconds.
-  Evidence is retained under `.music/hosted-selector-20260901-1` and
+  The plain-JSON rerun produced one valid orientation, but consumed 4,362
+  reasoning tokens and its challenge timed out. Evidence is retained under
+  `.music/hosted-selector-20260901-{1,2}` and
   `.music/openrouter-plain-smoke.json`; rerun the same causal probe with strict
-  local validation of plain model text.
+  local validation and sealed low reasoning effort.
 - Recursive free-form JSON is not accepted by the hosted response-schema
   subset. Provider-side schema output is therefore not an authority boundary;
   actors return plain JSON text and Music applies the exact Zod role schema
