@@ -11,8 +11,18 @@
   "bin": {
     "music": "./src/cli.js",
     "music-doctor": "./bin/music-doctor.js",
+    "music-install": "./bin/music-install.js",
     "music-verify-hosted-selector": "./bin/music-verify-hosted-selector.js"
   },
+  "files": [
+    "src/",
+    "bin/",
+    "LICENSE",
+    "README.md",
+    "DESIGN.md",
+    "HATCH.md",
+    "READINESS.md"
+  ],
   "scripts": {
     "test": "node --test",
     "check": "node --check src/*.js bin/*.js && node --test",

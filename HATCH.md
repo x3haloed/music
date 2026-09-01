@@ -10,27 +10,38 @@ of open-ended development.
 ## Before hatch
 
 1. Run `npm run check`, `npm audit --omit=dev`, and `node bin/music-doctor.js`.
-2. Keep the run outside the checkout or under ignored `.music/`. Never put API
+2. Install an immutable release outside the checkout, then run that release's
+   doctor. For example:
+
+   ```sh
+   node bin/music-install.js /Users/chad/.local/share/music/releases/0.0.3
+   /Users/chad/.local/share/music/releases/0.0.3/bin/music-doctor.js
+   ```
+
+3. Keep the run outside both the checkout and release directory. Never put API
    keys, bearer tokens, raw private messages, or run stores in Git.
-3. Generate a starting envelope with `music template WORLD ACTOR`, then replace
+4. Generate a starting envelope with the installed `music` command, then replace
    every placeholder. Freeze the hypothesis, falsifier, worlds, grants,
    conditions, retry budgets, cycle budget, and stopping rule before `init` or
    `hatch`.
-4. Prefer `operator-outbox` for the first hatch. It grants only durable messages
+5. Prefer `operator-outbox` for the first hatch. It grants only durable messages
    inside the run. Treat `network.fetch` and especially `local.execute` as broad
    authority; do not grant them casually.
 
 ## Hatch and residence
 
 ```sh
-node src/cli.js hatch /absolute/run /absolute/spec.json
+/Users/chad/.local/share/music/releases/0.0.3/src/cli.js hatch /absolute/run /absolute/spec.json
 ```
 
-`hatch` initializes the immutable genesis and holds the resident lease. For a
+`hatch` initializes the immutable genesis and holds the resident lease. Always
+restart that run with the same installed release: its exact runtime digest is
+part of genesis, so later source changes cannot silently become the subject's
+body. For a
 subject beginning in seclusion, send an observation from another process:
 
 ```sh
-node src/cli.js observe /absolute/run '{"request":"..."}' operator machine-owner
+/Users/chad/.local/share/music/releases/0.0.3/src/cli.js observe /absolute/run '{"request":"..."}' operator Chad
 ```
 
 Transient inference or contact failures are retained and retried with the

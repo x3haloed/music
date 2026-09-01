@@ -30,6 +30,7 @@ task.
 npm install
 npm run check
 npm run rehearse
+node bin/music-install.js /absolute/new/release-directory
 ```
 
 `rehearse` runs a deterministic multi-cycle developmental trajectory through
@@ -102,3 +103,8 @@ See [HATCH.md](./HATCH.md) for the operating procedure, [DESIGN.md](./DESIGN.md)
 for the claim envelope and authorities, and [READINESS.md](./READINESS.md) for
 the exact local evidence and the boundary between an engineering hatch and a
 scientific developmental claim.
+
+The release installer copies only the runtime body and lockfile, installs
+production dependencies in a new directory, runs the copied doctor, and then
+publishes the directory atomically with `release.json`. Resident stores belong
+outside both that immutable release and the mutable development checkout.

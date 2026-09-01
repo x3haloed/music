@@ -4,6 +4,7 @@ export { builtinWorlds } from './builtin-worlds.js';
 export { admitWager, validateAssimilation } from './constitution.js';
 export { runExperiment } from './experiment.js';
 export { DevelopmentalKernel } from './kernel.js';
+export { installRelease } from './install.js';
 export { classify, evaluatePredicate } from './predicate.js';
 export { RunSpecSchema, WagerSchema } from './protocol.js';
 export { ResidentLease } from './residency.js';
