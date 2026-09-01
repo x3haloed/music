@@ -51,6 +51,21 @@ test('every completed perspective has a unique fresh context and no hidden conti
   }
 });
 
+test('fresh projections retain only the configured number of completed generations', async t => {
+  const { parent, root } = temporary('music-v3-projection-history');
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const { worlds, spec, plans } = rehearsalFixture();
+  spec.limits.projectionHistoryEntries = 2;
+  const kernel = new DevelopmentalKernel(root, { worlds, actor: rehearsalActor(plans) });
+  kernel.initialize(spec);
+  await kernel.run();
+  const projections = kernel.state().invocations
+    .filter(value => value.status === 'completed')
+    .map(value => kernel.store.get(value.projection));
+  assert.ok(projections.every(value => value.history.length <= 2));
+  assert.deepEqual(projections.find(value => value.role === 'orient' && value.subject.generation === 3).history.map(value => value.generation), [1, 2]);
+});
+
 test('projection erasure changes actor-visible state without rewriting the control subject', async t => {
   const { parent, root } = temporary('music-v3-control');
   t.after(() => rmSync(parent, { recursive: true, force: true }));

@@ -507,15 +507,18 @@ export class DevelopmentalKernel {
   }
 
   projection(state, role, additions = {}) {
-    const history = state.cycles.filter(cycle => cycle.transition).slice(-32).map(cycle => ({
-      generation: cycle.generation,
-      wager: this.store.get(cycle.binding.wager),
-      world: cycle.contactStarted.world,
-      receipt: this.store.get(cycle.contact.output),
-      evaluation: cycle.evaluation,
-      successor: this.store.get(cycle.transition.subject),
-      selection: this.store.get(cycle.frontier).selection,
-    }));
+    const history = state.cycles
+      .filter(cycle => cycle.transition)
+      .slice(-state.spec.limits.projectionHistoryEntries)
+      .map(cycle => ({
+        generation: cycle.generation,
+        wager: this.store.get(cycle.binding.wager),
+        world: cycle.contactStarted.world,
+        receipt: this.store.get(cycle.contact.output),
+        evaluation: cycle.evaluation,
+        successor: this.store.get(cycle.transition.subject),
+        selection: this.store.get(cycle.frontier).selection,
+      }));
     let projection = {
       format: 'music-v3-fresh-projection-1',
       role,

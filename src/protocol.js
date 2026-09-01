@@ -55,6 +55,7 @@ export const RunSpecSchema = z.object({
     maxContactAttempts: z.number().int().positive().max(1_000).default(8),
     residentRetryDelayMs: z.number().int().min(10).max(3_600_000).default(5_000),
     continuityPulseMs: z.number().int().min(1_000).max(604_800_000).default(300_000),
+    projectionHistoryEntries: z.number().int().positive().max(256).default(16),
   }),
   stoppingRule: z.string().min(1).max(4096),
 });
