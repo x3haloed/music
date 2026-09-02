@@ -69,6 +69,25 @@ export function attachAttentionManifest(projection, policy) {
       exactSubject: value.subjectEvidence,
     };
   }
+  if (JSON.stringify(value).length > targetCharacters && value.subject?.opportunities) {
+    const activeId = value.subject.active?.opportunityId;
+    const entries = Object.entries(value.subject.opportunities);
+    const indexed = [];
+    for (const [id, opportunity] of entries
+      .filter(([id, opportunity]) => id !== activeId && !['open', 'selected', 'contacted'].includes(opportunity.standing))
+      .sort(([left], [right]) => left.localeCompare(right))) {
+      if (JSON.stringify(value).length <= targetCharacters) break;
+      value.subject.opportunities[id] = {
+        id,
+        standing: opportunity.standing,
+        attention: 'indexed',
+        sha256: digest(opportunity),
+        exactSubject: value.subjectEvidence,
+      };
+      indexed.push(id);
+    }
+    if (indexed.length > 0) value.subjectOpportunityIndex = { indexedIds: indexed, exactSubject: value.subjectEvidence };
+  }
   if (JSON.stringify(value).length > targetCharacters && value.subject?.memory) {
     const entries = Object.entries(value.subject.memory).sort(([left], [right]) => left.localeCompare(right));
     for (const [key, memory] of entries) {
@@ -86,7 +105,7 @@ export function attachAttentionManifest(projection, policy) {
     retainedCausalCards: value.causalTrail.length,
     indexedCausalCards: indexed.length,
     exactSubjectReference: value.subjectEvidence,
-    trimming: ['older causal cards become exact indexes', 'old facts and memory become exact indexes only when required'],
+    trimming: ['older causal cards become exact indexes', 'resolved opportunities, old facts, and memory become exact indexes only when required'],
   };
   return value;
 }

@@ -102,6 +102,24 @@ test('ordinary observations become world-data opportunities and preempt waiting'
   assert.ok(opportunity);
   assert.match(opportunity.description, /Chad.*Hello/);
   assert.equal(state.operation.operation, 'select');
+  const projection = fixture.kernel.projection(state, 'select');
+  assert.equal(projection.opportunityEvidence[opportunity.id].value.content.message, 'Hello.');
+});
+
+test('large active evidence stays bounded while retaining exact retrieval identity', async () => {
+  const fixture = harness({ outputs: { select: [selection()] } });
+  fixture.kernel.initialize(fixture.spec);
+  const evidence = fixture.kernel.store.put({ body: 'x'.repeat(200_000), tail: 'salient-tail' });
+  fixture.kernel.receiveObservation({ id: 'large', channel: 'world', from: 'source', content: { reference: evidence } });
+  fixture.kernel.materializeObservations(fixture.kernel.state());
+  const projection = fixture.kernel.projection(fixture.kernel.state(), 'select');
+  const view = projection.opportunityEvidence[Object.keys(projection.opportunityEvidence)[0]];
+  assert.equal(view.complete, true);
+  assert.match(view.reference.sha256, /^[a-f0-9]{64}$/);
+  const direct = fixture.kernel.evidenceView(evidence.sha256);
+  assert.equal(direct.complete, false);
+  assert.ok(direct.head.length + direct.tail.length <= 65_536);
+  assert.match(direct.tail, /salient-tail/);
 });
 
 test('an interrupted bound contact reuses its exact idempotency identity after restart', async () => {

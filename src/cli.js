@@ -15,6 +15,7 @@ try {
   else if (command === 'hatch') await hatch(args);
   else if (command === 'run') await run(args);
   else if (command === 'reside') await reside(args);
+  else if (command === 'resident') await resident(args);
   else if (command === 'step') await step(args);
   else if (command === 'audit') audit(args);
   else if (command === 'outbox') outbox(args);
@@ -72,6 +73,23 @@ async function step([rootArg]) {
 async function reside([rootArg]) {
   requireArgs(rootArg);
   const kernel = runtime(absolute(rootArg));
+  const controller = residentController();
+  try { await kernel.reside({ signal: controller.signal }); }
+  catch (error) { if (!controller.signal.aborted) throw error; }
+  output(kernel.audit());
+}
+
+async function resident([rootArg, specArg]) {
+  requireArgs(rootArg, specArg);
+  const root = absolute(rootArg);
+  let kernel;
+  if (existsSync(resolve(root, 'ledger.ndjson'))) {
+    kernel = runtime(root);
+  } else {
+    const spec = readSpec(specArg);
+    kernel = new DevelopmentalKernel(root, { actor: actorFor(spec), worlds: builtinWorlds() });
+    kernel.initialize(spec);
+  }
   const controller = residentController();
   try { await kernel.reside({ signal: controller.signal }); }
   catch (error) { if (!controller.signal.aborted) throw error; }
@@ -217,5 +235,5 @@ function residentController() {
 }
 
 function help() {
-  process.stdout.write(`Music v4\n\nCommands:\n  init RUN SPEC\n  hatch RUN SPEC\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  outbox RUN\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  preflight SPEC\n  template [starter|WORLD] [openrouter|codex] [MODEL]\n  rehearse DESTINATION\n`);
+  process.stdout.write(`Music v4\n\nCommands:\n  init RUN SPEC\n  hatch RUN SPEC\n  resident RUN SPEC\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  outbox RUN\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  preflight SPEC\n  template [starter|WORLD] [openrouter|codex] [MODEL]\n  rehearse DESTINATION\n`);
 }

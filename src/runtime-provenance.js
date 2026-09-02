@@ -17,6 +17,7 @@ const implementationFiles = [
   'src/protocol.js',
   'src/rehearsal.js',
   'src/residency.js',
+  'src/service.js',
   'src/runtime-provenance.js',
   'src/store.js',
   'src/subject.js',

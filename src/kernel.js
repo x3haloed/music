@@ -500,8 +500,8 @@ export class DevelopmentalKernel {
         succession: this.store.get(event.payload.subject).succession,
         revision: this.store.get(event.payload.subject).revision,
         operation: event.payload.operation,
-        classification: event.payload.classification,
-        disposition: event.payload.disposition,
+        classification: event.payload.classification ?? null,
+        disposition: event.payload.disposition ?? null,
         subjectId: this.store.get(event.payload.subject).id,
         evidence: event.payload.evidence,
       }));
@@ -533,6 +533,7 @@ export class DevelopmentalKernel {
       subjectEvidence: subjectRef,
       operation: deriveOperation(state.subject, { now: this.clock() }),
       opportunityProjection,
+      opportunityEvidence: this.opportunityEvidence(opportunityProjection),
       activeEvidence,
       causalTrail: trail,
     };
@@ -546,9 +547,33 @@ export class DevelopmentalKernel {
     if (!subject.active) return null;
     const opportunity = subject.opportunities[subject.active.opportunityId];
     const result = {};
-    if (opportunity?.source.evidence) result.opportunity = this.store.get(referenceFor(this.store, opportunity.source.evidence));
-    if (subject.active.consequence?.receipt) result.receipt = this.store.get(referenceFor(this.store, subject.active.consequence.receipt));
+    if (opportunity?.source.evidence) result.opportunity = this.evidenceView(opportunity.source.evidence);
+    if (subject.active.consequence?.receipt) result.receipt = this.evidenceView(subject.active.consequence.receipt);
+    const rejection = subject.active.consequence?.detail?.rejection;
+    if (rejection?.format === 'music-v4-object-1') result.rejection = this.evidenceView(rejection.sha256);
     return Object.keys(result).length > 0 ? result : null;
+  }
+
+  opportunityEvidence(projection) {
+    return Object.fromEntries(projection.opportunities
+      .filter(value => value.source.evidence)
+      .map(value => [value.id, this.evidenceView(value.source.evidence)]));
+  }
+
+  evidenceView(sha256, maximumCharacters = 65_536) {
+    const reference = referenceFor(this.store, sha256);
+    const value = this.store.get(reference);
+    const text = JSON.stringify(value);
+    if (text.length <= maximumCharacters) return { reference, complete: true, value };
+    const half = Math.floor(maximumCharacters / 2);
+    return {
+      reference,
+      complete: false,
+      totalCharacters: text.length,
+      head: text.slice(0, half),
+      tail: text.slice(-half),
+      retrieval: { world: 'evidence-read', input: { reference, offset: 0, maxCharacters: 65_536 } },
+    };
   }
 
   async invoke(role, operationId, projection) {

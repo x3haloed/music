@@ -12,6 +12,7 @@ const required = [
   'src/protocol.js', 'src/subject.js', 'src/world.js', 'src/builtin-worlds.js',
   'src/rehearsal.js',
   'src/local-worlds.js', 'src/store.js', 'src/residency.js',
+  'src/service.js', 'bin/music-service.js',
   'src/runtime-provenance.js', 'src/install.js', 'DESIGN.md', 'HATCH.md',
 ];
 const missing = required.filter(path => !existsSync(resolve(root, path)));

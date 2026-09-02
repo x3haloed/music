@@ -13,7 +13,8 @@
   "bin": {
     "music": "./src/cli.js",
     "music-doctor": "./bin/music-doctor.js",
-    "music-install": "./bin/music-install.js"
+    "music-install": "./bin/music-install.js",
+    "music-service": "./bin/music-service.js"
   },
   "files": [
     "src/",

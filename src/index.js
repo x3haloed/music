@@ -9,6 +9,7 @@ export { classify, evaluatePredicate } from './predicate.js';
 export { RoleSchemas, RunSpecSchema } from './protocol.js';
 export { rehearsalDigest, runRehearsal } from './rehearsal.js';
 export { ResidentLease } from './residency.js';
+export { archiveLaunchAgent, installLaunchAgent, renderLaunchAgent, serviceDefinition, stopLaunchAgent } from './service.js';
 export { runtimeProvenance } from './runtime-provenance.js';
 export { advanceSubject, createSubject, DEFAULT_OPERATION_SELECTOR, OperationSelectorSchema, verifySubject } from './subject.js';
 export { defineWorld, WorldRegistry } from './world.js';

@@ -28,6 +28,7 @@ const ProjectionCoreOrder = [
   'subject',
   'operation',
   'opportunityProjection',
+  'opportunityEvidence',
   'activeEvidence',
   'causalTrail',
 ];
