@@ -2,7 +2,7 @@
 
 ## Verdict
 
-Music V4 is hatch-ready once the final immutable release named below has been
+Music V4 is hatch-ready. The final immutable release named below has been
 installed and its copied rehearsal has passed. Hatch-ready means the claimed
 causal and operational paths exist, are bounded, and survive exact replay. It
 does not mean a resident is guaranteed to learn wisely, choose valuable
@@ -47,16 +47,20 @@ hatching a persistent resident.
 
 ## Final release
 
-The authoritative release path, commit, implementation digest, and installed
-rehearsal result are filled only after the final documentation commit and
-atomic install:
+The runtime-bearing source commit is `c9b3f23`. Documentation-only readiness
+recording after that commit does not change the implementation digest.
 
-- Git commit: `PENDING`
-- Release: `PENDING`
-- implementation SHA-256: `PENDING`
-- installed rehearsal: `PENDING`
+- Release: `/Users/chad/.local/share/music/releases/0.0.4-v4-c9b3f23`
+- implementation SHA-256:
+  `58c8f3963658bbfca9b483a23839a0bd012e1d5ea991831a76f97ed8cd627577`
+- dependency-lock SHA-256:
+  `ed2b4dd960e4406ca294da843b267c981a21464e3a9d17bdf4ac103bc21eb15a`
+- installed rehearsal:
+  `/Users/chad/.local/share/music/evidence/v4-installed-rehearsal-c9b3f23`
 
-Do not hatch from the mutable checkout or infer readiness from this placeholder.
+The installed rehearsal passed all eight causal anchors with 19 completed
+operations, 15 completed perspectives, 15 unique fresh contexts, succession
+19, revision 4, and a mechanically derived final `wait` operation.
 
 ## Operational boundary
 
