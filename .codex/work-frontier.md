@@ -109,6 +109,8 @@ subject across model turns and process restarts.
 - A bounded Codex/Terra run completed select, realize, deterministic contact,
   and assimilate; recorded `subject.hatched`; and reused a stable 12,032-token
   prefix in each fresh model context.
-- The immutable release candidate passed its copied doctor and 19-operation
-  rehearsal. The named durable release and final packaged Companion remain
-  before the hatch-ready goal can close.
+- The immutable release candidate and durable installed release each passed
+  their copied doctor and 19-operation rehearsal. The installed CLI passed
+  Terra preflight without a shell-provided Codex path.
+- The V4 Companion is packaged, ad-hoc signed, installed, and launch-verified;
+  the replaced V3 app remains recoverably preserved.
