@@ -10,7 +10,7 @@ trajectories, remain conversational, or exhibit open-ended development.
 
 ## Required evidence
 
-The source suite contains 43 tests covering provider bindings and cache
+The source suite contains 45 tests covering provider bindings and cache
 instrumentation, fresh Codex contexts, attention bounds, evidence retrieval,
 world effects, outbox delivery, local file and shell behavior, CLI envelopes,
 Companion projections, immutable installation, service definitions, predicate
@@ -75,6 +75,11 @@ cover each property.
 
 Genesis seals provider/model/settings, runtime provenance, world identities,
 grants, retry budgets, attention bounds, operation limit, and continuity floor.
+While stopped, an explicit snapshotted runtime epoch may refresh the runtime and
+implementations of those same world bindings without changing the subject or
+its authority envelope. Replay verifies the epoch's prior head, prior runtime,
+subject identity, snapshot, and unchanged envelope; old code refuses to advance
+the new epoch.
 One resident lease owns advancement. Restart abandons an unterminated inference
 explicitly and reuses retained contact bindings and idempotency keys. External
 observations wake the subject immediately; quiet time eventually supplies an
@@ -101,8 +106,9 @@ the authority over an older or newer body.
 ## Preserved limitations
 
 - V3 state is not migrated into V4.
-- A living V4 run cannot yet be rebound to a different provider, model, or
-  implementation; no silent upgrade path is claimed.
+- Provider, model, settings, grants, limits, world IDs, and adapter names remain
+  fixed for a V4 run. Only an explicitly stopped and snapshotted runtime epoch
+  can rebind implementation and refresh those worlds' installed contracts.
 - External services beyond the bundled worlds need their own exact adapter,
   effect semantics, idempotency boundary, and receipt contract.
 - Unrestricted local authority is intentional and unisolated.

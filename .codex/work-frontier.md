@@ -59,6 +59,10 @@ subject across model turns and process restarts.
 - One resident lease owns advancement. Crash recovery, snapshots, immutable
   installed releases, macOS residence, and the Companion remain operational
   shell, not developmental authorities.
+- Runtime immutability means no silent mutation during residence, not permanent
+  confinement to one implementation. A stopped, exactly snapshotted runtime
+  epoch may refresh the body and implementations of the same world bindings
+  while preserving the subject and its sealed authority envelope.
 - V3 migration, scientific proof, conversational responsiveness, hostile-code
   containment, distributed residence, and autonomous acquisition of new
   external worlds are outside this clean-room V4 acceptance boundary.
@@ -107,10 +111,14 @@ subject across model turns and process restarts.
   correction, and mechanically releases retry/revision at the sealed limit.
 - LaunchAgent PATH does not include Homebrew. File search now resolves known
   ripgrep installation paths before reporting tool unavailability.
+- Treating genesis provenance as a permanent body seal conflated auditability
+  with immobility. Explicit runtime epochs now bind the prior head, prior body,
+  unchanged subject and authority envelope, exact snapshot, and new body; old
+  code refuses to advance the resulting run.
 
 ## Current evidence
 
-- 39 repository tests pass.
+- 45 repository tests pass.
 - The deterministic rehearsal completes 19 operations through contradiction,
   selector correction, changed later election, assimilation, saturation,
   expansion, and bounded waiting using 15 distinct actor contexts.

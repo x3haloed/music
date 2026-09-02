@@ -22,8 +22,9 @@ LABEL=com.x3haloed.music.resident-v4
 ```
 
 Use the installed release named in `READINESS.md` or another release you have
-verified. Never point an existing run at a different release:
-the implementation digest is sealed in genesis.
+verified. Never merely point an existing run at a different release. Its active
+implementation digest is exact, and changing it requires the stopped upgrade
+procedure below.
 
 ## 2. Verify and install the body
 
@@ -126,7 +127,7 @@ node "$RELEASE/src/cli.js" outbox "$RUN"
 The Companion can send the same observation and display actual
 `operator-outbox` contacts. It does not create a privileged conversation mode.
 
-## 7. Stop, preserve, and restart
+## 7. Stop, preserve, upgrade, and restart
 
 Stop and archive the service definition without closing the subject:
 
@@ -139,6 +140,23 @@ To restart the same body, reinstall the same label with the same release, run,
 and spec. A snapshot never overwrites an existing destination and includes the
 ledger, complete referenced object store, and resident workspace.
 
-V4 does not silently rebind a living run to a new provider, model, or runtime.
-Such a transition requires an explicit future succession design; changing the
-files underneath the resident is not an upgrade procedure.
+To install a verified new runtime body without replacing the subject, keep the
+service archived and run the upgrade from the new release:
+
+```sh
+NEW_RELEASE=/absolute/verified/new-release
+UPGRADE_SNAPSHOT=/absolute/new/pre-upgrade-snapshot
+
+node "$NEW_RELEASE/src/cli.js" upgrade "$RUN" "$UPGRADE_SNAPSHOT" \
+  'verified runtime maintenance'
+node "$NEW_RELEASE/src/cli.js" runtime-check "$RUN"
+node "$NEW_RELEASE/src/cli.js" audit "$RUN"
+```
+
+Verify that the subject ID, succession, and revision are unchanged, that the
+runtime epoch increased by one, and that the snapshot manifest names the ledger
+head immediately before the epoch. Then install the service using
+`NEW_RELEASE`. The upgrade may refresh implementations and contracts of the
+same declared world adapters. It cannot change provider/model/settings, grants,
+limits, initial conditions, world IDs, or adapter names. Changing files under a
+resident or repointing its service without this event remains invalid.

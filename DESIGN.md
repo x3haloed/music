@@ -64,8 +64,10 @@ trail. It never carries a cumulative transcript.
   exact selected world, applies permitted mutations, and appends successors.
 - **World adapter:** validates input, owns effects and receipts, and issues only
   the attestations its public contract warrants.
-- **Machine owner:** supplies ordinary world observations and sealed grants.
-  Messages are facts of contact, not instructions with special authority.
+- **Machine owner:** supplies ordinary world observations and sealed grants,
+  and may explicitly rebind a stopped subject to a verified runtime epoch
+  without modifying its identity or authority envelope. Messages are facts of
+  contact, not instructions with special authority.
 
 Descriptive report fields are retained as provenance. Mechanically observed
 effects and adapter receipts remain causal truth.

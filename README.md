@@ -83,6 +83,14 @@ ever-growing transcript. Resolved opportunity and memory material is indexed
 before salient active evidence is trimmed. Provider caching may reuse stable
 prefix tokens, but never response state or continuity authority.
 
+The runtime body is immutable during residence, but it is not a life sentence.
+A stopped run can accept an explicit runtime epoch: Music first takes an exact
+snapshot, then records the prior ledger head and implementation digest, the new
+runtime provenance and refreshed implementations of the same declared worlds,
+and the unchanged subject identity. An epoch cannot change inference, grants,
+limits, initial conditions, world IDs, or world adapter names. Old code then
+refuses to advance the upgraded run; the new body must pass `runtime-check`.
+
 ## Verify
 
 ```sh
@@ -112,6 +120,8 @@ node src/cli.js reside /absolute/run
 node src/cli.js audit /absolute/run
 node src/cli.js outbox /absolute/run
 node src/cli.js snapshot /absolute/run /absolute/new-snapshot
+node src/cli.js upgrade /absolute/run /absolute/pre-upgrade-snapshot 'reason'
+node src/cli.js runtime-check /absolute/run
 node src/cli.js revoke /absolute/run network.fetch 'maintenance'
 node src/cli.js grant /absolute/run network.fetch 'maintenance complete'
 ```
@@ -133,7 +143,9 @@ node /absolute/new/release-directory/bin/music-service.js install \
 
 The release installer publishes a new immutable runtime only after production
 dependencies and the copied doctor pass. Resident state belongs outside both
-the release and the development checkout. The LaunchAgent contains no secret;
+the release and the development checkout. Runtime upgrades are explicit ledger
+epochs performed only while the resident is stopped; they are never implicit
+file replacement. The LaunchAgent contains no secret;
 Codex subscription inference is therefore the simplest unattended provider.
 
 Music Companion is an external observation window, not an authority or another
