@@ -50,7 +50,7 @@ test('Companion discovers the exact CLI from the live resident lease rather than
   const cli = join(root, 'release', 'src', 'cli.js');
   mkdirSync(join(root, 'release', 'src'), { recursive: true });
   writeFileSync(cli, '');
-  writeFileSync(join(root, 'resident.lock'), JSON.stringify({ format: 'music-v3-resident-lease-1', pid: 42 }));
+  writeFileSync(join(root, 'resident.lock'), JSON.stringify({ format: 'music-v4-resident-lease-1', pid: 42 }));
   const found = await discoverResidentCli(root, { execute: async () => ({ stdout: `node ${cli} hatch /run /spec\n` }) });
   assert.equal(found, cli);
 });
@@ -61,16 +61,16 @@ test('Companion follows the newest live successor instead of a fixed resident di
   const successor = join(residents, 'resident-successor');
   mkdirSync(old);
   mkdirSync(successor);
-  writeFileSync(join(old, 'resident.lock'), JSON.stringify({ format: 'music-v3-resident-lease-1', pid: 41, acquiredAt: '2026-09-01T01:00:00.000Z' }));
-  writeFileSync(join(successor, 'resident.lock'), JSON.stringify({ format: 'music-v3-resident-lease-1', pid: 42, acquiredAt: '2026-09-01T02:00:00.000Z' }));
+  writeFileSync(join(old, 'resident.lock'), JSON.stringify({ format: 'music-v4-resident-lease-1', pid: 41, acquiredAt: '2026-09-01T01:00:00.000Z' }));
+  writeFileSync(join(successor, 'resident.lock'), JSON.stringify({ format: 'music-v4-resident-lease-1', pid: 42, acquiredAt: '2026-09-01T02:00:00.000Z' }));
   assert.equal(discoverActiveResidentRoot(residents, { processAlive: pid => pid === 42 }), successor);
 });
 
 test('Companion presence reports the active fresh perspective without treating it as a message', () => {
   const events = [
-    { type: 'actor.started', payload: { invocationId: 'actor-1', role: 'challenge' } },
+    { type: 'actor.started', payload: { invocationId: 'actor-1', role: 'expand' } },
   ];
-  const audit = { completed: null, waitingForObservation: false, waitingUntil: null };
-  assert.deepEqual(deriveCompanionPhase(events, audit, true), { id: 'challenge', label: 'Authoring wagers', tone: 'thinking' });
+  const audit = { completed: null, waitingUntil: null };
+  assert.deepEqual(deriveCompanionPhase(events, audit, true), { id: 'expand', label: 'Expanding', tone: 'thinking' });
   assert.deepEqual(deriveCompanionPhase(events, audit, false), { id: 'offline', label: 'Offline', tone: 'error' });
 });

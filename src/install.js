@@ -22,7 +22,7 @@ export function installRelease(destinationValue, { clock = () => new Date(), dep
     if (!doctor.ready) throw new Error('installed release failed its doctor check');
     const pkg = JSON.parse(readFileSync(resolve(partial, 'package.json'), 'utf8'));
     const manifest = {
-      format: 'music-v3-installed-release-1',
+      format: 'music-v4-installed-release-1',
       version: pkg.version,
       installedAt: clock().toISOString(),
       implementationSha256: doctor.runtime.implementationSha256,

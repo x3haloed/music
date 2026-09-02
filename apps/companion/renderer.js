@@ -53,13 +53,13 @@ function renderSnapshot(snapshot) {
   }
   const presence = snapshot.presence;
   setStatus(presence.label, presence.tone);
-  generation.textContent = `Generation ${presence.generation}`;
-  focus.textContent = presence.focus || 'No retained continuation focus.';
-  const current = snapshot.activity.currentCycle;
-  const latest = snapshot.activity.latestCompletedCycle;
-  cycle.textContent = current ? `Generation ${current.generation}` : 'Between cycles';
-  contact.textContent = current?.world || latest?.world || 'Not yet bound';
-  consequence.textContent = latest?.classification || 'None yet';
+  generation.textContent = `Succession ${presence.generation} · revision ${presence.revision}`;
+  focus.textContent = presence.focus || 'No active developmental stake.';
+  const current = presence.currentOperation;
+  const latest = snapshot.activity.latestCompletedOperation;
+  cycle.textContent = current?.operation || 'Between operations';
+  contact.textContent = latest?.world || current?.reason || 'Not yet bound';
+  consequence.textContent = latest?.classification || latest?.disposition || 'None yet';
   calls.textContent = `${snapshot.activity.actorCalls} / ${snapshot.activity.recoverableActorFailures}`;
   renderConversation(snapshot.conversation);
 }

@@ -14,7 +14,7 @@ test('operator outbox turns a retried contact into one durable delivery', async 
   assert.deepEqual(adapter.conformOutput({ delivered: false, deliveryId: 'a'.repeat(64), audience: 'machine-owner' }), []);
   assert.match(adapter.conformOutput({ delivered: false, deliveryId: 'sha256-example', audience: 'machine-owner' })[0], /64 lowercase hexadecimal/);
   const input = { audience: 'machine-owner', message: { text: 'I remain here.' } };
-  const context = { idempotencyKey: 'same-contact', runRoot: root, subjectId: 'a'.repeat(64), cycleId: 'cycle-1' };
+  const context = { idempotencyKey: 'same-contact', runRoot: root, subjectId: 'a'.repeat(64), operationId: 'operation-1' };
   const first = await adapter.execute(input, context);
   const second = await adapter.execute(input, context);
   assert.deepEqual(second, first);

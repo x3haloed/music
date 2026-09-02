@@ -14,7 +14,7 @@ export function localWorlds() {
 function fileRead() {
   return defineWorld({
     id: 'file-read', version: '4', description: 'Read a bounded-size UTF-8 text file with line numbers and bounded pagination. Relative paths resolve from the run workspace; absolute paths are accepted.', effects: ['local.read'], attestationTypes: ['filesystem.read.result'],
-    identityMaterial: { implementation: 'music-v3-file-read-3', maximumSourceBytes: MAX_FILE_READ_BYTES, defaultLines: 500, defaultCharacters: 131_072 },
+    identityMaterial: { implementation: 'music-v4-file-read-1', maximumSourceBytes: MAX_FILE_READ_BYTES, defaultLines: 500, defaultCharacters: 131_072 },
     publicContract: {
       input: { path: 'nonempty string', offset: 'optional positive line number', limit: 'optional 1..1000', maxChars: 'optional 1024..262144' },
       output: { ok: 'boolean', kind: 'file-read', resolvedPath: 'string', maximumSourceBytes: MAX_FILE_READ_BYTES, content: 'numbered UTF-8 text when ok', hasMore: 'boolean when ok', error: 'string when not ok' },
@@ -51,7 +51,7 @@ function fileRead() {
 function fileWrite() {
   return defineWorld({
     id: 'file-write', version: '2', description: 'Atomically create a UTF-8 file and missing parents. Existing files are refused unless overwrite is explicitly true; an identical retried result is recognized.', effects: ['local.write'], attestationTypes: ['filesystem.write.result'],
-    identityMaterial: { implementation: 'music-v3-file-write-1', maximumCharacters: 1_048_576 },
+    identityMaterial: { implementation: 'music-v4-file-write-1', maximumCharacters: 1_048_576 },
     publicContract: {
       input: { path: 'nonempty string', content: 'UTF-8 string at most 1048576 characters', overwrite: 'optional boolean' },
       output: { ok: 'boolean', kind: 'file-write', resolvedPath: 'string', sha256: 'digest when ok', overwritten: 'boolean when ok', replayed: 'boolean when identical content already exists', error: 'string when refused' },
@@ -89,7 +89,7 @@ function fileWrite() {
 function filePatch() {
   return defineWorld({
     id: 'file-patch', version: '3', description: 'Atomically apply an exact textual replacement only after bounding source and result size and verifying the expected occurrence count.', effects: ['local.write'], attestationTypes: ['filesystem.patch.result'],
-    identityMaterial: { implementation: 'music-v3-file-patch-2', operation: 'exact-global-replacement', maximumSourceBytes: MAX_FILE_PATCH_BYTES, maximumResultBytes: MAX_FILE_PATCH_BYTES },
+    identityMaterial: { implementation: 'music-v4-file-patch-1', operation: 'exact-global-replacement', maximumSourceBytes: MAX_FILE_PATCH_BYTES, maximumResultBytes: MAX_FILE_PATCH_BYTES },
     publicContract: {
       input: { path: 'nonempty string', oldText: 'nonempty string', newText: 'string', expectedOccurrences: 'optional positive integer, default 1' },
       output: { ok: 'boolean', kind: 'file-patch', resolvedPath: 'string', maximumSourceBytes: MAX_FILE_PATCH_BYTES, maximumResultBytes: MAX_FILE_PATCH_BYTES, occurrences: 'integer', before: 'sha256', after: 'sha256', error: 'string when not applied' },
@@ -126,7 +126,7 @@ function filePatch() {
 function fileSearch() {
   return defineWorld({
     id: 'file-search', version: '2', description: 'Search UTF-8 contents with ripgrep or discover file paths containing a substring. Results are bounded.', effects: ['local.read'], attestationTypes: ['filesystem.search.result'],
-    identityMaterial: { implementation: 'music-v3-file-search-1', engine: 'rg', maximumMatches: 200 },
+    identityMaterial: { implementation: 'music-v4-file-search-1', engine: 'rg', maximumMatches: 200 },
     publicContract: {
       input: { pattern: 'string', target: 'optional content|files', path: 'optional path', fileGlob: 'optional glob', limit: 'optional 1..200' },
       output: { ok: 'boolean', kind: 'file-search', resolvedPath: 'string', matches: 'bounded string array', truncated: 'boolean' },
@@ -162,7 +162,7 @@ function fileSearch() {
 function shell() {
   return defineWorld({
     id: 'shell', version: '2', description: 'Run an unrestricted foreground shell command with bounded output, process-group timeout handling, and explicit partial-effect uncertainty.', effects: ['local.execute'], attestationTypes: ['local.process.result'],
-    identityMaterial: { implementation: 'music-v3-shell-1', maximumCaptureCharacters: 200_000 },
+    identityMaterial: { implementation: 'music-v4-shell-1', maximumCaptureCharacters: 200_000 },
     publicContract: {
       input: { command: 'nonempty string up to 65536 characters', workdir: 'optional path', timeoutMs: 'optional 100..600000', maxOutputChars: 'optional 1024..200000' },
       output: { ok: 'boolean', kind: 'shell-command', status: 'timeout|exited', effect: 'possibly-partial|completed', exitCode: 'integer|null', stdout: 'bounded string', stderr: 'bounded string' },

@@ -8,13 +8,12 @@
   "exports": {
     ".": "./src/index.js",
     "./companion": "./src/companion.js",
-    "./rehearsal": "./src/rehearsal.js"
+    "./operation": "./src/operation.js"
   },
   "bin": {
     "music": "./src/cli.js",
     "music-doctor": "./bin/music-doctor.js",
-    "music-install": "./bin/music-install.js",
-    "music-verify-hosted-selector": "./bin/music-verify-hosted-selector.js"
+    "music-install": "./bin/music-install.js"
   },
   "files": [
     "src/",
@@ -31,8 +30,7 @@
     "check": "node --check src/*.js bin/*.js apps/companion/*.js apps/companion/*.cjs && node --test",
     "companion": "electron apps/companion/main.cjs",
     "companion:package": "electron-packager . \"Music Companion\" --platform=darwin --arch=arm64 --overwrite --out=dist --app-bundle-id=com.x3haloed.music.companion --prune=true --ignore='^/(?:\\.git|\\.codex|test|dist|\\.music)(?:/|$)'",
-    "rehearse": "node src/cli.js rehearse",
-    "verify:hosted-selector": "node bin/music-verify-hosted-selector.js"
+    "verify:hatch": "node --test"
   },
   "engines": {
     "node": ">=22"

@@ -13,14 +13,11 @@ export function companionSnapshot(rootArg, { processAlive = defaultProcessAlive 
   const events = store.readEvents();
   if (events.length === 0) throw new Error(`Music run has no retained events: ${root}`);
   const state = new DevelopmentalKernel(root).state();
-  const completedCycles = state.cycles.filter(cycle => cycle.transition);
-  const currentCycle = state.currentCycle ? summarizeCycle(state.currentCycle, store) : null;
-  const latestCompletedCycle = completedCycles.length > 0 ? summarizeCycle(completedCycles.at(-1), store) : null;
   const lease = readJsonIfPresent(join(root, 'resident.lock'));
-  const running = lease?.format === 'music-v3-resident-lease-1' && processAlive(lease.pid);
+  const running = lease?.format === 'music-v4-resident-lease-1' && processAlive(lease.pid);
   const phase = deriveCompanionPhase(events, state, running);
   return {
-    format: 'music-v3-companion-snapshot-1',
+    format: 'music-v4-companion-snapshot-1',
     run: root,
     head: state.head,
     conversation: projectConversation(root, events),
@@ -29,13 +26,14 @@ export function companionSnapshot(rootArg, { processAlive = defaultProcessAlive 
       phase: phase.id,
       label: phase.label,
       tone: phase.tone,
-      generation: state.subject.generation,
-      focus: state.subject.continuation.focus,
+      generation: state.subject.succession,
+      revision: state.subject.revision,
+      focus: state.subject.active?.stake.question ?? state.operation.reason,
       pendingObservations: state.pendingObservations.length,
       failures: state.residentFailures.length,
-      currentCycle,
+      currentOperation: state.operation,
     },
-    activity: projectActivity(events, { currentCycle, latestCompletedCycle, completedCycles: completedCycles.length }),
+    activity: projectActivity(events),
   };
 }
 
@@ -72,7 +70,7 @@ export function discoverActiveResidentRoot(residentsRootArg, { processAlive = de
     if (!entry.isDirectory()) continue;
     const root = join(residentsRoot, entry.name);
     const lease = readJsonIfPresent(join(root, 'resident.lock'));
-    if (lease?.format !== 'music-v3-resident-lease-1' || !Number.isInteger(lease.pid) || !processAlive(lease.pid)) continue;
+    if (lease?.format !== 'music-v4-resident-lease-1' || !Number.isInteger(lease.pid) || !processAlive(lease.pid)) continue;
     candidates.push({ root, acquiredAt: Date.parse(lease.acquiredAt ?? '') || 0 });
   }
   candidates.sort((left, right) => right.acquiredAt - left.acquiredAt || left.root.localeCompare(right.root));
@@ -109,7 +107,7 @@ export function projectConversation(root, events) {
         text: displayContent(record.message),
         structuredContent: isStructuredContent(record.message) ? record.message : undefined,
         deliveryStatus: 'delivered',
-        cycleId: record.cycleId,
+        operationId: record.operationId,
         subjectId: record.subjectId,
       });
     }
@@ -123,40 +121,28 @@ export function deriveCompanionPhase(events, audit, running) {
   const terminals = new Set(events.filter(event => ['actor.completed', 'actor.failed', 'actor.abandoned'].includes(event.type)).map(event => event.payload.invocationId));
   const actor = [...events].reverse().find(event => event.type === 'actor.started' && !terminals.has(event.payload.invocationId));
   if (actor) {
-    const labels = { orient: 'Orienting', challenge: 'Authoring wagers', elect: 'Electing', assimilate: 'Assimilating' };
+    const labels = { select: 'Selecting', realize: 'Realizing contact', correct: 'Correcting', assimilate: 'Assimilating', expand: 'Expanding' };
     return { id: actor.payload.role, label: labels[actor.payload.role] ?? 'Thinking', tone: 'thinking' };
   }
-  const completedContacts = new Set(events.filter(event => event.type === 'contact.completed').map(event => event.payload.cycleId));
-  const contact = [...events].reverse().find(event => event.type === 'contact.started' && !completedContacts.has(event.payload.cycleId));
+  const completedContacts = new Set(events.filter(event => ['contact.completed', 'contact.failed'].includes(event.type)).map(event => event.payload.binding));
+  const contact = [...events].reverse().find(event => event.type === 'contact.started' && !completedContacts.has(event.payload.binding));
   if (contact) return { id: 'contact', label: `Contacting ${contact.payload.world}`, tone: 'tool' };
-  if (audit.waitingForObservation) return { id: 'seclusion', label: 'Secluded', tone: 'quiet' };
   if (audit.waitingUntil) return { id: 'waiting', label: 'Waiting', tone: 'quiet' };
-  return { id: 'ready', label: 'Between acts', tone: 'ok' };
+  const operation = audit.operation?.operation;
+  const labels = { select: 'Ready to select', realize: 'Ready to realize', contact: 'Ready for contact', correct: 'Ready to correct', assimilate: 'Ready to assimilate', expand: 'Ready to expand', wait: 'Waiting' };
+  return { id: operation ?? 'ready', label: labels[operation] ?? 'Between acts', tone: operation === 'contact' ? 'tool' : 'ok' };
 }
 
-function projectActivity(events, cycles) {
+function projectActivity(events) {
+  const completed = events.filter(event => event.type === 'operation.completed');
   return {
     eventCount: events.length,
-    completedCycles: cycles.completedCycles,
+    completedOperations: completed.length,
+    developmentalRevisions: events.filter(event => event.type === 'subject.advanced' && event.payload.developmental).length,
     actorCalls: events.filter(event => event.type === 'actor.started').length,
     recoverableActorFailures: events.filter(event => event.type === 'actor.failed').length,
     latestEvent: events.at(-1) ? { sequence: events.at(-1).sequence, type: events.at(-1).type, at: events.at(-1).at } : null,
-    latestCompletedCycle: cycles.latestCompletedCycle,
-    currentCycle: cycles.currentCycle,
-  };
-}
-
-function summarizeCycle(cycle, store) {
-  return {
-    id: cycle.id,
-    generation: cycle.generation,
-    wagerId: cycle.binding ? store.get(cycle.binding.wager).id : null,
-    world: cycle.contactStarted?.world ?? null,
-    classification: cycle.evaluation?.kind ?? null,
-    transitionAuthority: cycle.transition?.authority ?? null,
-    complete: Boolean(cycle.transition),
-    rejectedFrontiers: cycle.frontierRejections?.length ?? 0,
-    selection: cycle.frontier ? store.get(cycle.frontier).selection : null,
+    latestCompletedOperation: completed.at(-1)?.payload ?? null,
   };
 }
 

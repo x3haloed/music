@@ -15,16 +15,16 @@ export function builtinWorlds() {
       description: 'Retrieve a bounded exact character range from one retained content-addressed JSON object.',
       effects: [],
       attestationTypes: ['music.evidence.read-result'],
-      identityMaterial: { implementation: 'music-v3-evidence-read-1', maximumCharacters: 262144 },
+      identityMaterial: { implementation: 'music-v4-evidence-read-1', maximumCharacters: 262144 },
       publicContract: {
-        input: { reference: 'exact music-v3-object-1 reference', offset: 'nonnegative character offset', maxCharacters: '1..262144' },
+        input: { reference: 'exact music-v4-object-1 reference', offset: 'nonnegative character offset', maxCharacters: '1..262144' },
         output: { content: 'exact JSON character range', totalCharacters: 'integer', hasMore: 'boolean', sha256: 'verified object digest' },
         authority: 'Attests only exact retrieval from Music retained evidence, not the truth of represented claims.',
       },
       conform(input) {
         const reasons = [];
         if (!input || typeof input !== 'object' || Array.isArray(input)) return ['input must be an object'];
-        if (input.reference?.format !== 'music-v3-object-1' || !/^[a-f0-9]{64}$/.test(input.reference?.sha256 ?? '')) reasons.push('reference must be an exact Music object reference');
+        if (input.reference?.format !== 'music-v4-object-1' || !/^[a-f0-9]{64}$/.test(input.reference?.sha256 ?? '')) reasons.push('reference must be an exact Music object reference');
         if (!Number.isInteger(input.offset ?? 0) || (input.offset ?? 0) < 0) reasons.push('offset must be a nonnegative integer');
         if (!Number.isInteger(input.maxCharacters ?? 65536) || (input.maxCharacters ?? 65536) < 1 || (input.maxCharacters ?? 65536) > 262144) reasons.push('maxCharacters must be between 1 and 262144');
         return reasons;
@@ -49,7 +49,7 @@ export function builtinWorlds() {
       description: 'Deliver one durable message to the machine owner through the run outbox.',
       effects: ['operator.message'],
       attestationTypes: ['operator.message.delivery-result'],
-      identityMaterial: { implementation: 'music-v3-operator-outbox-1', storage: 'run-local-idempotent-json' },
+      identityMaterial: { implementation: 'music-v4-operator-outbox-1', storage: 'run-local-idempotent-json' },
       publicContract: {
         input: { audience: 'short string', message: 'JSON value' },
         output: { delivered: 'boolean', deliveryId: 'exactly 64 lowercase hexadecimal characters', audience: 'short string' },
@@ -69,13 +69,13 @@ export function builtinWorlds() {
       attest: (input, output) => [{ type: 'operator.message.delivery-result', value: { audience: input.audience, messageDigest: digest(input.message), delivered: output.delivered, deliveryId: output.deliveryId } }],
       async execute(input, context) {
         const record = {
-          format: 'music-v3-outbox-message-1',
+          format: 'music-v4-outbox-message-1',
           deliveryId: digest({ idempotencyKey: context.idempotencyKey }),
           idempotencyKey: context.idempotencyKey,
           audience: input.audience,
           message: input.message,
           subjectId: context.subjectId,
-          cycleId: context.cycleId,
+          operationId: context.operationId,
         };
         const path = join(context.runRoot, 'outbox', `${record.deliveryId}.json`);
         const bytes = `${canonical(record)}\n`;
@@ -91,7 +91,7 @@ export function builtinWorlds() {
       description: 'Bounded HTTP JSON contact. The remote service must honor Idempotency-Key for effecting methods.',
       effects: ['network.fetch'],
       attestationTypes: ['network.http.response'],
-      identityMaterial: { implementation: 'music-v3-http-json-2', maximumResponseBytes: 2097152 },
+      identityMaterial: { implementation: 'music-v4-http-json-1', maximumResponseBytes: 2097152 },
       publicContract: {
         input: { url: 'absolute http(s) URL', method: 'GET|POST|PUT|PATCH|DELETE', body: 'optional JSON', headers: 'optional string map' },
         output: { status: 'integer', ok: 'boolean', body: 'parsed JSON or text, at most 2 MiB', headers: 'string map' },
@@ -142,7 +142,7 @@ export function builtinWorlds() {
       description: 'Execute one external program with a JSON request on stdin and capture one JSON result on stdout.',
       effects: ['local.execute'],
       attestationTypes: ['local.json-command.result'],
-      identityMaterial: { implementation: 'music-v3-json-command-1', maximumBufferBytes: 2097152 },
+      identityMaterial: { implementation: 'music-v4-json-command-1', maximumBufferBytes: 2097152 },
       publicContract: {
         input: { executable: 'absolute path', args: 'string array', cwd: 'absolute path', payload: 'JSON value' },
         output: { exitCode: 'integer', result: 'JSON value', stderr: 'bounded string' },
