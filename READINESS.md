@@ -47,16 +47,16 @@ hatching a persistent resident.
 
 ## Final release
 
-The runtime-bearing source commit is `6f85abc`. Documentation-only readiness
+The runtime-bearing source commit is `7f5ca55`. Documentation-only readiness
 recording after that commit does not change the implementation digest.
 
-- Release: `/Users/chad/.local/share/music/releases/0.0.4-v4-6f85abc`
+- Release: `/Users/chad/.local/share/music/releases/0.0.4-v4-7f5ca55`
 - implementation SHA-256:
-  `c41dbc8f20236db60bb4ed8e95f0114d6481c107acff25143f911b044807bcc7`
+  `51183984a391f6fd146da672f18bebe4dce49f7579d25aaaa115391f0abf6858`
 - dependency-lock SHA-256:
   `ed2b4dd960e4406ca294da843b267c981a21464e3a9d17bdf4ac103bc21eb15a`
 - installed rehearsal:
-  `/Users/chad/.local/share/music/evidence/v4-installed-rehearsal-6f85abc`
+  `/Users/chad/.local/share/music/evidence/v4-installed-rehearsal-7f5ca55`
 
 The installed rehearsal passed all eight causal anchors with 19 completed
 operations, 15 completed perspectives, 15 unique fresh contexts, succession
@@ -71,6 +71,17 @@ correction, mechanically releases exhausted retry/revision, and resolves
 Homebrew ripgrep under a sparse LaunchAgent PATH. Production-shaped regressions
 cover each property.
 
+The stopped durable resident completed the first real runtime epoch into this
+release. Its subject ID remained
+`4b87f2288fcc9c4213463f13023df5efe0ff068a3ee9ef76a03c98e02de45179`
+at succession 64 and revision 21. Epoch 1 binds prior ledger head
+`78723f9a5d0a019371d449b7c9825d56f8fb31f1b03d75cb93986dda368479a9`,
+prior implementation
+`58c8f3963658bbfca9b483a23839a0bd012e1d5ea991831a76f97ed8cd627577`,
+and `/Users/chad/.local/share/music/evidence/resident-v4-pre-runtime-upgrade-7f5ca55`.
+The new installed CLI passed `runtime-check` without inference. The resident
+remains stopped.
+
 ## Operational boundary
 
 Genesis seals provider/model/settings, runtime provenance, world identities,
@@ -78,8 +89,9 @@ grants, retry budgets, attention bounds, operation limit, and continuity floor.
 While stopped, an explicit snapshotted runtime epoch may refresh the runtime and
 implementations of those same world bindings without changing the subject or
 its authority envelope. Replay verifies the epoch's prior head, prior runtime,
-subject identity, snapshot, and unchanged envelope; old code refuses to advance
-the new epoch.
+subject identity, snapshot, and unchanged envelope. Current tooling presented
+with the old runtime binding refuses to advance the new epoch; historical
+binaries predate the event type and must not be reused.
 One resident lease owns advancement. Restart abandons an unterminated inference
 explicitly and reuses retained contact bindings and idempotency keys. External
 observations wake the subject immediately; quiet time eventually supplies an

@@ -113,8 +113,9 @@ subject across model turns and process restarts.
   ripgrep installation paths before reporting tool unavailability.
 - Treating genesis provenance as a permanent body seal conflated auditability
   with immobility. Explicit runtime epochs now bind the prior head, prior body,
-  unchanged subject and authority envelope, exact snapshot, and new body; old
-  code refuses to advance the resulting run.
+  unchanged subject and authority envelope, exact snapshot, and new body.
+  Current tooling rejects an old runtime binding; historical binaries remain
+  historical and must not be reused after the epoch.
 
 ## Current evidence
 
@@ -130,3 +131,7 @@ subject across model turns and process restarts.
   Terra preflight without a shell-provided Codex path.
 - The V4 Companion is packaged, ad-hoc signed, installed, and launch-verified;
   the replaced V3 app remains recoverably preserved.
+- Runtime epoch 1 moved the stopped durable resident to installed release
+  `0.0.4-v4-7f5ca55` without changing subject ID, succession 64, or revision 21.
+  Its exact pre-epoch snapshot is retained and the new body passed a
+  no-inference runtime check. The resident remains stopped.

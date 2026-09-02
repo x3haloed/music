@@ -88,8 +88,9 @@ A stopped run can accept an explicit runtime epoch: Music first takes an exact
 snapshot, then records the prior ledger head and implementation digest, the new
 runtime provenance and refreshed implementations of the same declared worlds,
 and the unchanged subject identity. An epoch cannot change inference, grants,
-limits, initial conditions, world IDs, or world adapter names. Old code then
-refuses to advance the upgraded run; the new body must pass `runtime-check`.
+limits, initial conditions, world IDs, or world adapter names. Historical code
+must not be reused: current tooling presented with the old runtime binding
+refuses to advance the upgraded run, and the new body must pass `runtime-check`.
 
 ## Verify
 
