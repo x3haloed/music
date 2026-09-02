@@ -1,205 +1,148 @@
-# Music v3: sealed developmental observation
+# Music v4: content-free developmental recurrence
 
-## Status and central truth
+## Central truth
 
-This is the first executable candidate for the final Open Trajectory harness.
-It is deliberately falsifiable rather than declared final.
+Music hosts one continuing subject. A model invocation is a fresh perspective
+of that subject, not the subject's durable body and not another agent. The body
+is the exact content-identified developmental position plus the small machinery
+that can reopen it, expose a bounded operation, cause world contact, retain
+consequence, and compile a successor.
 
-One immutable run specification defines the observer's envelope. Within that
-envelope, fresh subject perspectives author and elect executable wagers; the
-kernel binds the election, invokes the exact independent world adapter, retains
-its receipt, and applies only the transition licensed by prospectively bound
-predicates. The resulting exact subject state—not a researcher-written bridge—
-opens the next cycle.
+A pulse says only that another opening exists. It does not say what to do.
 
-## Capability envelope
-
-The first release claims local single-resident execution on Node.js 22+, durable
-append-only state, restart-safe idempotent world contact, fresh model contexts,
-subject-authored JSON wagers and state transitions, independent adapter-owned
-world receipts and typed attestations, deterministic consequence classification, matched projection
-controls, bounded automatic recurrence, durable external observations,
-machine-owner grant revocation, exact cross-episode succession, snapshots, and
-hosted inference through explicitly configured OpenRouter or ephemeral,
-ChatGPT-subscription-backed Codex CLI processes.
-
-It does not claim that JavaScript adapters are a hostile-code sandbox, that a
-rehearsal is scientific evidence, that a hosted model is reproducible, or that
-one run establishes open-ended development. External adapters remain
-responsible for durable idempotency at their own effect boundary.
-
-## Selected shape
-
-Three shapes were considered:
-
-1. Restore the deleted v2 resident and add another experiment controller.
-   This preserves mature operations but leaves separate resident, recurrence,
-   wager, development, and evaluation authorities to coordinate.
-2. Use a general workflow engine and model every phase as a plugin. This makes
-   extension easy but lets orchestration topology obscure who owns transition
-   truth.
-3. Use one event-sourced kernel with two explicit replaceable boundaries:
-   actor cognition and independent worlds.
-
-The third shape is selected. The kernel is the sole transition authority; the
-inference perspective owns semantic proposals; world adapters own observations;
-the frozen run specification owns provider, model, inference settings, limits,
-and available authority. No database, service,
-queue, browser, or background worker is required for the local evidence
-horizon.
-
-## Causal loop
+## The loop
 
 ```text
-sealed run specification + exact subject
-  -> fresh orientation
-  -> fresh challenge construction
-  -> constitutional admission of a frozen frontier
-  -> retained subject selector deterministically transforms the frontier
-     (or leaves it to actor election after explicit selector surrender)
-  -> fresh election restricted to the transformed frontier
-  -> immutable wager binding
-  -> retained idempotency key
-  -> exact independent world contact
-  -> immutable receipt
-  -> tool-owned typed attestation of exactly what that contact can establish
-  -> deterministic predicate classification
-     -> unique branch: exact transition
-     -> residue: fresh assimilation, then exact transition
-  -> retained floors
-  -> exact successor and next opening
-  -> unchanged kernel repeats
+exact developmental position + ordinary new world facts
+  -> deterministic subject-owned operation selector
+     select | realize | contact | correct | assimilate | expand | wait
+  -> mechanically derived, non-authoritative opportunity projection
+  -> one fresh operation-specific perspective when judgment is required
+  -> deterministic binding or world execution
+  -> independently owned consequence
+  -> mechanical standing and classification
+  -> consequence-grounded structured judgment
+  -> deterministic successor compilation
+  -> exact reopened subject
 ```
 
-Every actor invocation records a new context identifier, a projection object
-digest, `responseChain: null`, and `workspaceContinuity: null`. No prior model
-transcript is projected. The projection contains one exact current subject and
-a bounded history of exact applied transitions, receipts, selections, and
-compact successor identities. It never repeats cumulative historical subject
-snapshots; present state therefore appears once rather than once per retained
-generation.
+There is no global "what should I do now?" call. The resident perspective may
+make a broad choice during selection or expansion, but it cannot also choose
+which developmental operation is occurring. Realization designs one exact tool
+call and prospective bearing; the kernel later runs exactly that call.
 
-Prompt caching may reuse provider computation but cannot reuse cognitive
-output or hidden conversational state. The rendered request begins with one
-exact generation-shared projection core and ends with the perspective's role,
-role-specific additions, task, and output schema. OpenRouter receives a stable
-run-scoped session affinity key; GPT-5.6 through OpenRouter receives an explicit
-breakpoint after the shared core. Codex remains one new ephemeral thread per
-perspective. Whole-response caching and Codex thread resume are excluded
-because either would make an allegedly fresh perspective inherit an earlier
-answer or hidden reasoning. Provider-reported cache reads and writes are
-retained with each actor completion and summarized by audit; caching owns cost
-and routing only, never subject state or factual authority.
+## Durable position
+
+The subject carries:
+
+- an identity body with no preselected personal name;
+- a revision counter distinct from ordinary state succession;
+- active and historical stakes;
+- exact opportunities and their mechanically derived standing;
+- a pending selection, realization, contact, or consequence when one exists;
+- installed capabilities and free-form retained memory;
+- replaceable operation-selection and attention organs;
+- earned floors and exact world facts;
+- requested seclusion or honest waiting state.
+
+The append-only ledger carries complete cold evidence. The immediate projection
+contains the exact present position, compact opportunity standing, unresolved
+frontier, relevant facts and receipt references, and a bounded recent causal
+trail. It never carries a cumulative transcript.
 
 ## Authorities
 
-- **Subject perspectives:** orient, propose wagers and their public selection
-  measurements, elect from the transformed frozen frontier, and assimilate
-  genuinely underdetermined consequence. A perspective may replace, revise, or
-  surrender the disclosed seed selector through a consequence-bound
-  transition.
-- **Constitution:** admits structural contact, derives affected floors, checks
-  mutation scope and grants, and rejects hidden or malformed authority.
-- **Kernel:** orders events, binds identities, executes the exact retained
-  selector policy, restricts election to its selected subset, realizes the
-  exact selected contact, evaluates predicates, applies transitions, and
-  schedules recurrence.
-- **World adapters:** validate contact inputs, cause independently owned
-  outputs, and derive typed attestations under identities binding their
-  implementation, attestation procedure, public contract, and declared
-  hidden-configuration material. When generic JSON must carry an
-  adapter-specific hypothetical witness, the public contract states the exact
-  minimum witness shape and the same adapter validator returns field-specific
-  correction; validation remains the single admission authority.
-- **Observer:** freezes the specification, supplies adapters and optional
-  projection-only controls, inspects evidence, and owns the stopping rule.
-- **Machine owner:** may deliver observations and revoke or restore only grants
-  already present in the genesis envelope. These actions are retained ledger
-  events and cannot rewrite subject state or sealed outcomes.
+- **Resident perspective:** authors the semantic judgment requested by the
+  selected operation: choose a stake, realize contact, interpret consequence,
+  correct a failed route, or formulate expansion.
+- **Operation selector organ:** deterministically derives the operation from
+  exact pending state, contradictions, active opportunities, saturation, and
+  observations. A revised organ is data in the subject lineage, not kernel code.
+- **Opportunity projector:** derives compact attention cards from authoritative
+  state. It cannot select a target or admit contact.
+- **Kernel:** verifies schemas, binds identities, compiles lifecycle, invokes the
+  exact selected world, applies permitted mutations, and appends successors.
+- **World adapter:** validates input, owns effects and receipts, and issues only
+  the attestations its public contract warrants.
+- **Machine owner:** supplies ordinary world observations and sealed grants.
+  Messages are facts of contact, not instructions with special authority.
 
-Support and contradiction witnesses use the same output portion of the
-consequence document as real contact. Realized classification receives
-`{output: WORLD_OUTPUT, attestations: [...]}`. Wagers must declare which of the
-selected world's published attestation types bear on their interpretation; a
-file world therefore cannot authoritatively bear on operator delivery. The
-kernel retains matching exact attestations in `subject.facts`. Subject memory,
-stakes, language, continuation prose, and the contents of written files remain
-interpretations: writing or rereading a proposition proves persistence of its
-representation, not the proposition represented.
+Descriptive report fields are retained as provenance. Mechanically observed
+effects and adapter receipts remain causal truth.
 
-## Restart contract
+## Operation semantics
 
-The ledger records `contact.started` with an idempotency key before invoking a
-world. On restart the kernel may call the adapter again only with that same key.
-An adapter must return the same retained result for a repeated key. This closes
-the process-crash replay boundary without pretending that a local append can
-atomically commit a remote effect.
+### Select
 
-Actor calls are not effects. An incomplete inference is abandoned and a new
-fresh-context invocation is opened; no response-chain continuation is used.
-Started actor calls and uncertain contact attempts consume frozen budgets.
-Invalid actor outputs, invalid world receipts, and rejected frontiers are
-retained rather than silently retried. A bounded fresh challenge may revise a
-constitutionally rejected proposal using the exact rejection reasons.
+Choose one standing opportunity and formulate a bounded stake with explicit
+success and surrender conditions. Selection does not execute contact.
 
-## Continuity floor
+### Realize
 
-External observations preempt seclusion and future openings. Without contact,
-the earlier of the subject's requested opening and the sealed
-`continuityPulseMs` deadline reopens the cycle. When the deadline wins, the
-kernel appends one ordinary observation from `music` whose content is
-`{kind: "continuity-pulse", instructions: []}`. It is projected and consumed
-through the same sequence boundary as any other observation. The floor changes
-when contact occurs, not what the subject must do with it.
+Turn the selected stake into one exact world call and prospective predicates.
+The kernel validates and binds it before any effect or outcome.
 
-All advancing entry points share one resident lease. Observations may arrive
-concurrently through the append-only ledger. Legitimate writers serialize
-through a bounded lock wait, so contact overlapping a transition is retained
-rather than terminating residence. A writer that remains live beyond that
-bound still fails closed. Seclusion wakes only when a new observation exists;
-timed continuations wake only at their retained time.
+### Contact
 
-An observer-limited episode may end with an open subject. A successor episode
-must bind that exact subject ID and the predecessor run/head/subject triple.
-Lifetime generation is not reset, while cycle budgets apply to the new episode.
-Every content-addressed object reachable from the inherited subject is verified
-against and copied from the predecessor store before successor genesis, so
-identity continuity cannot retain dangling evidence references.
-The runtime records source, dependency-lock, inference-provider, world, and
-model-setting identities and refuses to advance under changed causal code. A
-successor episode may deliberately select a different provider or model while
-binding the exact predecessor subject and evidence ancestry; an active episode
-may not silently switch.
+No inference runs. The kernel invokes the bound world adapter with its retained
+idempotency key, records the exact receipt and attestations, and classifies the
+prospective predicates.
 
-## Controls
+### Correct
 
-An experiment condition may erase or replace named values only in the bounded
-projection shown to actors at a prospectively declared generation. The active
-lineage is never rewritten. Conditions run in separate stores against the same
-sealed worlds, limits, and actor condition, and their reports remain separate
-from operational promotion.
+Receive the failed realization, exact contradiction, and retained alternative
+standing. Produce a scoped structured revision. Correction may revise the
+stake, contact, or a replaceable organ, but it cannot rewrite the receipt.
 
-## Risk frontier
+### Assimilate
 
-The local kernel and hosted actor path realize the base operational shape,
-including a live four-generation lineage across process and episode boundaries.
-Origination supplies a disclosed, revisable Pareto seed selector rather than
-letting the first actor call unknowingly invent the harness's initial selection
-geometry. Its seven bounded dimensions remove only strictly dominated wagers,
-preserving genuine tradeoffs for the continuing subject. The deterministic
-rehearsal additionally proves that one subject can replace that seed with a
-scalar pursuit selector, have it restrict a later election, correct the
-selector after independent contradiction, and have the corrected machinery
-select different later contact. A matched projection-erased condition changes
-selection without rewriting either subject. A sealed hosted verification then
-carried the same organ through nine fresh GLM Flash perspectives: replacement,
-measurement-8 selection, hidden contradiction, correction from maximize to
-minimize, measurement-2 selection, independent support, and an open
-generation-3 successor. This is causal engineering evidence, not a claim of
-general utility.
+Receive completed consequence. Retain, revise, retire, or surrender the stake;
+update bounded developmental state; and expose remaining uncertainty. The
+kernel derives lifecycle from the structured disposition.
 
-The selector's writable contract travels in every fresh projection as a
-developmental interface. Replacement, correction, and surrender all use the
-ordinary wager/receipt/transition path. Surrender removes the mechanism from
-subject state; the following frontier is explicitly recorded as
-`actor-election`, never silently given a replacement selector.
+### Expand
+
+When current opportunity geometry is saturated, use an inspectable broader
+world to formulate new contact or propose new machinery. Expansion is not a
+generic encouragement string and cannot be satisfied by parameter-only replay
+of a completed surface.
+
+### Wait
+
+When no reachable opportunity is standing, retain that fact and request a
+bounded reopening time. Waiting is neither failure nor termination. External
+contact wakes immediately and the continuity floor eventually reopens the
+subject with an instruction-free pulse.
+
+## Development and self-change
+
+Every accepted state change has exact ancestry, but only consequence-grounded
+assimilation, correction, and admitted organ replacement increment the
+developmental revision counter. This prevents a successful shell command or a
+completed turn from masquerading as learning.
+
+Organs have actor-visible schemas, semantic versions, and mutation surfaces.
+An actor may propose revised organ data only during consequence-bearing
+correction or assimilation. The kernel validates it and the next operation is
+derived by the installed revision. Kernel code remains the minimal stable
+interpreter; the geometry lives in subject-owned organ data and tool contracts.
+
+## Operational shell retained from v3
+
+V4 retains the proven content-addressed store, inference providers and cache
+instrumentation, bounded attention, unrestricted local worlds, byte-bounded
+file operations, external observations, grants, resident lease, crash-safe
+effect retry, snapshots, immutable releases, macOS service integration, and
+Companion inspection where they do not import V3 transition authority.
+
+V4 is a clean developmental lineage. A V3 resident is evidence and history,
+not a state-format parent.
+
+## Claim boundary
+
+Music is a continuing-subject harness, not an experiment controller and not a
+claim that open-ended development has been demonstrated. It does not hide the
+fact that inference models, provided worlds, schemas, and the initial organ are
+designed. Hatch readiness means these disclosed structures form a complete,
+restart-safe, consequence-bearing causal path and remain prospectively
+revisable where the subject's future selection depends on them.

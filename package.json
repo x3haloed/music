@@ -1,10 +1,10 @@
 {
   "name": "music-agent-harness",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "type": "module",
   "main": "apps/companion/main.cjs",
-  "description": "A sealed developmental harness for one continuing subject.",
+  "description": "A content-free developmental recurrence harness for one continuing subject.",
   "exports": {
     ".": "./src/index.js",
     "./companion": "./src/companion.js",
