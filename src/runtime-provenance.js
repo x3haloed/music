@@ -10,14 +10,13 @@ const implementationFiles = [
   'src/builtin-worlds.js',
   'src/canonical.js',
   'src/cli.js',
-  'src/constitution.js',
   'src/kernel.js',
   'src/local-worlds.js',
+  'src/operation.js',
   'src/predicate.js',
   'src/protocol.js',
   'src/residency.js',
   'src/runtime-provenance.js',
-  'src/selector.js',
   'src/store.js',
   'src/subject.js',
   'src/world.js',
@@ -33,7 +32,7 @@ export function runtimeProvenance() {
     dependencyLockSha256: existsSync(lockPath) ? sha256(readFileSync(lockPath)) : null,
   };
   const body = {
-    format: 'music-v3-runtime-provenance-1',
+    format: 'music-v4-runtime-provenance-1',
     node: process.version,
     ...implementation,
   };

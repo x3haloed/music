@@ -16,7 +16,7 @@ import {
 import { basename, dirname, join } from 'node:path';
 import { canonical, clone, digest, identifier } from './canonical.js';
 
-export const EVENT_FORMAT = 'music-v3-event-1';
+export const EVENT_FORMAT = 'music-v4-event-1';
 const DEFAULT_WRITER_LOCK_TIMEOUT_MS = 5_000;
 const DEFAULT_WRITER_LOCK_POLL_MS = 10;
 const writerWaitArray = new Int32Array(new SharedArrayBuffer(4));
@@ -48,11 +48,11 @@ export class RunStore {
     const path = join(this.objectRoot, sha256.slice(0, 2), `${sha256}.json`);
     if (!existsSync(path)) atomicWrite(path, bytes);
     else if (readFileSync(path, 'utf8') !== bytes) throw new Error(`object collision: ${sha256}`);
-    return { format: 'music-v3-object-1', sha256, bytes: Buffer.byteLength(bytes), mediaType: 'application/json' };
+    return { format: 'music-v4-object-1', sha256, bytes: Buffer.byteLength(bytes), mediaType: 'application/json' };
   }
 
   get(reference) {
-    if (!reference || reference.format !== 'music-v3-object-1') throw new Error('invalid object reference');
+    if (!reference || reference.format !== 'music-v4-object-1') throw new Error('invalid object reference');
     const path = join(this.objectRoot, reference.sha256.slice(0, 2), `${reference.sha256}.json`);
     const bytes = readFileSync(path, 'utf8');
     if (Buffer.byteLength(bytes) !== reference.bytes) throw new Error(`object byte count mismatch: ${reference.sha256}`);
@@ -168,7 +168,7 @@ export class RunStore {
         for (const name of readdirSync(outbox)) copyFileSync(join(outbox, name), join(partial, 'outbox', name));
       }
       const manifest = {
-        format: 'music-v3-snapshot-1',
+        format: 'music-v4-snapshot-1',
         createdAt: this.clock().toISOString(),
         head: events.at(-1)?.hash ?? null,
         events: events.length,
@@ -260,7 +260,7 @@ function collectReferences(value, found = new Map()) {
     return found;
   }
   if (!value || typeof value !== 'object') return found;
-  if (value.format === 'music-v3-object-1' && typeof value.sha256 === 'string') {
+  if (value.format === 'music-v4-object-1' && typeof value.sha256 === 'string') {
     found.set(value.sha256, value);
     return found;
   }

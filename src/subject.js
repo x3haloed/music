@@ -1,94 +1,195 @@
 import { z } from 'zod';
 import { clone, digest } from './canonical.js';
 import { PredicateSchema, evaluatePredicate } from './predicate.js';
-import { DEFAULT_PURSUIT_SELECTOR, PURSUIT_SELECTOR_KEY, PursuitSelectorSchema } from './selector.js';
-import { ATTENTION_POLICY_KEY, AttentionPolicySchema, DEFAULT_ATTENTION_POLICY } from './attention.js';
+import { DEFAULT_ATTENTION_POLICY, AttentionPolicySchema } from './attention.js';
 import { verifyAttestation } from './world.js';
 
 const Json = z.json();
-const MechanismsSchema = z.record(z.string(), Json).superRefine((value, context) => {
-  if (Object.hasOwn(value, PURSUIT_SELECTOR_KEY)) {
-    const parsed = PursuitSelectorSchema.safeParse(value[PURSUIT_SELECTOR_KEY]);
-    if (!parsed.success) context.addIssue({ code: 'custom', message: `invalid ${PURSUIT_SELECTOR_KEY}: ${parsed.error.message}` });
-  }
-  if (Object.hasOwn(value, ATTENTION_POLICY_KEY)) {
-    const parsed = AttentionPolicySchema.safeParse(value[ATTENTION_POLICY_KEY]);
-    if (!parsed.success) context.addIssue({ code: 'custom', message: `invalid ${ATTENTION_POLICY_KEY}: ${parsed.error.message}` });
-  }
-});
+
 export const IdentifierSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/);
 export const DigestSchema = z.string().regex(/^[a-f0-9]{64}$/);
-export const StatePointerSchema = z.string().regex(/^\/(stakes|mechanisms|language|authority|memory)(?:\/(?:[^/~]|~[01])*)*$/);
+export const StatePointerSchema = z.string().regex(/^\/(identity|organs|memory|capabilities)(?:\/(?:[^/~]|~[01])*)*$/);
+export const OperationSchema = z.enum(['select', 'realize', 'contact', 'correct', 'assimilate', 'expand', 'wait']);
 
-export const ContinuationSchema = z.object({
-  kind: z.enum(['continue', 'seclusion', 'stop']),
-  focus: z.string().min(1).max(8192),
-  notBefore: z.iso.datetime().nullable().default(null),
+export const OperationSelectorSchema = z.object({
+  format: z.literal('music-v4-operation-selector-1'),
+  version: z.number().int().positive(),
+  consequenceRoutes: z.object({
+    support: z.enum(['assimilate', 'correct']),
+    contradiction: z.enum(['correct', 'assimilate']),
+    inconclusive: z.enum(['assimilate', 'correct']),
+    failure: z.enum(['correct', 'assimilate']),
+  }).strict(),
+  sourcePriority: z.array(z.enum(['observation', 'unresolved', 'subject', 'world'])).length(4),
+  projectionLimit: z.number().int().min(1).max(64),
+  expansionLimit: z.number().int().min(1).max(16),
+  waitMs: z.number().int().min(1_000).max(604_800_000),
+}).strict().superRefine((value, context) => {
+  if (new Set(value.sourcePriority).size !== value.sourcePriority.length) {
+    context.addIssue({ code: 'custom', path: ['sourcePriority'], message: 'source priority must contain each source exactly once' });
+  }
 });
+
+export const DEFAULT_OPERATION_SELECTOR = Object.freeze({
+  format: 'music-v4-operation-selector-1',
+  version: 1,
+  consequenceRoutes: {
+    support: 'assimilate',
+    contradiction: 'correct',
+    inconclusive: 'assimilate',
+    failure: 'correct',
+  },
+  sourcePriority: ['observation', 'unresolved', 'subject', 'world'],
+  projectionLimit: 16,
+  expansionLimit: 2,
+  waitMs: 300_000,
+});
+
+export const StakeSchema = z.object({
+  id: IdentifierSchema,
+  question: z.string().min(1).max(8192),
+  successCondition: z.string().min(1).max(8192),
+  surrenderCondition: z.string().min(1).max(8192),
+  mutationSurface: z.array(StatePointerSchema).max(128).default([]),
+}).strict();
+
+export const OpportunitySchema = z.object({
+  id: IdentifierSchema,
+  source: z.object({
+    kind: z.enum(['observation', 'unresolved', 'subject', 'world']),
+    world: IdentifierSchema.nullable().default(null),
+    evidence: DigestSchema.nullable().default(null),
+  }).strict(),
+  description: z.string().min(1).max(8192),
+  noveltyKey: z.string().min(1).max(1024),
+  standing: z.enum(['open', 'selected', 'contacted', 'completed', 'surrendered', 'blocked']),
+  attempts: z.number().int().nonnegative(),
+  lastConsequence: DigestSchema.nullable(),
+}).strict();
+
+export const RealizationSchema = z.object({
+  world: IdentifierSchema,
+  input: Json,
+  bearing: z.object({
+    attestationTypes: z.array(IdentifierSchema).min(1).max(64),
+    interpretation: z.string().min(1).max(8192),
+  }).strict(),
+  predicates: z.object({
+    support: PredicateSchema,
+    contradiction: PredicateSchema,
+    inconclusive: PredicateSchema.optional(),
+  }).strict(),
+  witnesses: z.object({
+    support: z.object({ output: Json }).strict(),
+    contradiction: z.object({ output: Json }).strict(),
+  }).strict(),
+  effectRequirements: z.array(IdentifierSchema).max(64),
+}).strict();
+
+export const ConsequenceSchema = z.object({
+  kind: z.enum(['receipt', 'failure']),
+  classification: z.enum(['support', 'contradiction', 'inconclusive', 'failure']),
+  receipt: DigestSchema.nullable(),
+  attestations: z.array(DigestSchema).max(64),
+  detail: Json,
+}).strict();
+
+export const ActivePositionSchema = z.object({
+  opportunityId: IdentifierSchema,
+  stake: StakeSchema,
+  realization: RealizationSchema.nullable(),
+  binding: DigestSchema.nullable(),
+  consequence: ConsequenceSchema.nullable(),
+  realizationAttempts: z.number().int().nonnegative(),
+}).strict();
 
 export const FloorSchema = z.object({
   id: IdentifierSchema,
   scope: StatePointerSchema,
   predicate: PredicateSchema,
   earnedBy: z.string().min(1).max(256),
-});
-
-export const SubjectSchema = z.object({
-  format: z.literal('music-v3-subject-1'),
-  id: DigestSchema,
-  parent: DigestSchema.nullable(),
-  generation: z.number().int().nonnegative(),
-  createdAt: z.iso.datetime(),
-  stakes: z.record(z.string(), Json),
-  mechanisms: MechanismsSchema,
-  language: z.record(z.string(), Json),
-  authority: z.record(z.string(), Json),
-  memory: z.record(z.string(), Json),
-  facts: z.record(z.string(), Json).optional(),
-  floors: z.array(FloorSchema).max(512),
-  continuation: ContinuationSchema,
-});
-
-export const SubjectSeedSchema = SubjectSchema.omit({ id: true, parent: true, generation: true, createdAt: true, facts: true }).partial({
-  format: true,
-  stakes: true,
-  mechanisms: true,
-  language: true,
-  authority: true,
-  memory: true,
-  floors: true,
-  continuation: true,
 }).strict();
 
-export const TransitionSchema = z.object({
+export const SubjectSchema = z.object({
+  format: z.literal('music-v4-subject-1'),
+  id: DigestSchema,
+  parent: DigestSchema.nullable(),
+  succession: z.number().int().nonnegative(),
+  revision: z.number().int().nonnegative(),
+  createdAt: z.iso.datetime(),
+  identity: z.object({
+    name: z.string().min(1).max(256).nullable(),
+    description: z.string().min(1).max(4096),
+  }).passthrough(),
+  organs: z.object({
+    operationSelector: OperationSelectorSchema,
+    attentionPolicy: AttentionPolicySchema,
+  }).passthrough(),
+  memory: z.record(z.string(), Json),
+  capabilities: z.record(z.string(), Json),
+  facts: z.record(z.string(), Json),
+  opportunities: z.record(z.string(), OpportunitySchema),
+  active: ActivePositionSchema.nullable(),
+  expansionAttempts: z.number().int().nonnegative(),
+  wait: z.object({
+    reason: z.string().min(1).max(8192),
+    notBefore: z.iso.datetime(),
+  }).strict().nullable(),
+  floors: z.array(FloorSchema).max(512),
+}).strict();
+
+export const SubjectSeedSchema = z.object({
+  identity: SubjectSchema.shape.identity.partial().optional(),
+  organs: SubjectSchema.shape.organs.partial().optional(),
+  memory: z.record(z.string(), Json).optional(),
+  capabilities: z.record(z.string(), Json).optional(),
+  floors: z.array(FloorSchema).max(512).optional(),
+}).strict();
+
+export const SubjectMutationSchema = z.object({
   set: z.record(StatePointerSchema, Json).default({}),
   remove: z.array(StatePointerSchema).max(128).default([]),
-  continuation: ContinuationSchema,
-});
+}).strict();
 
-export function createSubject(seedValue, at) {
-  const seed = SubjectSeedSchema.parse(seedValue);
+export function createSubject(seedValue, worlds, at) {
+  const seed = SubjectSeedSchema.parse(seedValue ?? {});
+  const opportunities = {};
+  for (const world of worlds) {
+    const id = `world:${world.id}`;
+    opportunities[id] = OpportunitySchema.parse({
+      id,
+      source: { kind: 'world', world: world.id, evidence: null },
+      description: world.description,
+      noveltyKey: `world:${world.id}`,
+      standing: 'open',
+      attempts: 0,
+      lastConsequence: null,
+    });
+  }
   return identify({
-    format: 'music-v3-subject-1',
+    format: 'music-v4-subject-1',
     parent: null,
-    generation: 0,
+    succession: 0,
+    revision: 0,
     createdAt: at,
-    stakes: seed.stakes ?? {},
-    mechanisms: {
-      [PURSUIT_SELECTOR_KEY]: clone(DEFAULT_PURSUIT_SELECTOR),
-      [ATTENTION_POLICY_KEY]: clone(DEFAULT_ATTENTION_POLICY),
-      ...(seed.mechanisms ?? {}),
+    identity: {
+      name: null,
+      description: 'A continuing subject whose identity may develop through world contact.',
+      ...(seed.identity ?? {}),
     },
-    language: seed.language ?? {},
-    authority: seed.authority ?? {},
+    organs: {
+      operationSelector: clone(DEFAULT_OPERATION_SELECTOR),
+      attentionPolicy: clone(DEFAULT_ATTENTION_POLICY),
+      ...(seed.organs ?? {}),
+    },
     memory: seed.memory ?? {},
-    facts: seed.facts ?? {},
+    capabilities: seed.capabilities ?? {},
+    facts: {},
+    opportunities,
+    active: null,
+    expansionAttempts: 0,
+    wait: null,
     floors: seed.floors ?? [],
-    continuation: seed.continuation ?? {
-      kind: 'continue',
-      focus: 'Originate one bounded falsifiable contact with the available world.',
-      notBefore: null,
-    },
   });
 }
 
@@ -99,42 +200,40 @@ export function verifySubject(value) {
   return subject;
 }
 
-export function applyTransition(subjectValue, transitionValue, at, { attestations = [] } = {}) {
+export function advanceSubject(subjectValue, change, at) {
   const subject = verifySubject(subjectValue);
-  const transition = TransitionSchema.parse(transitionValue);
   const next = clone(subject);
   delete next.id;
   next.parent = subject.id;
-  next.generation += 1;
+  next.succession += 1;
   next.createdAt = at;
-  next.facts ??= {};
-  for (const value of attestations) {
+  if (change.developmental) next.revision += 1;
+  if (change.mutation) applyMutation(next, change.mutation);
+  if (change.opportunities) next.opportunities = clone(change.opportunities);
+  if (Object.hasOwn(change, 'active')) next.active = clone(change.active);
+  if (Object.hasOwn(change, 'expansionAttempts')) next.expansionAttempts = change.expansionAttempts;
+  if (Object.hasOwn(change, 'wait')) next.wait = clone(change.wait);
+  for (const value of change.attestations ?? []) {
     const attestation = verifyAttestation(value);
     next.facts[attestation.id] = clone(attestation);
   }
-  for (const [pointer, value] of Object.entries(transition.set)) setPointer(next, pointer, value);
-  for (const pointer of transition.remove) removePointer(next, pointer);
-  next.continuation = transition.continuation;
   for (const floor of next.floors) {
-    if (!evaluatePredicate(next, floor.predicate)) throw new Error(`transition violates retained floor: ${floor.id}`);
+    if (!evaluatePredicate(next, floor.predicate)) throw new Error(`subject revision violates retained floor: ${floor.id}`);
   }
   return identify(next);
 }
 
-export function affectedPaths(transitionValue) {
-  const transition = TransitionSchema.parse(transitionValue);
-  return [...Object.keys(transition.set), ...transition.remove];
+export function applyMutation(target, mutationValue) {
+  const mutation = SubjectMutationSchema.parse(mutationValue);
+  for (const [pointer, value] of Object.entries(mutation.set)) setPointer(target, pointer, value);
+  for (const pointer of mutation.remove) removePointer(target, pointer);
+  SubjectSchema.shape.identity.parse(target.identity);
+  SubjectSchema.shape.organs.parse(target.organs);
+  return target;
 }
 
 export function pathsOverlap(left, right) {
   return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
-}
-
-export function eraseProjection(value, pointers = [], replacements = {}) {
-  const projected = clone(value);
-  for (const pointer of pointers) removePointer(projected, pointer);
-  for (const [pointer, replacement] of Object.entries(replacements)) setPointer(projected, pointer, replacement);
-  return projected;
 }
 
 function identify(body) {

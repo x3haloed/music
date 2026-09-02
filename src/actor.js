@@ -26,8 +26,10 @@ const ProjectionCoreOrder = [
   'developmentalInterfaces',
   'capabilities',
   'subject',
-  'observations',
-  'history',
+  'operation',
+  'opportunityProjection',
+  'activeEvidence',
+  'causalTrail',
 ];
 
 export class ScriptActor {
@@ -35,14 +37,14 @@ export class ScriptActor {
     this.id = id;
     this.model = model;
     this.plan = clone(plan);
-    this.identity = digest({ format: 'music-v3-actor-adapter-1', kind: 'script', id, model, plan: this.plan });
+    this.identity = digest({ format: 'music-v4-actor-adapter-1', kind: 'script', id, model, plan: this.plan });
   }
 
   describe() { return inferenceDescription(this.id, this.model, this.identity, {}); }
   preflight() { return { ready: true }; }
 
   async invoke({ role, projection }) {
-    const key = `${projection.subject.generation}:${role}`;
+    const key = `${projection.subject.succession}:${role}`;
     if (!Object.hasOwn(this.plan, key)) throw new Error(`script actor has no output for ${key}`);
     return { output: clone(this.plan[key]), model: this.model, responseId: null, usage: null };
   }
@@ -53,7 +55,7 @@ export class FunctionActor {
     this.id = id;
     this.model = model;
     this.fn = fn;
-    this.identity = digest({ format: 'music-v3-actor-adapter-1', kind: 'function', id, model, implementation: String(fn), identityMaterial });
+    this.identity = digest({ format: 'music-v4-actor-adapter-1', kind: 'function', id, model, implementation: String(fn), identityMaterial });
   }
 
   describe() { return inferenceDescription(this.id, this.model, this.identity, {}); }
@@ -85,9 +87,9 @@ export class OpenRouterActor {
     this.languageModel = languageModel;
     this.provider = languageModel ? null : (apiKey ? createOpenRouter({ apiKey, ...providerOptions }) : null);
     this.identity = digest({
-      format: 'music-v3-actor-adapter-1',
+      format: 'music-v4-actor-adapter-1',
       kind: 'openrouter',
-      implementation: 'music-v3-openrouter-prefix-cache-json-text-3',
+      implementation: 'music-v4-openrouter-prefix-cache-json-text-1',
       model,
       settings: { timeoutMs, maxOutputTokens, temperature, reasoningEffort, maximumInputTokens, maximumInputCharacters },
     });
@@ -173,9 +175,9 @@ export class CodexExecActor {
     this.loginStatus = loginStatus ?? readCodexLoginStatus(binary);
     if (!/Logged in using ChatGPT/i.test(this.loginStatus)) throw new Error('Codex provider requires `codex login` using ChatGPT');
     this.identity = digest({
-      format: 'music-v3-actor-adapter-1',
+      format: 'music-v4-actor-adapter-1',
       kind: 'codex-exec',
-      implementation: 'music-v3-codex-exec-prefix-layout-json-envelope-2',
+      implementation: 'music-v4-codex-exec-prefix-layout-json-envelope-1',
       binaryVersion: this.binaryVersion,
       model,
       settings: { authentication, timeoutMs, maxOutputBytes, reasoningEffort, maximumInputTokens, maximumInputCharacters },
@@ -199,7 +201,7 @@ export class CodexExecActor {
   }
 
   async invoke({ role, projection, schema, task }) {
-    const root = join(tmpdir(), `music-v3-codex-${cacheAffinityKey(this.model, projection)}`);
+    const root = join(tmpdir(), `music-v4-codex-${cacheAffinityKey(this.model, projection)}`);
     rmSync(root, { recursive: true, force: true });
     mkdirSync(root, { mode: 0o700 });
     chmodSync(root, 0o700);
@@ -304,7 +306,7 @@ export function renderInferenceInput({ role, projection, schema, task, explicitC
 
 function cacheAffinityKey(model, projection) {
   const runId = projection?.run?.id ?? 'unscoped';
-  return `music-${digest({ format: 'music-v3-cache-affinity-1', model, runId }).slice(0, 48)}`;
+  return `music-${digest({ format: 'music-v4-cache-affinity-1', model, runId }).slice(0, 48)}`;
 }
 
 function isOpenAi56(model) {
@@ -313,7 +315,7 @@ function isOpenAi56(model) {
 
 function inferenceDescription(provider, model, adapterIdentity, settings) {
   return {
-    format: 'music-v3-inference-1',
+    format: 'music-v4-inference-1',
     provider,
     model,
     adapterIdentity,

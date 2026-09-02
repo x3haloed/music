@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { PredicateSchema } from './predicate.js';
 import {
   IdentifierSchema,
+  RealizationSchema,
+  StakeSchema,
   StatePointerSchema,
+  SubjectMutationSchema,
   SubjectSeedSchema,
-  TransitionSchema,
 } from './subject.js';
-import { SelectionSignalSchema } from './selector.js';
 
 const Json = z.json();
 
@@ -14,10 +14,10 @@ export const WorldSpecSchema = z.object({
   id: IdentifierSchema,
   adapter: IdentifierSchema,
   adapterIdentity: z.string().regex(/^[a-f0-9]{64}$/),
-  attestationTypes: z.array(IdentifierSchema).max(64).default([]),
+  attestationTypes: z.array(IdentifierSchema).min(1).max(64),
   description: z.string().min(1).max(4096),
   publicContract: Json,
-});
+}).strict();
 
 const OpenRouterSettingsSchema = z.object({
   timeoutMs: z.number().int().positive().max(3_600_000),
@@ -39,147 +39,135 @@ const CodexSettingsSchema = z.object({
 }).strict();
 
 export const InferenceConditionSchema = z.object({
-  format: z.literal('music-v3-inference-1'),
+  format: z.literal('music-v4-inference-1'),
   provider: IdentifierSchema,
   model: z.string().min(1).max(256).nullable(),
   adapterIdentity: z.string().regex(/^[a-f0-9]{64}$/),
-  settings: z.record(z.string(), Json).default({}),
-}).superRefine((value, context) => {
+  settings: z.record(z.string(), Json),
+}).strict().superRefine((value, context) => {
   const schema = value.provider === 'openrouter' ? OpenRouterSettingsSchema : value.provider === 'codex' ? CodexSettingsSchema : null;
   if (!schema) return;
   const result = schema.safeParse(value.settings);
-  if (!result.success) for (const issue of result.error.issues) context.addIssue({ ...issue, path: ['settings', ...issue.path] });
-});
-
-const LegacyActorConditionSchema = z.object({
-  adapter: IdentifierSchema,
-  model: z.string().min(1).max(256).nullable(),
-  adapterIdentity: z.string().regex(/^[a-f0-9]{64}$/),
-  settings: z.record(z.string(), Json).default({}),
-});
-
-const ProjectionInterventionSchema = z.object({
-  generation: z.number().int().nonnegative(),
-  erase: z.array(z.string().regex(/^\/subject\/(stakes|mechanisms|language|authority|memory|continuation)(?:\/.*)?$/)).max(128).default([]),
-  replace: z.record(z.string().regex(/^\/subject\/(stakes|mechanisms|language|authority|memory|continuation)(?:\/.*)?$/), Json).default({}),
-});
-
-export const ConditionSchema = z.object({
-  id: IdentifierSchema,
-  interventions: z.array(ProjectionInterventionSchema).max(64).default([]),
+  if (!result.success) {
+    for (const issue of result.error.issues) context.addIssue({ ...issue, path: ['settings', ...issue.path] });
+  }
 });
 
 export const RunSpecSchema = z.object({
-  format: z.literal('music-v3-run-spec-1'),
+  format: z.literal('music-v4-run-spec-1'),
   id: IdentifierSchema,
   title: z.string().min(1).max(512),
-  hypothesis: z.string().min(1).max(8192),
-  cheapestFalsifier: z.string().min(1).max(8192),
-  inference: InferenceConditionSchema.optional(),
-  actor: LegacyActorConditionSchema.optional(),
+  inference: InferenceConditionSchema,
   worlds: z.array(WorldSpecSchema).min(1).max(64),
   grants: z.array(IdentifierSchema).max(64).default([]),
   initialSubject: SubjectSeedSchema.default({}),
-  inheritedSubjectId: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
-  conditions: z.array(ConditionSchema).min(1).max(16).default([{ id: 'active', interventions: [] }]),
   limits: z.object({
-    maxCycles: z.number().int().positive().max(10_000),
+    maxOperations: z.number().int().positive().max(100_000),
     maxActorCalls: z.number().int().positive().max(100_000),
-    maxChallengeAttempts: z.number().int().positive().max(100).default(3),
+    maxRealizationAttempts: z.number().int().positive().max(100).default(4),
     maxContactAttempts: z.number().int().positive().max(1_000).default(8),
     residentRetryDelayMs: z.number().int().min(10).max(3_600_000).default(5_000),
     continuityPulseMs: z.number().int().min(1_000).max(604_800_000).default(300_000),
     projectionHistoryEntries: z.number().int().positive().max(256).default(16),
     maximumInputTokens: z.number().int().min(16_384).max(200_000).default(200_000),
     maximumInputCharacters: z.number().int().min(65_536).max(900_000).default(900_000),
-  }),
+  }).strict(),
   stoppingRule: z.string().min(1).max(4096),
-}).superRefine((value, context) => {
-  if (Boolean(value.inference) === Boolean(value.actor)) context.addIssue({ code: 'custom', message: 'run spec must contain exactly one inference block' });
-}).transform(({ actor, ...value }) => ({
-  ...value,
-  inference: value.inference ?? {
-    format: 'music-v3-inference-1',
-    provider: actor.adapter === 'codex-exec' ? 'codex' : actor.adapter,
-    model: actor.model,
-    adapterIdentity: actor.adapterIdentity,
-    settings: actor.settings,
-  },
-}));
+}).strict();
 
-export const WagerSchema = z.object({
+export const SelectionSchema = z.object({
+  opportunityId: IdentifierSchema,
+  stake: StakeSchema,
+  rationale: z.string().min(1).max(8192),
+}).strict();
+
+const OpportunityProposalSchema = z.object({
   id: IdentifierSchema,
-  stake: z.object({
-    id: IdentifierSchema,
-    question: z.string().min(1).max(8192),
-  }),
-  contact: z.object({
-    world: IdentifierSchema,
-    input: Json,
-    mechanism: z.object({
-      subjectPath: StatePointerSchema,
-      inputKey: IdentifierSchema,
-    }).optional(),
-  }),
-  bearing: z.object({
-    attestationTypes: z.array(IdentifierSchema).min(1).max(64),
-    interpretation: z.string().min(1).max(8192),
-  }),
-  predicates: z.object({
-    support: PredicateSchema,
-    contradiction: PredicateSchema,
-    inconclusive: PredicateSchema.optional(),
-  }),
-  witnesses: z.object({
-    support: z.object({ output: Json }),
-    contradiction: z.object({ output: Json }),
-  }),
-  continuations: z.object({
-    support: TransitionSchema.optional(),
-    contradiction: TransitionSchema.optional(),
-    inconclusive: TransitionSchema.optional(),
-  }),
-  revisionScope: z.array(StatePointerSchema).min(1).max(128),
-  retainedFloorIds: z.array(IdentifierSchema).max(512),
-  effectRequirements: z.array(IdentifierSchema).max(64),
-  selection: SelectionSignalSchema.optional(),
+  source: z.object({
+    kind: z.enum(['unresolved', 'subject', 'world']),
+    world: IdentifierSchema.nullable().default(null),
+  }).strict(),
+  description: z.string().min(1).max(8192),
+  noveltyKey: z.string().min(1).max(1024),
+}).strict();
+
+export const ExpansionSchema = z.object({
+  opportunities: z.array(OpportunityProposalSchema).max(16),
+  wait: z.object({
+    reason: z.string().min(1).max(8192),
+    notBefore: z.iso.datetime(),
+  }).strict().nullable(),
+  rationale: z.string().min(1).max(8192),
+}).strict().superRefine((value, context) => {
+  if (value.opportunities.length === 0 && value.wait === null) {
+    context.addIssue({ code: 'custom', message: 'empty expansion must author a bounded wait' });
+  }
+  if (value.opportunities.length > 0 && value.wait !== null) {
+    context.addIssue({ code: 'custom', message: 'expansion cannot both open opportunities and wait' });
+  }
 });
 
-export const OrientationSchema = z.object({
-  summary: z.string().min(1).max(8192),
-  liveStakes: z.array(z.string().min(1).max(4096)).max(128),
-  recommendedNext: z.string().min(1).max(4096),
-});
-
-export const ChallengeSchema = z.object({ wagers: z.array(WagerSchema).min(1).max(16) });
-export const ElectionSchema = z.object({ wagerId: IdentifierSchema, rationale: z.string().min(1).max(4096) });
-export const AssimilationSchema = z.object({ transition: TransitionSchema, rationale: z.string().min(1).max(8192) });
+export const JudgmentSchema = z.object({
+  disposition: z.enum(['retry', 'retain', 'revise', 'retire', 'surrender']),
+  revisedStake: StakeSchema.nullable(),
+  mutation: SubjectMutationSchema,
+  opportunities: z.array(OpportunityProposalSchema).max(16),
+  wait: z.object({
+    reason: z.string().min(1).max(8192),
+    notBefore: z.iso.datetime(),
+  }).strict().nullable(),
+  rationale: z.string().min(1).max(8192),
+}).strict();
 
 export const RoleSchemas = {
-  orient: OrientationSchema,
-  challenge: ChallengeSchema,
-  elect: ElectionSchema,
-  assimilate: AssimilationSchema,
+  select: SelectionSchema,
+  realize: RealizationSchema,
+  correct: JudgmentSchema,
+  assimilate: JudgmentSchema,
+  expand: ExpansionSchema,
 };
 
 export const RoleTasks = {
-  orient: 'Orient to the exact inherited subject position. Identify live stakes as concise descriptive text and the next consequence-bearing opening. Do not propose world contact yet.',
-  challenge: [
-    'Author one or more executable falsifiable wagers using an available world.',
-    'Every wager bearing must name only attestation types published by its selected world. Attestations are authoritative world facts; stake questions, memory, continuation prose, and files containing claims are interpretations and cannot upgrade their own factual authority.',
-    'Predicates are evaluated against a document shaped as {output: WORLD_OUTPUT, attestations: WORLD_ATTESTATIONS}; predicate paths for world fields therefore begin with /output.',
-    'The support and contradiction witnesses are complete predicate documents shaped exactly as {output: WORLD_OUTPUT} and must each uniquely reach their named predicate branch.',
-    'Wrap each complete example world output exactly once in the witness output property.',
-    'effectRequirements must exactly equal the selected world adapter effects and every effect must be present in capabilities.effectiveGrants.',
-    'retainedFloorIds must exactly name the inherited subject floors whose scopes overlap revisionScope; do not invent floor IDs.',
-    'Every continuation mutation must stay within revisionScope.',
-    'Omit contact.mechanism unless deliberately binding an existing exact subject value into an otherwise absent contact input key.',
-    'Do not include optional inconclusive predicates or continuations unless they are needed.',
-    'developmentalInterfaces.pursuitSelector is the exact writable contract for the standard selector organ.',
-    'A wager may install, replace, or surrender that organ only through a prospectively bound continuation mutation at /mechanisms/pursuitSelector with revisionScope covering that path.',
-    'developmentalInterfaces.attention is the writable contract for immediate attention allocation. Its subject-owned policy may change prospectively through /mechanisms/attentionPolicy, while the sealed provider ceiling remains hard.',
-    'If subject.mechanisms.pursuitSelector exists, every unblocked wager must publish finite selection.measurements values for every dimension it names. Scores are bounded by the selector contract and must assess this pursuit relative to the current position, including saturation. Blocked wagers set selection.blocked true. The kernel applies that retained selector deterministically before election.',
+  select: [
+    'Choose exactly one opportunity from opportunityProjection.opportunities and formulate one bounded developmental stake.',
+    'Selection establishes what bears on later choice; it does not execute a tool, invent consequence, or choose the operation class.',
+    'Name concrete success and surrender conditions. mutationSurface lists the only durable identity, organ, memory, or capability paths that consequence may later revise.',
   ].join(' '),
-  elect: 'Select exactly one wager whose id appears in frontier.selection.selectedIds. The retained selector has already transformed the frontier; you may break a preserved tie but may not override or rewrite the selection.',
-  assimilate: 'The bound predicates left genuine residue. Author one exact scoped transition grounded in the retained receipt and evaluation. Do not claim a determinate branch that the predicates did not establish.',
+  realize: [
+    'Design exactly one executable contact for the active stake using an available world.',
+    'The kernel will execute this exact call later. Do not claim that it ran.',
+    'Predicates are evaluated against {output, attestations}; world output paths begin with /output.',
+    'Support and contradiction witnesses each contain a complete example world output wrapped exactly once in {output: ...}.',
+    'bearing.attestationTypes may name only types published by the selected world.',
+    'effectRequirements must exactly equal the selected world effects.',
+  ].join(' '),
+  correct: [
+    'The exact bound contact failed or contradicted the active stake. Return a structured correction.',
+    'Choose retry, revise, retire, or surrender. revise requires revisedStake; other dispositions require null.',
+    'Durable mutation is allowed only inside the active stake mutationSurface. Receipts and lifecycle are not writable.',
+    'A correction may revise the installed operation selector or attention organ when the consequence bears on that machinery.',
+  ].join(' '),
+  assimilate: [
+    'Assimilate the exact completed consequence. Return retain, revise, retire, or surrender in structured form.',
+    'retain continues the same stake into fresh contact; revise requires revisedStake; retire or surrender releases it.',
+    'Durable mutation is allowed only inside the active stake mutationSurface. Do not restate lifecycle in prose.',
+    'Add only genuinely opened opportunities grounded in the consequence; parameter-only renaming of completed contact is not expansion.',
+  ].join(' '),
+  expand: [
+    'Current reachable opportunity standing is saturated. Inspect the exact subject and available world contracts and formulate bounded new opportunity geometry.',
+    'Do not repeat an existing noveltyKey. An opportunity is attention content, not target or admission authority.',
+    'If no honest reachable opportunity exists, return an empty list and a bounded wait. Waiting does not close the subject.',
+  ].join(' '),
 };
+
+export function mutationPaths(mutation) {
+  return [...Object.keys(mutation.set), ...mutation.remove];
+}
+
+export function assertJudgmentForRole(role, judgment) {
+  if (role === 'correct' && judgment.disposition === 'retain') throw new Error('correction cannot retain without action');
+  if (role === 'assimilate' && judgment.disposition === 'retry') throw new Error('assimilation cannot retry a non-contradictory contact');
+  if ((judgment.disposition === 'revise') !== (judgment.revisedStake !== null)) {
+    throw new Error('revisedStake must be present exactly when disposition is revise');
+  }
+}

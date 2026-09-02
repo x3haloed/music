@@ -13,7 +13,7 @@ export class ResidentLease {
     if (this.fd !== null) throw new Error('resident lease is already held');
     try {
       this.fd = openSync(this.path, 'wx', 0o600);
-      writeSync(this.fd, `${JSON.stringify({ format: 'music-v3-resident-lease-1', pid: this.pid, acquiredAt: this.clock().toISOString() })}\n`);
+      writeSync(this.fd, `${JSON.stringify({ format: 'music-v4-resident-lease-1', pid: this.pid, acquiredAt: this.clock().toISOString() })}\n`);
       fsyncSync(this.fd);
       return this;
     } catch (error) {
