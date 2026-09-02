@@ -99,6 +99,14 @@ subject across model turns and process restarts.
   installed CLI and explicitly refuses silent runtime/provider rebinding.
 - Hashing a mutable workspace is not durable embodiment. V4 snapshots copy and
   verify the workspace alongside the ledger and object graph.
+- A correction could open a differently sourced opportunity while the active
+  route remained bound to its original world. Revisions also reset that route's
+  attempt counter. Live residence produced eleven impossible shell realizations
+  against a `file-search` opportunity. V4 now has an explicit `redirect` that
+  releases the old route back to selection, preserves attempts across
+  correction, and mechanically releases retry/revision at the sealed limit.
+- LaunchAgent PATH does not include Homebrew. File search now resolves known
+  ripgrep installation paths before reporting tool unavailability.
 
 ## Current evidence
 

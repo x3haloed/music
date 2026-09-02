@@ -336,16 +336,21 @@ export class DevelopmentalKernel {
     const added = addOpportunities(state.subject, output.opportunities, { evidence });
     const opportunities = added.opportunities;
     const current = opportunities[state.subject.active.opportunityId];
+    const proposedDisposition = output.disposition;
+    const attemptLimitReleased = role === 'correct'
+      && state.subject.active.realizationAttempts >= state.spec.limits.maxRealizationAttempts
+      && ['retry', 'revise'].includes(proposedDisposition);
+    const disposition = attemptLimitReleased ? 'surrender' : proposedDisposition;
     let active = clone(state.subject.active);
-    if (['retry', 'retain', 'revise'].includes(output.disposition)) {
+    if (['retry', 'retain', 'revise'].includes(disposition)) {
       current.standing = 'selected';
       active.stake = output.revisedStake ?? active.stake;
       active.realization = null;
       active.binding = null;
       active.consequence = null;
-      if (output.disposition !== 'retry') active.realizationAttempts = 0;
+      if (role === 'assimilate') active.realizationAttempts = 0;
     } else {
-      current.standing = output.disposition === 'retire' ? 'completed' : 'surrendered';
+      current.standing = disposition === 'retire' ? 'completed' : 'surrendered';
       active = null;
     }
     const wait = active || added.admitted.length > 0 ? null : output.wait;
@@ -358,7 +363,9 @@ export class DevelopmentalKernel {
       expansionAttempts: added.admitted.length > 0 ? 0 : state.subject.expansionAttempts,
     }, {
       output: this.store.put(output),
-      disposition: output.disposition,
+      disposition,
+      proposedDisposition,
+      attemptLimitReleased,
       classification: state.subject.active.consequence.classification,
       admittedOpportunities: added.admitted,
       rejectedOpportunities: added.rejected,
@@ -474,9 +481,6 @@ export class DevelopmentalKernel {
       for (const path of judgment.revisedStake.mutationSurface) {
         if (!surface.some(allowed => pathsOverlap(allowed, path))) throw new Error(`revised stake expands mutation authority: ${path}`);
       }
-    }
-    if (judgment.disposition === 'retry' && state.subject.active.realizationAttempts >= state.spec.limits.maxRealizationAttempts) {
-      throw new Error('retry exceeds the sealed realization-attempt limit; revise, retire, or surrender');
     }
     this.validateOpportunityWorlds(state, judgment.opportunities);
   }

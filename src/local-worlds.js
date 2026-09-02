@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { open, mkdir, rename, stat, unlink } from 'node:fs/promises';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { defineWorld } from './world.js';
 
 export const MAX_FILE_READ_BYTES = 16 * 1024 * 1024;
@@ -125,8 +126,8 @@ function filePatch() {
 
 function fileSearch() {
   return defineWorld({
-    id: 'file-search', version: '2', description: 'Search UTF-8 contents with ripgrep or discover file paths containing a substring. Results are bounded.', effects: ['local.read'], attestationTypes: ['filesystem.search.result'],
-    identityMaterial: { implementation: 'music-v4-file-search-1', engine: 'rg', maximumMatches: 200 },
+    id: 'file-search', version: '3', description: 'Search UTF-8 contents with ripgrep or discover file paths containing a substring. Results are bounded.', effects: ['local.read'], attestationTypes: ['filesystem.search.result'],
+    identityMaterial: { implementation: 'music-v4-file-search-service-path-2', engine: 'rg', maximumMatches: 200 },
     publicContract: {
       input: { pattern: 'string', target: 'optional content|files', path: 'optional path', fileGlob: 'optional glob', limit: 'optional 1..200' },
       output: { ok: 'boolean', kind: 'file-search', resolvedPath: 'string', matches: 'bounded string array', truncated: 'boolean' },
@@ -149,7 +150,7 @@ function fileSearch() {
         ? ['--files', root]
         : ['--line-number', '--column', '--no-heading', '--color', 'never', ...(input.fileGlob ? ['--glob', input.fileGlob] : []), input.pattern, root];
       try {
-        const stdout = await executeFile('rg', args, { cwd: workspace, maxBuffer: 8 * 1024 * 1024, allowNoMatch: true });
+        const stdout = await executeFile(resolveRipgrepBinary(), args, { cwd: workspace, maxBuffer: 8 * 1024 * 1024, allowNoMatch: true });
         const available = stdout.split('\n').filter(Boolean).filter(value => target !== 'files' || value.includes(input.pattern));
         return { ok: true, kind: 'file-search', target, path: input.path ?? '.', resolvedPath: root, matches: available.slice(0, limit), count: Math.min(available.length, limit), truncated: available.length > limit };
       } catch (error) {
@@ -157,6 +158,12 @@ function fileSearch() {
       }
     },
   });
+}
+
+export function resolveRipgrepBinary({ path = process.env.PATH ?? '', platform = process.platform, exists = existsSync } = {}) {
+  const candidates = path.split(delimiter).filter(Boolean).map(directory => join(directory, 'rg'));
+  if (platform === 'darwin') candidates.push('/opt/homebrew/bin/rg', '/usr/local/bin/rg');
+  return candidates.find(candidate => exists(candidate)) ?? 'rg';
 }
 
 function shell() {

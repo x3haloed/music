@@ -71,6 +71,66 @@ test('contradiction can revise the operation selector and changes a later route'
   assert.equal(fixture.kernel.state().subject.opportunities['world:primary'].standing, 'surrendered');
 });
 
+test('correction redirect releases an incompatible route and returns replacement opportunities to selection', async () => {
+  const replacement = {
+    id: 'subject:alternate-route',
+    source: { kind: 'subject', world: 'alternate' },
+    description: 'Try the consequence-opened alternate world.',
+    noveltyKey: 'alternate-after-primary-contradiction',
+  };
+  const redirect = { ...judgment('redirect'), opportunities: [replacement] };
+  const fixture = harness({ outputs: {
+    select: [selection()],
+    realize: [realization('contradiction')],
+    correct: [redirect],
+  } });
+  fixture.spec.worlds.push({ ...fixture.spec.worlds[0], id: 'alternate' });
+  fixture.kernel.initialize(fixture.spec);
+
+  await steps(fixture.kernel, 4);
+  const state = fixture.kernel.state();
+  assert.equal(state.subject.active, null);
+  assert.equal(state.subject.opportunities['world:primary'].standing, 'surrendered');
+  assert.equal(state.subject.opportunities[replacement.id].standing, 'open');
+  assert.equal(state.operation.operation, 'select');
+  assert.equal(state.operationEvents.at(-1).disposition, 'redirect');
+});
+
+test('correction preserves route attempts and the sealed limit mechanically releases further revision', async () => {
+  const revisedStake = { ...selection().stake, id: 'echo-stake-revised', question: 'What does corrected contact establish?' };
+  const fixture = harness({ outputs: {
+    select: [selection()],
+    realize: [realization('contradiction')],
+    correct: [{ ...judgment('revise'), revisedStake }],
+  } });
+  fixture.spec.limits.maxRealizationAttempts = 1;
+  fixture.kernel.initialize(fixture.spec);
+
+  await steps(fixture.kernel, 4);
+  const state = fixture.kernel.state();
+  assert.equal(state.subject.active, null);
+  assert.equal(state.subject.opportunities['world:primary'].standing, 'surrendered');
+  assert.equal(state.operationEvents.at(-1).proposedDisposition, 'revise');
+  assert.equal(state.operationEvents.at(-1).disposition, 'surrender');
+  assert.equal(state.operationEvents.at(-1).attemptLimitReleased, true);
+});
+
+test('correction revision does not refill a still-open route attempt budget', async () => {
+  const revisedStake = { ...selection().stake, id: 'echo-stake-revised', question: 'What does corrected contact establish?' };
+  const fixture = harness({ outputs: {
+    select: [selection()],
+    realize: [realization('contradiction')],
+    correct: [{ ...judgment('revise'), revisedStake }],
+  } });
+  fixture.kernel.initialize(fixture.spec);
+
+  await steps(fixture.kernel, 4);
+  const state = fixture.kernel.state();
+  assert.equal(state.subject.active.realizationAttempts, 1);
+  assert.equal(state.subject.active.stake.id, revisedStake.id);
+  assert.equal(state.operation.operation, 'realize');
+});
+
 test('opportunity projection is compact, deterministic, and explicitly non-authoritative', () => {
   const fixture = harness();
   const subject = fixture.kernel.initialize(fixture.spec).subject;

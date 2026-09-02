@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, mkdirSync, openSync, closeSync, readFileSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { localWorlds, MAX_FILE_PATCH_BYTES, MAX_FILE_READ_BYTES } from '../src/local-worlds.js';
+import { localWorlds, MAX_FILE_PATCH_BYTES, MAX_FILE_READ_BYTES, resolveRipgrepBinary } from '../src/local-worlds.js';
 import { WorldRegistry } from '../src/world.js';
 
 function harness(t) {
@@ -39,6 +39,14 @@ test('file worlds retain pagination, refusal, exact patching, and bounded search
   const searched = await contact('file-search', { pattern: 'delta', path: 'notes' });
   assert.equal(searched.ok, true);
   assert.equal(searched.count, 1);
+});
+
+test('file search finds Homebrew ripgrep when a LaunchAgent PATH is sparse', () => {
+  assert.equal(resolveRipgrepBinary({
+    path: '/usr/bin:/bin:/usr/sbin:/sbin',
+    platform: 'darwin',
+    exists: candidate => candidate === '/opt/homebrew/bin/rg',
+  }), '/opt/homebrew/bin/rg');
 });
 
 test('file-read publishes and enforces the exact minimum witness shape with actionable correction', t => {

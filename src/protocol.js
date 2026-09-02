@@ -108,7 +108,7 @@ export const ExpansionSchema = z.object({
 });
 
 export const JudgmentSchema = z.object({
-  disposition: z.enum(['retry', 'retain', 'revise', 'retire', 'surrender']),
+  disposition: z.enum(['retry', 'retain', 'revise', 'redirect', 'retire', 'surrender']),
   revisedStake: StakeSchema.nullable(),
   mutation: SubjectMutationSchema,
   opportunities: z.array(OpportunityProposalSchema).max(16),
@@ -143,7 +143,9 @@ export const RoleTasks = {
   ].join(' '),
   correct: [
     'The exact bound contact failed or contradicted the active stake. Return a structured correction.',
-    'Choose retry, revise, retire, or surrender. revise requires revisedStake; other dispositions require null.',
+    'Choose retry, revise, redirect, retire, or surrender. revise requires revisedStake; other dispositions require null.',
+    'retry or revise continues only the currently selected opportunity and cannot change its world. To open a differently sourced route, choose redirect and propose at least one replacement opportunity; the kernel will release this route and return ordinary choice to selection.',
+    'Realization attempts belong to the active route and survive correction. When the sealed attempt limit is reached, the kernel releases retry or revise rather than refilling the budget.',
     'Durable mutation is allowed only inside the active stake mutationSurface. Receipts and lifecycle are not writable.',
     'A correction may revise the installed operation selector or attention organ when the consequence bears on that machinery.',
   ].join(' '),
@@ -166,8 +168,14 @@ export function mutationPaths(mutation) {
 
 export function assertJudgmentForRole(role, judgment) {
   if (role === 'correct' && judgment.disposition === 'retain') throw new Error('correction cannot retain without action');
-  if (role === 'assimilate' && judgment.disposition === 'retry') throw new Error('assimilation cannot retry a non-contradictory contact');
+  if (role === 'assimilate' && ['retry', 'redirect'].includes(judgment.disposition)) throw new Error('assimilation cannot retry or redirect a non-contradictory contact');
   if ((judgment.disposition === 'revise') !== (judgment.revisedStake !== null)) {
     throw new Error('revisedStake must be present exactly when disposition is revise');
+  }
+  if (judgment.disposition === 'redirect' && judgment.opportunities.length === 0) {
+    throw new Error('redirect requires at least one proposed replacement opportunity');
+  }
+  if (judgment.disposition === 'redirect' && judgment.wait !== null) {
+    throw new Error('redirect cannot wait while returning replacement opportunities to selection');
   }
 }
