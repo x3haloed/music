@@ -15,7 +15,7 @@ Use one immutable release, one external spec, and one external resident root.
 The spec and resident root are durable subject material; keep them out of Git.
 
 ```sh
-RELEASE=/Users/chad/.local/share/music/releases/0.0.4-v4-c9b3f23
+RELEASE=/Users/chad/.local/share/music/releases/0.0.4-v4-6f85abc
 SPEC=/Users/chad/.local/share/music/config/resident-v4.json
 RUN=/Users/chad/.local/share/music/residents/resident-v4
 LABEL=com.x3haloed.music.resident-v4

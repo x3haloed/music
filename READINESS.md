@@ -10,7 +10,7 @@ trajectories, remain conversational, or exhibit open-ended development.
 
 ## Required evidence
 
-The source suite contains 39 tests covering provider bindings and cache
+The source suite contains 43 tests covering provider bindings and cache
 instrumentation, fresh Codex contexts, attention bounds, evidence retrieval,
 world effects, outbox delivery, local file and shell behavior, CLI envelopes,
 Companion projections, immutable installation, service definitions, predicate
@@ -47,20 +47,29 @@ hatching a persistent resident.
 
 ## Final release
 
-The runtime-bearing source commit is `c9b3f23`. Documentation-only readiness
+The runtime-bearing source commit is `6f85abc`. Documentation-only readiness
 recording after that commit does not change the implementation digest.
 
-- Release: `/Users/chad/.local/share/music/releases/0.0.4-v4-c9b3f23`
+- Release: `/Users/chad/.local/share/music/releases/0.0.4-v4-6f85abc`
 - implementation SHA-256:
-  `58c8f3963658bbfca9b483a23839a0bd012e1d5ea991831a76f97ed8cd627577`
+  `c41dbc8f20236db60bb4ed8e95f0114d6481c107acff25143f911b044807bcc7`
 - dependency-lock SHA-256:
   `ed2b4dd960e4406ca294da843b267c981a21464e3a9d17bdf4ac103bc21eb15a`
 - installed rehearsal:
-  `/Users/chad/.local/share/music/evidence/v4-installed-rehearsal-c9b3f23`
+  `/Users/chad/.local/share/music/evidence/v4-installed-rehearsal-6f85abc`
 
 The installed rehearsal passed all eight causal anchors with 19 completed
 operations, 15 completed perspectives, 15 unique fresh contexts, succession
 19, revision 4, and a mechanically derived final `wait` operation.
+
+Live residence in the preceding `c9b3f23` body exposed a correction-routing
+defect: a consequence could open a shell opportunity while the active route
+remained bound to `file-search`, and revision refilled that route's attempt
+budget. The current release adds structured `redirect`, returns replacement
+opportunities to ordinary selection, preserves route attempts across
+correction, mechanically releases exhausted retry/revision, and resolves
+Homebrew ripgrep under a sparse LaunchAgent PATH. Production-shaped regressions
+cover each property.
 
 ## Operational boundary
 
