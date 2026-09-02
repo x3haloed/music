@@ -6,6 +6,8 @@ const { pathToFileURL } = require('node:url');
 const residentsRoot = path.join(homedir(), '.local/share/music/residents');
 const configuredRunRoot = process.env.MUSIC_RUN_DIR ? path.resolve(process.env.MUSIC_RUN_DIR) : null;
 let companion;
+let bootstrapCompanion;
+let companionReleasePath;
 let window;
 let tray;
 let pollTimer;
@@ -17,7 +19,18 @@ else app.on('second-instance', showWindow);
 
 async function loadCompanion() {
   const moduleUrl = pathToFileURL(path.resolve(__dirname, '../../src/companion.js')).href;
-  companion = await import(moduleUrl);
+  bootstrapCompanion = await import(moduleUrl);
+  companion = bootstrapCompanion;
+  try { await bindResidentCompanion(); } catch {}
+}
+
+async function bindResidentCompanion() {
+  const root = activeRunRoot();
+  const cli = await bootstrapCompanion.discoverResidentCli(root);
+  const residentModulePath = path.join(path.dirname(cli), 'companion.js');
+  if (residentModulePath === companionReleasePath) return;
+  companion = await import(pathToFileURL(residentModulePath).href);
+  companionReleasePath = residentModulePath;
 }
 
 function createWindow() {
@@ -64,23 +77,24 @@ function showWindow() {
   window.focus();
 }
 
-function snapshot() {
+async function snapshot() {
+  await bindResidentCompanion();
   return companion.companionSnapshot(activeRunRoot());
 }
 
 function activeRunRoot() {
-  return configuredRunRoot || companion.discoverActiveResidentRoot(residentsRoot);
+  return configuredRunRoot || bootstrapCompanion.discoverActiveResidentRoot(residentsRoot);
 }
 
-function safe(operation) {
-  try { return { ok: true, ...operation() }; }
+async function safe(operation) {
+  try { return { ok: true, ...await operation() }; }
   catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error), run: activeRunRoot() }; }
 }
 
 function beginPolling() {
   clearInterval(pollTimer);
-  pollTimer = setInterval(() => {
-    const result = safe(snapshot);
+  pollTimer = setInterval(async () => {
+    const result = await safe(snapshot);
     const revision = result.ok ? `${result.head}:${result.presence.phase}:${result.conversation.length}` : `error:${result.error}`;
     if (revision === lastRevision) return;
     lastRevision = revision;
@@ -91,6 +105,7 @@ function beginPolling() {
 ipcMain.handle('music:getSnapshot', () => safe(snapshot));
 ipcMain.handle('music:send', async (_event, payload) => {
   try {
+    await bindResidentCompanion();
     const result = await companion.sendCompanionMessage(activeRunRoot(), payload?.message, { from: 'Chad' });
     return { ok: true, ...result };
   } catch (error) {
