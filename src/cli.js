@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
-import { isAbsolute, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { CodexExecActor, OpenRouterActor, resolveCodexBinary } from './actor.js';
 import { builtinWorlds, readOperatorOutbox } from './builtin-worlds.js';
 import { digest } from './canonical.js';
@@ -20,6 +21,8 @@ try {
   else if (command === 'audit') audit(args);
   else if (command === 'outbox') outbox(args);
   else if (command === 'snapshot') snapshot(args);
+  else if (command === 'upgrade') upgrade(args);
+  else if (command === 'runtime-check') runtimeCheck(args);
   else if (command === 'observe') observe(args);
   else if (command === 'grant') grant(args, true);
   else if (command === 'revoke') grant(args, false);
@@ -112,6 +115,44 @@ function outbox([rootArg]) {
 function snapshot([rootArg, destinationArg]) {
   requireArgs(rootArg, destinationArg);
   output({ destination: absolute(destinationArg), manifest: new DevelopmentalKernel(absolute(rootArg)).snapshot(absolute(destinationArg)) });
+}
+
+function upgrade([rootArg, destinationArg, ...reasonParts]) {
+  requireArgs(rootArg, destinationArg);
+  const root = absolute(rootArg);
+  const reader = new DevelopmentalKernel(root);
+  const before = reader.state();
+  if (!before.initialized) throw new Error(`run is not initialized: ${root}`);
+  const kernel = new DevelopmentalKernel(root, { actor: actorFor(before.spec), worlds: builtinWorlds() });
+  const state = kernel.upgradeRuntime({
+    snapshotDestination: absolute(destinationArg),
+    reason: reasonParts.join(' ') || 'explicit runtime maintenance',
+    release: resolve(dirname(fileURLToPath(import.meta.url)), '..'),
+  });
+  kernel.requireRuntime(state.spec, state.runtime);
+  output({
+    format: 'music-v4-runtime-upgrade-result-1',
+    run: root,
+    subject: { id: state.subject.id, succession: state.subject.succession, revision: state.subject.revision },
+    runtimeEpoch: state.runtimeEpochs.length,
+    runtime: state.runtime,
+    specId: state.spec.id,
+    head: state.head,
+    snapshot: state.runtimeEpochs.at(-1).snapshot,
+  });
+}
+
+function runtimeCheck([rootArg]) {
+  requireArgs(rootArg);
+  const root = absolute(rootArg);
+  const kernel = runtime(root);
+  const state = kernel.state();
+  kernel.requireRuntime(state.spec, state.runtime);
+  output({
+    format: 'music-v4-runtime-check-1', ready: true, run: root,
+    subjectId: state.subject.id, runtimeEpoch: state.runtimeEpochs.length,
+    implementationSha256: state.runtime.implementationSha256,
+  });
 }
 
 function observe([rootArg, contentArg, channel = 'operator', from = 'operator']) {
@@ -235,5 +276,5 @@ function residentController() {
 }
 
 function help() {
-  process.stdout.write(`Music v4\n\nCommands:\n  init RUN SPEC\n  hatch RUN SPEC\n  resident RUN SPEC\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  outbox RUN\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  preflight SPEC\n  template [starter|WORLD] [openrouter|codex] [MODEL]\n  rehearse DESTINATION\n`);
+  process.stdout.write(`Music v4\n\nCommands:\n  init RUN SPEC\n  hatch RUN SPEC\n  resident RUN SPEC\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  outbox RUN\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  upgrade RUN SNAPSHOT [REASON]\n  runtime-check RUN\n  worlds\n  preflight SPEC\n  template [starter|WORLD] [openrouter|codex] [MODEL]\n  rehearse DESTINATION\n`);
 }

@@ -6,6 +6,7 @@ import test from 'node:test';
 import { FunctionActor } from '../src/actor.js';
 import { DevelopmentalKernel } from '../src/kernel.js';
 import { deriveOperation, projectOpportunities } from '../src/operation.js';
+import { ResidentLease } from '../src/residency.js';
 import { advanceSubject } from '../src/subject.js';
 import { WorldRegistry, defineWorld } from '../src/world.js';
 
@@ -216,6 +217,55 @@ test('snapshots retain and identify subject-authored workspace embodiment', t =>
   assert.ok(manifest.workspace.entries.some(value => value.path === 'tools/learned-tool.js' && /^[a-f0-9]{64}$/.test(value.sha256)));
 });
 
+test('an explicit stopped runtime epoch preserves the subject while rebinding its body', async () => {
+  const fixture = harness();
+  const before = fixture.kernel.initialize(fixture.spec);
+  mkdirSync(join(fixture.root, 'workspace'), { recursive: true });
+  writeFileSync(join(fixture.root, 'workspace', 'continuity.txt'), 'same subject\n');
+  const upgradedWorld = echoWorld({ fixture: 'v4-upgraded' });
+  const upgradedWorlds = new WorldRegistry([upgradedWorld]);
+  const upgradedProvenance = { ...before.runtime, implementationSha256: 'b'.repeat(64) };
+  const candidate = new DevelopmentalKernel(fixture.root, {
+    actor: fixture.actor,
+    worlds: upgradedWorlds,
+    provenance: () => upgradedProvenance,
+  });
+  const destination = join(mkdtempSync(join(tmpdir(), 'music-v4-upgrade-')), 'before');
+
+  const after = candidate.upgradeRuntime({ snapshotDestination: destination, reason: 'test upgrade', release: '/candidate' });
+
+  assert.equal(after.subject.id, before.subject.id);
+  assert.equal(after.subject.succession, before.subject.succession);
+  assert.equal(after.subject.revision, before.subject.revision);
+  assert.equal(after.runtimeEpochs.length, 1);
+  assert.equal(after.runtime.implementationSha256, 'b'.repeat(64));
+  assert.equal(after.spec.worlds[0].adapterIdentity, upgradedWorlds.get('echo').identity);
+  assert.equal(after.runtimeEpochs[0].snapshot.manifest.head, before.head);
+  assert.equal(readFileSync(join(destination, 'workspace', 'continuity.txt'), 'utf8'), 'same subject\n');
+  candidate.requireRuntime(after.spec, after.runtime);
+  assert.equal(candidate.audit().runtimeEpoch, 1);
+
+  await assert.rejects(() => fixture.kernel.advance(), /runtime implementation differs/);
+});
+
+test('runtime upgrade refuses a live resident lease', () => {
+  const fixture = harness();
+  const before = fixture.kernel.initialize(fixture.spec);
+  const upgradedProvenance = { ...before.runtime, implementationSha256: 'c'.repeat(64) };
+  const candidate = new DevelopmentalKernel(fixture.root, {
+    actor: fixture.actor, worlds: fixture.worlds, provenance: () => upgradedProvenance,
+  });
+  const lease = new ResidentLease(fixture.root).acquire();
+  try {
+    assert.throws(() => candidate.upgradeRuntime({
+      snapshotDestination: join(mkdtempSync(join(tmpdir(), 'music-v4-upgrade-live-')), 'before'),
+      reason: 'must fail', release: '/candidate',
+    }), /another live resident owns this run/);
+  } finally {
+    lease.release();
+  }
+});
+
 function harness({ outputs = {}, execute = async input => input } = {}) {
   const root = join(mkdtempSync(join(tmpdir(), 'music-v4-kernel-')), 'run');
   const calls = { execute: 0 };
@@ -244,6 +294,18 @@ function harness({ outputs = {}, execute = async input => input } = {}) {
   };
   const kernel = new DevelopmentalKernel(root, { actor, worlds });
   return { root, kernel, actor, worlds, spec, calls };
+}
+
+function echoWorld(identityMaterial) {
+  return defineWorld({
+    id: 'echo', version: '1', description: 'Return a bounded value.', effects: [],
+    attestationTypes: ['echo.result'], publicContract: { input: { value: 'string' }, output: { value: 'string' } },
+    identityMaterial,
+    conform: input => typeof input?.value === 'string' ? [] : ['value must be a string'],
+    conformOutput: output => typeof output?.value === 'string' ? [] : ['value must be a string'],
+    attest: (input, output) => [{ type: 'echo.result', value: output }],
+    execute: async input => input,
+  });
 }
 
 function selection(mutationSurface = ['/memory']) {

@@ -45,7 +45,11 @@ export class DevelopmentalKernel {
     if (events.length === 0) return { initialized: false };
     const genesis = events[0];
     if (genesis.type !== 'run.created') throw new Error('ledger does not begin with run genesis');
-    const spec = RunSpecSchema.parse(this.store.get(genesis.payload.spec));
+    const genesisSpec = RunSpecSchema.parse(this.store.get(genesis.payload.spec));
+    let spec = genesisSpec;
+    const genesisRuntime = clone(genesis.payload.runtime);
+    let runtime = clone(genesisRuntime);
+    const runtimeEpochs = [];
     let subject = verifySubject(this.store.get(genesis.payload.subject));
     const observations = [];
     const invocations = [];
@@ -75,6 +79,12 @@ export class DevelopmentalKernel {
         hatched = clone(event.payload);
       } else if (event.type === 'run.completed') {
         completed = clone(event.payload);
+      } else if (event.type === 'runtime.upgraded') {
+        const nextSpec = RunSpecSchema.parse(this.store.get(event.payload.spec));
+        assertRuntimeEpoch({ event, subject, priorSpec: spec, nextSpec, priorRuntime: runtime });
+        runtimeEpochs.push({ sequence: event.sequence, at: event.at, ...clone(event.payload) });
+        spec = nextSpec;
+        runtime = clone(event.payload.runtime);
       }
     }
     const pendingObservations = observations.filter(value => !Object.hasOwn(subject.opportunities, `observation:${value.sequence}`));
@@ -87,7 +97,9 @@ export class DevelopmentalKernel {
     return {
       initialized: true,
       runId: genesis.payload.runId,
-      runtime: clone(genesis.payload.runtime),
+      runtime,
+      genesisRuntime,
+      runtimeEpochs,
       spec,
       subject,
       observations,
@@ -104,6 +116,53 @@ export class DevelopmentalKernel {
       head: events.at(-1).hash,
       events,
     };
+  }
+
+  upgradeRuntime({ snapshotDestination, reason, release }) {
+    if (!snapshotDestination) throw new Error('runtime upgrade requires a pre-upgrade snapshot destination');
+    const lease = new ResidentLease(this.store.root, { clock: this.clock }).acquire();
+    try {
+      const state = this.state();
+      if (!state.initialized) throw new Error('run is not initialized');
+      if (!this.worlds) throw new Error('runtime upgrade requires the candidate world registry');
+      const runtime = this.provenance();
+      const worlds = state.spec.worlds.map(world => {
+        const adapter = this.worlds.get(world.adapter);
+        if (!adapter) throw new Error(`candidate runtime is missing declared world adapter: ${world.adapter}`);
+        return {
+          id: world.id,
+          adapter: world.adapter,
+          adapterIdentity: adapter.identity,
+          attestationTypes: adapter.attestationTypes,
+          description: adapter.description,
+          publicContract: adapter.publicContract,
+        };
+      });
+      const spec = RunSpecSchema.parse({ ...clone(state.spec), worlds });
+      assertUpgradeEnvelope(state.spec, spec);
+      this.worlds.verifySpec(spec);
+      if (runtime.implementationSha256 === state.runtime.implementationSha256 && digest(spec.worlds) === digest(state.spec.worlds)) {
+        throw new Error('candidate runtime and world bindings are already active');
+      }
+      const snapshot = this.store.snapshot(snapshotDestination);
+      const priorHead = state.head;
+      this.store.append('runtime.upgraded', {
+        format: 'music-v4-runtime-upgrade-1',
+        upgradeId: this.id('runtime-upgrade'),
+        authority: 'machine-owner-maintenance',
+        reason: String(reason || 'explicit runtime maintenance').slice(0, 4096),
+        release: String(release || '').slice(0, 4096),
+        subjectId: state.subject.id,
+        priorHead,
+        priorImplementationSha256: state.runtime.implementationSha256,
+        runtime,
+        spec: this.store.put(spec),
+        snapshot: { destination: snapshotDestination, manifest: snapshot },
+      });
+      return this.state();
+    } finally {
+      lease.release();
+    }
   }
 
   async advance({ lease = true } = {}) {
@@ -692,6 +751,8 @@ export class DevelopmentalKernel {
       runId: state.runId,
       specId: state.spec.id,
       runtime: state.runtime,
+      runtimeEpoch: state.runtimeEpochs.length,
+      runtimeEpochs: state.runtimeEpochs,
       head: state.head,
       subject: {
         id: state.subject.id,
@@ -833,6 +894,37 @@ function standingCounts(opportunities) {
   const counts = {};
   for (const value of Object.values(opportunities)) counts[value.standing] = (counts[value.standing] ?? 0) + 1;
   return counts;
+}
+
+function assertUpgradeEnvelope(priorSpec, nextSpec) {
+  const { worlds: priorWorlds, ...priorEnvelope } = priorSpec;
+  const { worlds: nextWorlds, ...nextEnvelope } = nextSpec;
+  if (digest(priorEnvelope) !== digest(nextEnvelope)) {
+    throw new Error('runtime upgrade changed the resident authority envelope');
+  }
+  const priorBindings = priorWorlds.map(value => ({ id: value.id, adapter: value.adapter }));
+  const nextBindings = nextWorlds.map(value => ({ id: value.id, adapter: value.adapter }));
+  if (digest(priorBindings) !== digest(nextBindings)) {
+    throw new Error('runtime upgrade changed declared world identities or adapters');
+  }
+}
+
+function assertRuntimeEpoch({ event, subject, priorSpec, nextSpec, priorRuntime }) {
+  const payload = event.payload;
+  if (payload?.format !== 'music-v4-runtime-upgrade-1') throw new Error(`invalid runtime upgrade format at event ${event.sequence}`);
+  if (payload.authority !== 'machine-owner-maintenance') throw new Error(`invalid runtime upgrade authority at event ${event.sequence}`);
+  if (payload.priorHead !== event.parent) throw new Error(`runtime upgrade does not bind its prior head at event ${event.sequence}`);
+  if (payload.subjectId !== subject.id) throw new Error(`runtime upgrade changed or misidentified the subject at event ${event.sequence}`);
+  if (payload.priorImplementationSha256 !== priorRuntime?.implementationSha256) {
+    throw new Error(`runtime upgrade does not bind the prior implementation at event ${event.sequence}`);
+  }
+  if (payload.runtime?.format !== 'music-v4-runtime-provenance-1' || !/^[a-f0-9]{64}$/.test(payload.runtime?.implementationSha256 ?? '')) {
+    throw new Error(`invalid runtime provenance at event ${event.sequence}`);
+  }
+  if (!payload.snapshot?.destination || payload.snapshot?.manifest?.head !== event.parent) {
+    throw new Error(`runtime upgrade lacks an exact pre-upgrade snapshot at event ${event.sequence}`);
+  }
+  assertUpgradeEnvelope(priorSpec, nextSpec);
 }
 
 function jsonData(value) { return JSON.parse(JSON.stringify(value)); }
