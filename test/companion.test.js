@@ -51,7 +51,7 @@ test('Companion discovers the exact CLI from the live resident lease rather than
   mkdirSync(join(root, 'release', 'src'), { recursive: true });
   writeFileSync(cli, '');
   writeFileSync(join(root, 'resident.lock'), JSON.stringify({ format: 'music-v4-resident-lease-1', pid: 42 }));
-  const found = await discoverResidentCli(root, { execute: async () => ({ stdout: `node ${cli} hatch /run /spec\n` }) });
+  const found = await discoverResidentCli(root, { execute: async () => ({ stdout: `/absolute/node ${cli} resident /run /spec\n` }) });
   assert.equal(found, cli);
 });
 

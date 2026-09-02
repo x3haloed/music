@@ -8,6 +8,7 @@ const configuredRunRoot = process.env.MUSIC_RUN_DIR ? path.resolve(process.env.M
 let companion;
 let bootstrapCompanion;
 let companionReleasePath;
+let residentCliPath;
 let window;
 let tray;
 let pollTimer;
@@ -27,6 +28,7 @@ async function loadCompanion() {
 async function bindResidentCompanion() {
   const root = activeRunRoot();
   const cli = await bootstrapCompanion.discoverResidentCli(root);
+  residentCliPath = cli;
   const residentModulePath = path.join(path.dirname(cli), 'companion.js');
   if (residentModulePath === companionReleasePath) return;
   companion = await import(pathToFileURL(residentModulePath).href);
@@ -106,7 +108,7 @@ ipcMain.handle('music:getSnapshot', () => safe(snapshot));
 ipcMain.handle('music:send', async (_event, payload) => {
   try {
     await bindResidentCompanion();
-    const result = await companion.sendCompanionMessage(activeRunRoot(), payload?.message, { from: 'Chad' });
+    const result = await companion.sendCompanionMessage(activeRunRoot(), payload?.message, { from: 'Chad', cliPath: residentCliPath });
     return { ok: true, ...result };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };

@@ -57,7 +57,7 @@ export async function discoverResidentCli(rootArg, { execute = executeFile } = {
   const lease = readJsonIfPresent(join(root, 'resident.lock'));
   if (!Number.isInteger(lease?.pid) || lease.pid <= 0) throw new Error('resident is not running; set MUSIC_RESIDENT_CLI to its sealed cli.js');
   const { stdout } = await execute('/bin/ps', ['-ww', '-p', String(lease.pid), '-o', 'command='], { maxBuffer: 1024 * 1024 });
-  const match = stdout.match(/(?:^|\s)(\/[^\n]+?\/src\/cli\.js)(?:\s|$)/);
+  const match = stdout.match(/(?:^|\s)(\/\S+\/src\/cli\.js)(?:\s|$)/);
   if (!match || !existsSync(match[1])) throw new Error('could not discover the sealed resident cli.js; set MUSIC_RESIDENT_CLI');
   return match[1];
 }
