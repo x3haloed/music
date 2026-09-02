@@ -15,6 +15,7 @@ const implementationFiles = [
   'src/operation.js',
   'src/predicate.js',
   'src/protocol.js',
+  'src/rehearsal.js',
   'src/residency.js',
   'src/runtime-provenance.js',
   'src/store.js',

@@ -7,6 +7,7 @@ export { localWorlds } from './local-worlds.js';
 export { addOpportunities, deriveOperation, OPERATION_INTERFACE, projectOpportunities } from './operation.js';
 export { classify, evaluatePredicate } from './predicate.js';
 export { RoleSchemas, RunSpecSchema } from './protocol.js';
+export { rehearsalDigest, runRehearsal } from './rehearsal.js';
 export { ResidentLease } from './residency.js';
 export { runtimeProvenance } from './runtime-provenance.js';
 export { advanceSubject, createSubject, DEFAULT_OPERATION_SELECTOR, OperationSelectorSchema, verifySubject } from './subject.js';

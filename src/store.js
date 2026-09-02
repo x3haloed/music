@@ -1,11 +1,13 @@
 import {
   closeSync,
+  cpSync,
   copyFileSync,
   existsSync,
   fsyncSync,
   mkdirSync,
   openSync,
   readFileSync,
+  readlinkSync,
   readdirSync,
   rmSync,
   renameSync,
@@ -13,6 +15,7 @@ import {
   writeFileSync,
   writeSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { basename, dirname, join } from 'node:path';
 import { canonical, clone, digest, identifier } from './canonical.js';
 
@@ -167,12 +170,19 @@ export class RunStore {
         mkdirSync(join(partial, 'outbox'), { mode: 0o700 });
         for (const name of readdirSync(outbox)) copyFileSync(join(outbox, name), join(partial, 'outbox', name));
       }
+      const workspace = join(this.root, 'workspace');
+      const workspaceEntries = existsSync(workspace) ? describeWorkspace(workspace) : [];
+      if (existsSync(workspace)) cpSync(workspace, join(partial, 'workspace'), { recursive: true, dereference: false });
       const manifest = {
         format: 'music-v4-snapshot-1',
         createdAt: this.clock().toISOString(),
         head: events.at(-1)?.hash ?? null,
         events: events.length,
         objects: verified.size,
+        workspace: {
+          entries: workspaceEntries,
+          identity: digest(workspaceEntries),
+        },
       };
       atomicWrite(join(partial, 'snapshot.json'), `${canonical(manifest)}\n`);
       renameSync(partial, destination);
@@ -266,4 +276,25 @@ function collectReferences(value, found = new Map()) {
   }
   for (const item of Object.values(value)) collectReferences(item, found);
   return found;
+}
+
+function describeWorkspace(root, relative = '') {
+  const entries = [];
+  const directory = join(root, relative);
+  for (const item of readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
+    const child = relative ? join(relative, item.name) : item.name;
+    const path = join(root, child);
+    if (item.isDirectory()) {
+      entries.push({ path: child, kind: 'directory' });
+      entries.push(...describeWorkspace(root, child));
+    } else if (item.isFile()) {
+      const bytes = readFileSync(path);
+      entries.push({ path: child, kind: 'file', bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') });
+    } else if (item.isSymbolicLink()) {
+      entries.push({ path: child, kind: 'symlink', target: readlinkSync(path) });
+    } else {
+      throw new Error(`workspace contains unsupported entry: ${child}`);
+    }
+  }
+  return entries;
 }

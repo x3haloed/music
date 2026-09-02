@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -123,6 +123,19 @@ test('an interrupted bound contact reuses its exact idempotency identity after r
   await restarted.advance();
   assert.deepEqual(seen, ['retained-key']);
   assert.equal(restarted.state().subject.active.consequence.classification, 'support');
+});
+
+test('snapshots retain and identify subject-authored workspace embodiment', t => {
+  const fixture = harness();
+  fixture.kernel.initialize(fixture.spec);
+  mkdirSync(join(fixture.root, 'workspace', 'tools'), { recursive: true });
+  writeFileSync(join(fixture.root, 'workspace', 'tools', 'learned-tool.js'), 'export default 42;\n');
+  const destination = join(mkdtempSync(join(tmpdir(), 'music-v4-snapshot-')), 'snapshot');
+  const manifest = fixture.kernel.snapshot(destination);
+  assert.equal(existsSync(join(destination, 'workspace', 'tools', 'learned-tool.js')), true);
+  assert.equal(readFileSync(join(destination, 'workspace', 'tools', 'learned-tool.js'), 'utf8'), 'export default 42;\n');
+  assert.match(manifest.workspace.identity, /^[a-f0-9]{64}$/);
+  assert.ok(manifest.workspace.entries.some(value => value.path === 'tools/learned-tool.js' && /^[a-f0-9]{64}$/.test(value.sha256)));
 });
 
 function harness({ outputs = {}, execute = async input => input } = {}) {

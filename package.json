@@ -30,6 +30,7 @@
     "check": "node --check src/*.js bin/*.js apps/companion/*.js apps/companion/*.cjs && node --test",
     "companion": "electron apps/companion/main.cjs",
     "companion:package": "electron-packager . \"Music Companion\" --platform=darwin --arch=arm64 --overwrite --out=dist --app-bundle-id=com.x3haloed.music.companion --prune=true --ignore='^/(?:\\.git|\\.codex|test|dist|\\.music)(?:/|$)'",
+    "rehearse": "node src/cli.js rehearse",
     "verify:hatch": "node --test"
   },
   "engines": {

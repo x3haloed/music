@@ -10,6 +10,7 @@ const major = Number(process.versions.node.split('.')[0]);
 const required = [
   'src/actor.js', 'src/attention.js', 'src/kernel.js', 'src/operation.js',
   'src/protocol.js', 'src/subject.js', 'src/world.js', 'src/builtin-worlds.js',
+  'src/rehearsal.js',
   'src/local-worlds.js', 'src/store.js', 'src/residency.js',
   'src/runtime-provenance.js', 'src/install.js', 'DESIGN.md', 'HATCH.md',
 ];

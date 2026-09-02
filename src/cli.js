@@ -6,6 +6,7 @@ import { builtinWorlds, readOperatorOutbox } from './builtin-worlds.js';
 import { digest } from './canonical.js';
 import { DevelopmentalKernel } from './kernel.js';
 import { RunSpecSchema } from './protocol.js';
+import { runRehearsal } from './rehearsal.js';
 
 const [command = 'help', ...args] = process.argv.slice(2);
 
@@ -24,6 +25,7 @@ try {
   else if (command === 'worlds') listWorlds();
   else if (command === 'preflight') preflight(args);
   else if (command === 'template') template(args);
+  else if (command === 'rehearse') await rehearse(args);
   else if (command === 'help' || command === '--help' || command === '-h') help();
   else throw new Error(`unknown command: ${command}`);
 } catch (error) {
@@ -167,6 +169,11 @@ function template([surface = 'starter', provider = 'openrouter', modelArg = null
   });
 }
 
+async function rehearse([destinationArg]) {
+  requireArgs(destinationArg);
+  output({ destination: absolute(destinationArg), report: await runRehearsal(absolute(destinationArg)) });
+}
+
 function runtime(root) {
   const reader = new DevelopmentalKernel(root);
   const state = reader.state();
@@ -210,5 +217,5 @@ function residentController() {
 }
 
 function help() {
-  process.stdout.write(`Music v4\n\nCommands:\n  init RUN SPEC\n  hatch RUN SPEC\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  outbox RUN\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  preflight SPEC\n  template [starter|WORLD] [openrouter|codex] [MODEL]\n`);
+  process.stdout.write(`Music v4\n\nCommands:\n  init RUN SPEC\n  hatch RUN SPEC\n  run RUN\n  reside RUN\n  step RUN\n  observe RUN CONTENT_OR_@FILE [CHANNEL] [FROM]\n  outbox RUN\n  grant RUN EFFECT [REASON]\n  revoke RUN EFFECT [REASON]\n  audit RUN\n  snapshot RUN DESTINATION\n  worlds\n  preflight SPEC\n  template [starter|WORLD] [openrouter|codex] [MODEL]\n  rehearse DESTINATION\n`);
 }
