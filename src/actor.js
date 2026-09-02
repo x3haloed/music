@@ -252,6 +252,16 @@ export class CodexExecActor {
   }
 }
 
+export function resolveCodexBinary(explicit = process.env.MUSIC_CODEX_BINARY, {
+  platform = process.platform,
+  exists = existsSync,
+} = {}) {
+  if (explicit) return explicit;
+  const bundled = '/Applications/ChatGPT.app/Contents/Resources/codex';
+  if (platform === 'darwin' && exists(bundled)) return bundled;
+  return 'codex';
+}
+
 export class InferenceInputTooLargeError extends Error {
   constructor(message) {
     super(message);

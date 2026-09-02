@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
-import { CodexExecActor, OpenRouterActor } from './actor.js';
+import { CodexExecActor, OpenRouterActor, resolveCodexBinary } from './actor.js';
 import { builtinWorlds, readOperatorOutbox } from './builtin-worlds.js';
 import { digest } from './canonical.js';
 import { DevelopmentalKernel } from './kernel.js';
@@ -207,7 +207,7 @@ function actorFor(spec) {
     return new OpenRouterActor({ model: spec.inference.model, ...spec.inference.settings });
   }
   if (spec.inference.provider === 'codex') {
-    return new CodexExecActor({ model: spec.inference.model, binary: process.env.MUSIC_CODEX_BINARY ?? 'codex', ...spec.inference.settings });
+    return new CodexExecActor({ model: spec.inference.model, binary: resolveCodexBinary(), ...spec.inference.settings });
   }
   throw new Error(`CLI cannot construct inference provider: ${spec.inference.provider}`);
 }
@@ -215,7 +215,7 @@ function actorFor(spec) {
 function actorForChoice(provider, modelArg) {
   if (!['openrouter', 'codex'].includes(provider)) throw new Error(`unknown inference provider: ${provider}`);
   return provider === 'codex'
-    ? new CodexExecActor({ model: modelArg ?? 'gpt-5.6-luna', binary: process.env.MUSIC_CODEX_BINARY ?? 'codex', reasoningEffort: 'low' })
+    ? new CodexExecActor({ model: modelArg ?? 'gpt-5.6-luna', binary: resolveCodexBinary(), reasoningEffort: 'low' })
     : new OpenRouterActor({ model: modelArg ?? 'z-ai/glm-5.3-flash', apiKey: null });
 }
 

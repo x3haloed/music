@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { MockLanguageModelV4 } from 'ai/test';
-import { CodexExecActor, OpenRouterActor, renderInferenceInput } from '../src/actor.js';
+import { CodexExecActor, OpenRouterActor, renderInferenceInput, resolveCodexBinary } from '../src/actor.js';
 import { RoleSchemas } from '../src/protocol.js';
 
 test('OpenRouter returns one locally validated structured operation judgment', async () => {
@@ -98,6 +98,15 @@ process.stdin.on('end', () => {
   assert.equal(roots[0], roots[1]);
   assert.equal(existsSync(roots[0]), false);
   assert.ok(calls[0].input.indexOf('RETAINED_PROJECTION_CORE:') < calls[0].input.indexOf('ROLE: select'));
+});
+
+test('Codex binary resolution prefers explicit configuration then the bundled ChatGPT CLI', () => {
+  assert.equal(resolveCodexBinary('/custom/codex', { platform: 'darwin', exists: () => true }), '/custom/codex');
+  assert.equal(
+    resolveCodexBinary('', { platform: 'darwin', exists: path => path === '/Applications/ChatGPT.app/Contents/Resources/codex' }),
+    '/Applications/ChatGPT.app/Contents/Resources/codex',
+  );
+  assert.equal(resolveCodexBinary('', { platform: 'linux', exists: () => false }), 'codex');
 });
 
 function selection() {

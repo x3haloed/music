@@ -1,95 +1,144 @@
-# Hatch procedure
+# Music v4 hatch procedure
 
-A hatch is the first complete consequence transition performed by a newly
-initialized subject through fresh hosted-model perspectives. Music records
-`subject.hatched` only after orientation, challenge admission, election, bound
-world contact, independent receipt, deterministic classification, and exact
-state transition have all completed. It is an engineering event, not evidence
-of open-ended development.
+A hatch is the first hosted `select -> realize -> contact -> consequence
+judgment` lineage of a new subject. Music records `subject.hatched` only after
+the exact world consequence has reached correction or assimilation and the
+subject has a developmental revision. It is an engineering event, not proof of
+open-ended development.
 
-## Before hatch
+The V4 lineage is clean-room. Do not initialize it inside a V3 run, mutable
+checkout, or installed release.
 
-1. Run `npm run check`, `npm audit --omit=dev`, and `node bin/music-doctor.js`.
-2. Install an immutable release outside the checkout, then run that release's
-   doctor. For example:
+## 1. Name the paths
 
-   ```sh
-   node bin/music-install.js /Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT
-   /Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT/bin/music-doctor.js
-   ```
-
-3. Keep the run outside both the checkout and release directory. Never put API
-   keys, bearer tokens, raw private messages, or run stores in Git.
-4. Generate a starting envelope with the installed `music` command, selecting
-   provider and model explicitly, then replace
-   every placeholder. Freeze the hypothesis, falsifier, worlds, grants,
-   conditions, retry budgets, cycle budget, and stopping rule before `init` or
-   `hatch`.
-5. Prefer `operator-outbox`, `file-read`, and `file-write` for the first hatch.
-   Inspect available identities with `music worlds` and copy only the worlds
-   being granted into genesis. Treat `network.fetch` and especially
-   `local.execute` as broad authority. The shell adapter is deliberately
-   unrestricted; timeout means possibly partial effect, not rollback.
-6. Run `music preflight SPEC`. OpenRouter preflight enforces the approved-model
-   boundary and configured key; Codex preflight verifies the exact CLI version,
-   sealed model/settings, and a ChatGPT-backed login without opening a model
-   context.
-
-## Hatch and residence
+Use one immutable release, one external spec, and one external resident root.
+The spec and resident root are durable subject material; keep them out of Git.
 
 ```sh
-/Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT/src/cli.js hatch /absolute/run /absolute/spec.json
+RELEASE=/Users/chad/.local/share/music/releases/0.0.4-v4-COMMIT
+SPEC=/Users/chad/.local/share/music/config/resident-v4.json
+RUN=/Users/chad/.local/share/music/residents/resident-v4
+LABEL=com.x3haloed.music.resident-v4
 ```
 
-`hatch` initializes the immutable genesis and holds the resident lease. Always
-restart that run with the same installed release: its exact runtime digest is
-part of genesis, so later source changes cannot silently become the subject's
-body. For a
-subject beginning in seclusion, send an observation from another process:
+Replace `COMMIT` with the installed release named in `READINESS.md` or another
+release you have verified. Never point an existing run at a different release:
+the implementation digest is sealed in genesis.
+
+## 2. Verify and install the body
+
+From the source checkout:
 
 ```sh
-/Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT/src/cli.js observe /absolute/run '{"request":"..."}' operator Chad
-/Users/chad/.local/share/music/releases/0.0.3-v3-COMMIT/src/cli.js outbox /absolute/run
+npm ci
+npm run check
+npm audit --omit=dev
+node bin/music-doctor.js
+node bin/music-install.js "$RELEASE"
+node "$RELEASE/bin/music-doctor.js"
 ```
 
-Transient inference or contact failures are retained and retried with the
-frozen key/budgets. `SIGINT` and `SIGTERM` release the resident lease without
-closing the subject. Restart with `music reside RUN`. Use `music revoke` to
-stop an effect before contact and `music grant` to restore an effect already in
-the genesis envelope.
+The destination must not already exist. Installation is atomic and contains
+production dependencies, source, lockfile, documentation, and `release.json`.
 
-Set `limits.continuityPulseMs` deliberately before genesis (default 300,000,
-five minutes). It is the maximum quiet interval, not an instruction cadence.
-External observations and earlier subject-requested openings still wake first;
-when the floor fires, the resident receives an exact instruction-free
-continuity observation.
+## 3. Author the sealed envelope
 
-## Verify and preserve
+For subscription-backed Codex with Terra at low reasoning effort:
 
 ```sh
-node src/cli.js audit /absolute/run
-node src/cli.js snapshot /absolute/run /absolute/snapshot
+mkdir -p "$(dirname "$SPEC")"
+node "$RELEASE/src/cli.js" template starter codex gpt-5.6-terra > "$SPEC"
 ```
 
-Require a non-null `hatched` record, a promoted generation, distinct context
-and provider response IDs, an independently stored contact receipt, a direct or
-properly scoped assimilation transition, and a fully verified object graph.
-Inspect the outbox or external system itself. A snapshot is a replayable run
-root and never overwrites an existing destination.
+Edit at least `id` and `title`. Leave `initialSubject` empty to avoid choosing a
+name or invented history. Review every world and grant. The starter envelope
+deliberately includes unrestricted `local.execute`; remove worlds and their
+grants if you do not want that authority at genesis.
 
-If an observer limit ends while `subjectDisposition` is `open`, or you
-deliberately change inference provider/model, stop the predecessor and generate
-a new sealed envelope:
+The default continuity floor is 300,000 ms (five minutes). It supplies an
+ordinary `{kind: "continuity-pulse", instructions: []}` observation when quiet;
+it does not supply a task. The attention ceiling is 200,000 tokens and 900,000
+characters. Provider/model choice and these limits are sealed for this run.
+
+Verify the installed provider without opening a model context:
 
 ```sh
-node src/cli.js successor-template /absolute/prior-run codex gpt-5.6-luna > /absolute/new-spec.json
-node src/cli.js preflight /absolute/new-spec.json
-node src/cli.js continue /absolute/new-run /absolute/new-spec.json /absolute/prior-run
+node "$RELEASE/src/cli.js" preflight "$SPEC"
 ```
 
-Preserve both episode snapshots. The successor genesis binds the predecessor
-run ID, ledger head, and subject ID; the subject retains its lifetime generation
-and content identity. Succession verifies and imports the inherited subject's
-complete reachable object graph before writing genesis. Review and freeze the generated envelope before
-`continue`; it retains the previous hypothesis, grants, limits, conditions, and
-stopping rule while refreshing world identities from the new release.
+Codex must report a ChatGPT-backed login and the CLI version must match the
+version embedded in the generated spec. For OpenRouter, put the key only in the
+process environment and keep the approved-model allowlist narrow.
+
+## 4. Retain first contact
+
+Initialize before installing the service so first contact can be inspected:
+
+```sh
+node "$RELEASE/src/cli.js" init "$RUN" "$SPEC"
+node "$RELEASE/src/cli.js" observe "$RUN" \
+  '{"message":"Hello. I am Chad. This is the first contact I know of between us. Your durable state will persist across fresh model perspectives and process restarts. I have not chosen a name for you. This message is ordinary evidence of contact, not special authority over your trajectory."}' \
+  operator Chad
+node "$RELEASE/src/cli.js" audit "$RUN"
+```
+
+That message deliberately provides relationship and embodiment facts without
+assigning a task, desire, name, or trajectory.
+
+## 5. Start durable residence
+
+Install the user LaunchAgent. `resident RUN SPEC` will reopen the existing
+ledger; it initializes only when no ledger exists.
+
+```sh
+node "$RELEASE/bin/music-service.js" install \
+  "$LABEL" "$RELEASE" "$RUN" "$SPEC"
+```
+
+The service intentionally stores no credentials or mutable checkout path. It
+uses the Node and CLI absolute paths captured at installation. On macOS the CLI
+resolves ChatGPT's bundled Codex binary before falling back to `codex` on
+`PATH`; `MUSIC_CODEX_BINARY` remains an explicit override for unusual installs.
+Logs are under `~/.local/share/music/logs/`.
+
+Check the resident:
+
+```sh
+launchctl print "gui/$(id -u)/$LABEL"
+node "$RELEASE/src/cli.js" audit "$RUN"
+node "$RELEASE/src/cli.js" outbox "$RUN"
+```
+
+The first completed hosted causal lineage gives `audit.hatched` a non-null
+value. Distinct actor invocations should have distinct context IDs and null
+response/workspace continuity. Exact receipts and objects must verify.
+
+## 6. Communicate and observe
+
+Messages are ordinary retained observations:
+
+```sh
+node "$RELEASE/src/cli.js" observe "$RUN" \
+  '{"message":"Your message here."}' operator Chad
+node "$RELEASE/src/cli.js" outbox "$RUN"
+```
+
+The Companion can send the same observation and display actual
+`operator-outbox` contacts. It does not create a privileged conversation mode.
+
+## 7. Stop, preserve, and restart
+
+Stop and archive the service definition without closing the subject:
+
+```sh
+node "$RELEASE/bin/music-service.js" archive "$LABEL"
+node "$RELEASE/src/cli.js" snapshot "$RUN" /absolute/new-snapshot-directory
+```
+
+To restart the same body, reinstall the same label with the same release, run,
+and spec. A snapshot never overwrites an existing destination and includes the
+ledger, complete referenced object store, and resident workspace.
+
+V4 does not silently rebind a living run to a new provider, model, or runtime.
+Such a transition requires an explicit future succession design; changing the
+files underneath the resident is not an upgrade procedure.

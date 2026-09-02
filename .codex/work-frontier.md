@@ -94,3 +94,20 @@ subject across model turns and process restarts.
   OT-0253 shows it must remain mechanically derived and non-authoritative.
 - Exact raw history can exceed a provider ceiling even when entry count is
   bounded. V4 retains evidence by reference and budgets rendered attention.
+- The V3 hatch documents survived the architectural rewrite and described
+  nonexistent succession commands. V4 documentation is generated from the
+  installed CLI and explicitly refuses silent runtime/provider rebinding.
+- Hashing a mutable workspace is not durable embodiment. V4 snapshots copy and
+  verify the workspace alongside the ledger and object graph.
+
+## Current evidence
+
+- 39 repository tests pass.
+- The deterministic rehearsal completes 19 operations through contradiction,
+  selector correction, changed later election, assimilation, saturation,
+  expansion, and bounded waiting using 15 distinct actor contexts.
+- A bounded Codex/Terra run completed select, realize, deterministic contact,
+  and assimilate; recorded `subject.hatched`; and reused a stable 12,032-token
+  prefix in each fresh model context.
+- Final release installation and installed-runtime rehearsal remain before the
+  hatch-ready goal can close.
