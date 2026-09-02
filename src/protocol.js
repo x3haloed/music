@@ -24,6 +24,8 @@ const OpenRouterSettingsSchema = z.object({
   maxOutputTokens: z.number().int().positive().max(1_000_000),
   temperature: z.number().min(0).max(2),
   reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']),
+  maximumInputTokens: z.number().int().min(16_384).max(200_000).default(200_000),
+  maximumInputCharacters: z.number().int().min(65_536).max(900_000).default(900_000),
 }).strict();
 
 const CodexSettingsSchema = z.object({
@@ -32,6 +34,8 @@ const CodexSettingsSchema = z.object({
   timeoutMs: z.number().int().positive().max(3_600_000),
   maxOutputBytes: z.number().int().min(1024).max(64 * 1024 * 1024),
   reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']),
+  maximumInputTokens: z.number().int().min(16_384).max(200_000).default(200_000),
+  maximumInputCharacters: z.number().int().min(65_536).max(900_000).default(900_000),
 }).strict();
 
 export const InferenceConditionSchema = z.object({
@@ -86,6 +90,8 @@ export const RunSpecSchema = z.object({
     residentRetryDelayMs: z.number().int().min(10).max(3_600_000).default(5_000),
     continuityPulseMs: z.number().int().min(1_000).max(604_800_000).default(300_000),
     projectionHistoryEntries: z.number().int().positive().max(256).default(16),
+    maximumInputTokens: z.number().int().min(16_384).max(200_000).default(200_000),
+    maximumInputCharacters: z.number().int().min(65_536).max(900_000).default(900_000),
   }),
   stoppingRule: z.string().min(1).max(4096),
 }).superRefine((value, context) => {
@@ -171,6 +177,7 @@ export const RoleTasks = {
     'Do not include optional inconclusive predicates or continuations unless they are needed.',
     'developmentalInterfaces.pursuitSelector is the exact writable contract for the standard selector organ.',
     'A wager may install, replace, or surrender that organ only through a prospectively bound continuation mutation at /mechanisms/pursuitSelector with revisionScope covering that path.',
+    'developmentalInterfaces.attention is the writable contract for immediate attention allocation. Its subject-owned policy may change prospectively through /mechanisms/attentionPolicy, while the sealed provider ceiling remains hard.',
     'If subject.mechanisms.pursuitSelector exists, every unblocked wager must publish finite selection.measurements values for every dimension it names. Scores are bounded by the selector contract and must assess this pursuit relative to the current position, including saturation. Blocked wagers set selection.blocked true. The kernel applies that retained selector deterministically before election.',
   ].join(' '),
   elect: 'Select exactly one wager whose id appears in frontier.selection.selectedIds. The retained selector has already transformed the frontier; you may break a preserved tie but may not override or rewrite the selection.',

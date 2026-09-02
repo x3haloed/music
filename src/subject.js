@@ -2,13 +2,19 @@ import { z } from 'zod';
 import { clone, digest } from './canonical.js';
 import { PredicateSchema, evaluatePredicate } from './predicate.js';
 import { DEFAULT_PURSUIT_SELECTOR, PURSUIT_SELECTOR_KEY, PursuitSelectorSchema } from './selector.js';
+import { ATTENTION_POLICY_KEY, AttentionPolicySchema, DEFAULT_ATTENTION_POLICY } from './attention.js';
 import { verifyAttestation } from './world.js';
 
 const Json = z.json();
 const MechanismsSchema = z.record(z.string(), Json).superRefine((value, context) => {
-  if (!Object.hasOwn(value, PURSUIT_SELECTOR_KEY)) return;
-  const parsed = PursuitSelectorSchema.safeParse(value[PURSUIT_SELECTOR_KEY]);
-  if (!parsed.success) context.addIssue({ code: 'custom', message: `invalid ${PURSUIT_SELECTOR_KEY}: ${parsed.error.message}` });
+  if (Object.hasOwn(value, PURSUIT_SELECTOR_KEY)) {
+    const parsed = PursuitSelectorSchema.safeParse(value[PURSUIT_SELECTOR_KEY]);
+    if (!parsed.success) context.addIssue({ code: 'custom', message: `invalid ${PURSUIT_SELECTOR_KEY}: ${parsed.error.message}` });
+  }
+  if (Object.hasOwn(value, ATTENTION_POLICY_KEY)) {
+    const parsed = AttentionPolicySchema.safeParse(value[ATTENTION_POLICY_KEY]);
+    if (!parsed.success) context.addIssue({ code: 'custom', message: `invalid ${ATTENTION_POLICY_KEY}: ${parsed.error.message}` });
+  }
 });
 export const IdentifierSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/);
 export const DigestSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -68,7 +74,11 @@ export function createSubject(seedValue, at) {
     generation: 0,
     createdAt: at,
     stakes: seed.stakes ?? {},
-    mechanisms: { [PURSUIT_SELECTOR_KEY]: clone(DEFAULT_PURSUIT_SELECTOR), ...(seed.mechanisms ?? {}) },
+    mechanisms: {
+      [PURSUIT_SELECTOR_KEY]: clone(DEFAULT_PURSUIT_SELECTOR),
+      [ATTENTION_POLICY_KEY]: clone(DEFAULT_ATTENTION_POLICY),
+      ...(seed.mechanisms ?? {}),
+    },
     language: seed.language ?? {},
     authority: seed.authority ?? {},
     memory: seed.memory ?? {},

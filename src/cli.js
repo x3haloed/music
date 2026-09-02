@@ -63,6 +63,7 @@ async function continueRun([rootArg, specArg, priorRootArg, condition = 'active'
     inheritedSubject: prior.subject,
     predecessor: { runId: prior.runId, head: prior.head, subjectId: prior.subject.id },
     predecessorStore: priorKernel.store,
+    inheritedObservations: prior.pendingObservations,
   });
   output({ runId: state.runId, specId: spec.id, condition, subjectId: state.subject.id, predecessor: state.predecessor, root });
 }
@@ -229,6 +230,14 @@ function successorTemplate([priorRootArg, provider = 'codex', modelArg = null]) 
       publicContract: adapter.publicContract,
     };
   });
+  if (!worlds.some(world => world.adapter === 'evidence-read')) {
+    const adapter = registry.get('evidence-read');
+    worlds.push({
+      id: 'evidence-read', adapter: adapter.id, adapterIdentity: adapter.identity,
+      attestationTypes: adapter.attestationTypes, description: adapter.description,
+      publicContract: adapter.publicContract,
+    });
+  }
   const actor = actorForChoice(provider, modelArg);
   output({
     format: 'music-v3-run-spec-1',

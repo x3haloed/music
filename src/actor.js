@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { clone, digest } from './canonical.js';
+import { estimateTokens } from './attention.js';
 
 const JsonEnvelopeSchema = z.object({ json: z.string() });
 
@@ -69,7 +70,7 @@ export class FunctionActor {
 }
 
 export class OpenRouterActor {
-  constructor({ model, apiKey = process.env.OPENROUTER_API_KEY, timeoutMs = 120_000, maxOutputTokens = 15_000, temperature = 0.35, reasoningEffort = 'low', languageModel = null, providerOptions = {} } = {}) {
+  constructor({ model, apiKey = process.env.OPENROUTER_API_KEY, timeoutMs = 120_000, maxOutputTokens = 15_000, temperature = 0.35, reasoningEffort = 'low', maximumInputTokens = 200_000, maximumInputCharacters = 900_000, languageModel = null, providerOptions = {} } = {}) {
     if (!model) throw new Error('OpenRouter actor requires a model');
     if (!['none', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(reasoningEffort)) throw new Error(`unsupported OpenRouter reasoning effort: ${reasoningEffort}`);
     this.id = 'openrouter';
@@ -79,6 +80,8 @@ export class OpenRouterActor {
     this.maxOutputTokens = maxOutputTokens;
     this.temperature = temperature;
     this.reasoningEffort = reasoningEffort;
+    this.maximumInputTokens = maximumInputTokens;
+    this.maximumInputCharacters = maximumInputCharacters;
     this.languageModel = languageModel;
     this.provider = languageModel ? null : (apiKey ? createOpenRouter({ apiKey, ...providerOptions }) : null);
     this.identity = digest({
@@ -86,7 +89,7 @@ export class OpenRouterActor {
       kind: 'openrouter',
       implementation: 'music-v3-openrouter-prefix-cache-json-text-3',
       model,
-      settings: { timeoutMs, maxOutputTokens, temperature, reasoningEffort },
+      settings: { timeoutMs, maxOutputTokens, temperature, reasoningEffort, maximumInputTokens, maximumInputCharacters },
     });
   }
 
@@ -96,6 +99,8 @@ export class OpenRouterActor {
       maxOutputTokens: this.maxOutputTokens,
       temperature: this.temperature,
       reasoningEffort: this.reasoningEffort,
+      maximumInputTokens: this.maximumInputTokens,
+      maximumInputCharacters: this.maximumInputCharacters,
     });
   }
 
@@ -109,6 +114,7 @@ export class OpenRouterActor {
     const explicitOpenAiCache = isOpenAi56(this.model);
     const affinityKey = cacheAffinityKey(this.model, projection);
     const rendered = renderInferenceInput({ role, projection, schema, task, explicitCacheBreakpoint: explicitOpenAiCache });
+    assertInputFits([FreshPerspectiveSystem, rendered.sharedText, rendered.roleText].join('\n'), this);
     const model = this.languageModel ?? this.provider(this.model, {
       usage: { include: true },
       extraBody: {
@@ -148,7 +154,7 @@ function parseOpenRouterJson(text) {
 }
 
 export class CodexExecActor {
-  constructor({ model, binary = 'codex', timeoutMs = 180_000, maxOutputBytes = 2 * 1024 * 1024, reasoningEffort = 'low', authentication = 'chatgpt-subscription', binaryVersion = null, loginStatus = null } = {}) {
+  constructor({ model, binary = 'codex', timeoutMs = 180_000, maxOutputBytes = 2 * 1024 * 1024, reasoningEffort = 'low', maximumInputTokens = 200_000, maximumInputCharacters = 900_000, authentication = 'chatgpt-subscription', binaryVersion = null, loginStatus = null } = {}) {
     if (!model) throw new Error('Codex exec actor requires a model');
     if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) throw new Error('Codex timeoutMs must be a positive integer');
     if (!Number.isInteger(maxOutputBytes) || maxOutputBytes < 1024) throw new Error('Codex maxOutputBytes must be at least 1024');
@@ -160,6 +166,8 @@ export class CodexExecActor {
     this.timeoutMs = timeoutMs;
     this.maxOutputBytes = maxOutputBytes;
     this.reasoningEffort = reasoningEffort;
+    this.maximumInputTokens = maximumInputTokens;
+    this.maximumInputCharacters = maximumInputCharacters;
     this.authentication = authentication;
     this.binaryVersion = binaryVersion ?? execFileSync(binary, ['--version'], { encoding: 'utf8', timeout: 10_000 }).trim();
     this.loginStatus = loginStatus ?? readCodexLoginStatus(binary);
@@ -170,7 +178,7 @@ export class CodexExecActor {
       implementation: 'music-v3-codex-exec-prefix-layout-json-envelope-2',
       binaryVersion: this.binaryVersion,
       model,
-      settings: { authentication, timeoutMs, maxOutputBytes, reasoningEffort },
+      settings: { authentication, timeoutMs, maxOutputBytes, reasoningEffort, maximumInputTokens, maximumInputCharacters },
     });
   }
 
@@ -181,6 +189,8 @@ export class CodexExecActor {
       timeoutMs: this.timeoutMs,
       maxOutputBytes: this.maxOutputBytes,
       reasoningEffort: this.reasoningEffort,
+      maximumInputTokens: this.maximumInputTokens,
+      maximumInputCharacters: this.maximumInputCharacters,
     });
   }
 
@@ -205,6 +215,7 @@ export class CodexExecActor {
       rendered.sharedText,
       rendered.roleText,
     ].join('\n');
+    assertInputFits(prompt, this);
     try {
       const stdout = await execute(this.binary, [
         'exec', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check',
@@ -235,6 +246,22 @@ export class CodexExecActor {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  }
+}
+
+export class InferenceInputTooLargeError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'InferenceInputTooLargeError';
+    this.retryable = false;
+  }
+}
+
+function assertInputFits(text, actor) {
+  const characters = text.length;
+  const estimatedTokens = estimateTokens(text);
+  if (characters > actor.maximumInputCharacters || estimatedTokens > actor.maximumInputTokens) {
+    throw new InferenceInputTooLargeError(`rendered inference input exceeds sealed attention ceiling: ${characters} characters, approximately ${estimatedTokens} tokens`);
   }
 }
 

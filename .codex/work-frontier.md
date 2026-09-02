@@ -15,6 +15,9 @@ inspection without turning that window into a second controller or authority.
   workspaces are never continuity substrates.
 - Fresh projections carry the exact current subject plus bounded historical
   transitions; they never duplicate cumulative predecessor subjects as history.
+- Every inference receives a causally sufficient, explicitly budgeted attention
+  view. Exact retained evidence may leave immediate attention but is never
+  destroyed, silently summarized, or made irretrievable.
 - Prompt caching may reuse provider prefix computation, but never a prior
   response, model thread, reasoning chain, subject transition, or factual
   authority. One generation-shared exact projection prefix precedes fresh role
@@ -72,6 +75,11 @@ inspection without turning that window into a second controller or authority.
   engineering acceptance score. It remains observable life after hatch.
 
 ## Prediction errors
+
+- A bounded count of history entries was not bounded attention: one retained
+  HTTP receipt made a Codex request exceed its deterministic input ceiling and
+  the resident retried that unchanged failure. Historical receipts now travel
+  by exact reference and provider input limits are enforced before invocation.
 
 - External effecting adapters must enforce idempotency themselves; Music can
   only retain and resend their key.

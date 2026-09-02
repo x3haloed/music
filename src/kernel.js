@@ -8,6 +8,7 @@ import { ResidentLease } from './residency.js';
 import { IdentifierSchema } from './subject.js';
 import { runtimeProvenance } from './runtime-provenance.js';
 import { PURSUIT_SELECTOR_INTERFACE, selectWagers } from './selector.js';
+import { ATTENTION_INTERFACE, attachAttentionManifest, attentionPolicy, compactHistory } from './attention.js';
 import { deriveAttestations } from './world.js';
 
 export class DevelopmentalKernel {
@@ -20,7 +21,7 @@ export class DevelopmentalKernel {
     this.provenance = provenance;
   }
 
-  initialize(specValue, { condition = 'active', inheritedSubject = null, predecessor = null, predecessorStore = null } = {}) {
+  initialize(specValue, { condition = 'active', inheritedSubject = null, predecessor = null, predecessorStore = null, inheritedObservations = [] } = {}) {
     if (this.store.readEvents().length > 0) throw new Error('run store is already initialized');
     if (!specValue?.inference || specValue?.actor) {
       throw new Error('new runs require an explicit inference block');
@@ -53,6 +54,10 @@ export class DevelopmentalKernel {
       runtime: this.provenance(),
       predecessor: predecessor === null ? null : clone(predecessor),
     });
+    for (const value of inheritedObservations) {
+      const { sequence, at, ...observation } = value;
+      this.store.append('observation.received', clone(observation));
+    }
     return this.state();
   }
 
@@ -355,7 +360,16 @@ export class DevelopmentalKernel {
       let transition = kind === 'underdetermined' ? null : wager.continuations[kind];
       let authority = 'bound-predicate';
       if (!transition) {
-        const receipt = this.store.get(state.currentCycle.contact.output);
+        const receiptValue = this.store.get(state.currentCycle.contact.output);
+        const receiptText = JSON.stringify(receiptValue);
+        const receipt = {
+          reference: state.currentCycle.contact.output,
+          preview: receiptText.slice(0, 65_536),
+          previewCharacters: Math.min(receiptText.length, 65_536),
+          totalCharacters: receiptText.length,
+          complete: receiptText.length <= 65_536,
+          retrieval: { world: 'evidence-read', input: { reference: state.currentCycle.contact.output, offset: 0, maxCharacters: 65_536 } },
+        };
         const result = await this.invoke('assimilate', cycle.id, this.projection(state, 'assimilate', {
           wager,
           receipt,
@@ -419,6 +433,12 @@ export class DevelopmentalKernel {
         catch (error) {
           state = this.state();
           if (state.completed || signal?.aborted) continue;
+          if (error?.retryable === false) {
+            this.store.append('resident.failed', {
+              failure: { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384), retryable: false },
+            });
+            throw error;
+          }
           if (state.head === priorHead) {
             this.store.append('resident.failed', {
               failure: { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384), retryable: false },
@@ -538,7 +558,7 @@ export class DevelopmentalKernel {
           generation: cycle.generation,
           wager: this.store.get(cycle.binding.wager),
           world: cycle.contactStarted.world,
-          receipt: this.store.get(cycle.contact.output),
+          receiptReference: cycle.contact.output,
           attestations: this.store.get(cycle.contact.attestations),
           evaluation: cycle.evaluation,
           transition: this.appliedTransition(cycle),
@@ -569,11 +589,12 @@ export class DevelopmentalKernel {
       },
       worlds: state.spec.worlds.map(({ id, description, publicContract, attestationTypes }) => ({ id, description, publicContract, attestationTypes })),
       capabilities: { effectiveGrants: state.effectiveGrants },
-      developmentalInterfaces: { pursuitSelector: clone(PURSUIT_SELECTOR_INTERFACE) },
+      developmentalInterfaces: { pursuitSelector: clone(PURSUIT_SELECTOR_INTERFACE), attention: clone(ATTENTION_INTERFACE) },
       observations: this.observationsFor(state),
       history,
       ...additions,
     };
+    projection.subjectEvidence = this.store.put(projection.subject);
     const condition = state.spec.conditions.find(value => value.id === state.condition);
     for (const intervention of condition.interventions.filter(value => value.generation === state.subject.generation)) {
       const stateErase = intervention.erase.map(pointer => pointer.replace(/^\/subject/, '')).filter(Boolean);
@@ -583,7 +604,9 @@ export class DevelopmentalKernel {
         transition: maskTransition(entry.transition, [...stateErase, ...stateReplace]),
       }));
     }
-    return projection;
+    const policy = attentionPolicy(projection.subject, state.spec.limits);
+    projection.history = compactHistory(projection.history, policy);
+    return attachAttentionManifest(projection, policy);
   }
 
   appliedTransition(cycle) {
@@ -689,7 +712,7 @@ export class DevelopmentalKernel {
         role,
         contextId,
         projection: projectionRef,
-        failure: { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384), raw, quarantined: true },
+        failure: { name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 16_384), raw, quarantined: true, retryable: error?.retryable !== false },
         responseChain: null,
         workspaceContinuity: null,
         status: 'failed',

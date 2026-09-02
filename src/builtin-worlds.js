@@ -4,10 +4,45 @@ import { dirname, join, resolve } from 'node:path';
 import { canonical, digest } from './canonical.js';
 import { defineWorld, WorldRegistry } from './world.js';
 import { localWorlds } from './local-worlds.js';
+import { RunStore } from './store.js';
 
 export function builtinWorlds() {
   return new WorldRegistry([
     ...localWorlds(),
+    defineWorld({
+      id: 'evidence-read',
+      version: '1',
+      description: 'Retrieve a bounded exact character range from one retained content-addressed JSON object.',
+      effects: [],
+      attestationTypes: ['music.evidence.read-result'],
+      identityMaterial: { implementation: 'music-v3-evidence-read-1', maximumCharacters: 262144 },
+      publicContract: {
+        input: { reference: 'exact music-v3-object-1 reference', offset: 'nonnegative character offset', maxCharacters: '1..262144' },
+        output: { content: 'exact JSON character range', totalCharacters: 'integer', hasMore: 'boolean', sha256: 'verified object digest' },
+        authority: 'Attests only exact retrieval from Music retained evidence, not the truth of represented claims.',
+      },
+      conform(input) {
+        const reasons = [];
+        if (!input || typeof input !== 'object' || Array.isArray(input)) return ['input must be an object'];
+        if (input.reference?.format !== 'music-v3-object-1' || !/^[a-f0-9]{64}$/.test(input.reference?.sha256 ?? '')) reasons.push('reference must be an exact Music object reference');
+        if (!Number.isInteger(input.offset ?? 0) || (input.offset ?? 0) < 0) reasons.push('offset must be a nonnegative integer');
+        if (!Number.isInteger(input.maxCharacters ?? 65536) || (input.maxCharacters ?? 65536) < 1 || (input.maxCharacters ?? 65536) > 262144) reasons.push('maxCharacters must be between 1 and 262144');
+        return reasons;
+      },
+      conformOutput(output) {
+        return output && typeof output.content === 'string' && Number.isInteger(output.totalCharacters) && typeof output.hasMore === 'boolean' && /^[a-f0-9]{64}$/.test(output.sha256)
+          ? [] : ['output must contain exact content, totalCharacters, hasMore, and sha256'];
+      },
+      attest: (input, output) => [{ type: 'music.evidence.read-result', value: { sha256: output.sha256, offset: output.offset, characters: output.content.length, totalCharacters: output.totalCharacters, hasMore: output.hasMore } }],
+      execute(input, context) {
+        const retained = new RunStore(context.runRoot).get(input.reference);
+        const text = canonical(retained);
+        const offset = input.offset ?? 0;
+        const maximum = input.maxCharacters ?? 65536;
+        const content = text.slice(offset, offset + maximum);
+        return { kind: 'evidence-read-receipt', sha256: input.reference.sha256, offset, content, totalCharacters: text.length, hasMore: offset + content.length < text.length };
+      },
+    }),
     defineWorld({
       id: 'operator-outbox',
       version: '1',
