@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Worker } from 'node:worker_threads';
 import { FunctionActor, ScriptActor } from '../src/actor.js';
 import { admitWager } from '../src/constitution.js';
 import { DevelopmentalKernel, summarizeInferenceUsage } from '../src/kernel.js';
@@ -10,6 +11,7 @@ import { createSubject } from '../src/subject.js';
 import { defineWorld, WorldRegistry } from '../src/world.js';
 import { ResidentLease } from '../src/residency.js';
 import { defaultSelectionMeasurements } from '../src/selector.js';
+import { RunStore } from '../src/store.js';
 
 function fixture({ execute, plan = null, maxCycles = 1 } = {}) {
   const calls = [];
@@ -242,9 +244,50 @@ test('a dead writer lock is recovered but a live writer lock fails closed', () =
   const live = fixture();
   mkdirSync(live.root, { recursive: true });
   writeFileSync(join(live.root, 'writer.lock'), `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`);
-  const blocked = new DevelopmentalKernel(live.root, live);
-  assert.throws(() => blocked.initialize(live.spec), /another live writer/);
+  const blocked = new RunStore(live.root, { writerLockTimeoutMs: 0 });
+  assert.throws(() => blocked.append('probe.event', {}), /another live writer/);
   rmSync(live.parent, { recursive: true, force: true });
+});
+
+test('concurrent world contact waits for a live ledger writer and is retained', async t => {
+  const value = fixture();
+  t.after(() => rmSync(value.parent, { recursive: true, force: true }));
+  const kernel = new DevelopmentalKernel(value.root, value);
+  kernel.initialize(value.spec);
+  const lockPath = join(value.root, 'writer.lock');
+  const worker = new Worker(`
+    const { parentPort, workerData } = require('node:worker_threads');
+    const { closeSync, fsyncSync, openSync, unlinkSync, writeSync } = require('node:fs');
+    const fd = openSync(workerData.lockPath, 'wx', 0o600);
+    writeSync(fd, JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }) + '\\n');
+    fsyncSync(fd);
+    parentPort.postMessage('locked');
+    setTimeout(() => {
+      closeSync(fd);
+      unlinkSync(workerData.lockPath);
+      parentPort.postMessage('released');
+    }, 75);
+  `, { eval: true, workerData: { lockPath } });
+  t.after(() => worker.terminate());
+  await new Promise((resolve, reject) => {
+    worker.once('message', resolve);
+    worker.once('error', reject);
+  });
+
+  const state = kernel.receiveObservation({
+    id: 'contact-during-transition',
+    channel: 'operator',
+    from: 'Chad',
+    content: { message: 'Delivery received.' },
+  });
+
+  assert.equal(state.pendingObservations.length, 1);
+  assert.equal(state.pendingObservations[0].id, 'contact-during-transition');
+  assert.equal(state.residentFailures.length, 0);
+  await new Promise((resolve, reject) => {
+    worker.once('exit', resolve);
+    worker.once('error', reject);
+  });
 });
 
 test('a future subject opening is bounded by the continuity floor without early inference', async t => {

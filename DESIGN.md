@@ -153,8 +153,11 @@ through the same sequence boundary as any other observation. The floor changes
 when contact occurs, not what the subject must do with it.
 
 All advancing entry points share one resident lease. Observations may arrive
-concurrently through the append-only ledger. Seclusion wakes only when a new
-observation exists; timed continuations wake only at their retained time.
+concurrently through the append-only ledger. Legitimate writers serialize
+through a bounded lock wait, so contact overlapping a transition is retained
+rather than terminating residence. A writer that remains live beyond that
+bound still fails closed. Seclusion wakes only when a new observation exists;
+timed continuations wake only at their retained time.
 
 An observer-limited episode may end with an open subject. A successor episode
 must bind that exact subject ID and the predecessor run/head/subject triple.

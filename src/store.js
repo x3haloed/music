@@ -17,15 +17,25 @@ import { basename, dirname, join } from 'node:path';
 import { canonical, clone, digest, identifier } from './canonical.js';
 
 export const EVENT_FORMAT = 'music-v3-event-1';
+const DEFAULT_WRITER_LOCK_TIMEOUT_MS = 5_000;
+const DEFAULT_WRITER_LOCK_POLL_MS = 10;
+const writerWaitArray = new Int32Array(new SharedArrayBuffer(4));
 
 export class RunStore {
-  constructor(root, { clock = () => new Date(), id = identifier } = {}) {
+  constructor(root, {
+    clock = () => new Date(),
+    id = identifier,
+    writerLockTimeoutMs = DEFAULT_WRITER_LOCK_TIMEOUT_MS,
+    writerLockPollMs = DEFAULT_WRITER_LOCK_POLL_MS,
+  } = {}) {
     this.root = root;
     this.ledgerPath = join(root, 'ledger.ndjson');
     this.lockPath = join(root, 'writer.lock');
     this.objectRoot = join(root, 'objects', 'sha256');
     this.clock = clock;
     this.id = id;
+    this.writerLockTimeoutMs = writerLockTimeoutMs;
+    this.writerLockPollMs = writerLockPollMs;
   }
 
   initialize() {
@@ -87,7 +97,7 @@ export class RunStore {
     if (!/^[a-z][a-z0-9_.-]*$/.test(type)) throw new TypeError('invalid event type');
     canonical(payload);
     this.initialize();
-    const lock = acquire(this.lockPath);
+    const lock = this.acquireWriterLock();
     try {
       const events = this.readEvents();
       const body = {
@@ -133,7 +143,7 @@ export class RunStore {
     if (existsSync(destination)) throw new Error(`snapshot destination already exists: ${basename(destination)}`);
     const partial = `${destination}.partial-${process.pid}-${Date.now()}`;
     mkdirSync(partial, { recursive: false, mode: 0o700 });
-    const lock = acquire(this.lockPath);
+    const lock = this.acquireWriterLock();
     try {
       const events = this.readEvents();
       const references = collectReferences(events);
@@ -175,6 +185,13 @@ export class RunStore {
       unlinkSync(this.lockPath);
     }
   }
+
+  acquireWriterLock() {
+    return acquire(this.lockPath, {
+      timeoutMs: this.writerLockTimeoutMs,
+      pollMs: this.writerLockPollMs,
+    });
+  }
 }
 
 export function verifyEvents(events) {
@@ -190,20 +207,28 @@ export function verifyEvents(events) {
   }
 }
 
-function acquire(path, retry = true) {
-  try {
-    const fd = openSync(path, 'wx', 0o600);
-    writeSync(fd, `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`);
-    fsyncSync(fd);
-    return fd;
-  }
-  catch (error) {
-    if (error?.code === 'EEXIST' && retry && staleLock(path)) {
-      unlinkSync(path);
-      return acquire(path, false);
+function acquire(path, { timeoutMs, pollMs }) {
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    try {
+      const fd = openSync(path, 'wx', 0o600);
+      writeSync(fd, `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`);
+      fsyncSync(fd);
+      return fd;
     }
-    if (error?.code === 'EEXIST') throw new Error(`another live writer owns ${path}`);
-    throw error;
+    catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+      if (staleLock(path)) {
+        try { unlinkSync(path); }
+        catch (unlinkError) {
+          if (unlinkError?.code !== 'ENOENT') throw unlinkError;
+        }
+        continue;
+      }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw new Error(`another live writer owns ${path}`);
+      Atomics.wait(writerWaitArray, 0, 0, Math.min(remaining, pollMs));
+    }
   }
 }
 
