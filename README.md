@@ -64,6 +64,18 @@ against the exact role schema before the kernel can use it. Codex runs with
 `--ephemeral`, ignores user configuration and repository rules, receives no
 tool authority, and must be logged in through ChatGPT when the sealed
 authentication mode is `chatgpt-subscription`.
+
+Provider prompt caching is an operational optimization, never a continuity
+substrate. Music renders the complete generation-shared retained projection
+before the role-specific task and schema. OpenRouter requests carry one
+run-scoped `session_id`; OpenAI GPT-5.6 requests additionally use an explicit
+breakpoint after that shared projection, while Z.AI retains its automatic
+prefix cache. Codex keeps fresh ephemeral threads but uses a stable run-scoped
+temporary pathname to avoid gratuitous prefix changes. Music never resumes a
+model thread or enables whole-response replay to improve cache hits. Exact
+provider usage remains in each actor receipt, and `audit` reports aggregate
+input, output, cache-read, cache-write, and uncached tokens by role.
+
 The CLI defaults its machine-owner provider policy to the single approved
 OpenRouter model `z-ai/glm-5.3-flash`. Set comma-separated
 `MUSIC_ALLOWED_OPENROUTER_MODELS` explicitly to change that spending boundary;

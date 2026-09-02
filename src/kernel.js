@@ -495,6 +495,7 @@ export class DevelopmentalKernel {
         selection: cycle.frontier ? this.store.get(cycle.frontier).selection : null,
       })),
       inference: clone(state.spec.inference),
+      inferenceUsage: summarizeInferenceUsage(state.invocations),
       actorInvocations: state.invocations.filter(value => value.invocationId).map(value => ({
         invocationId: value.invocationId,
         role: value.role,
@@ -502,6 +503,7 @@ export class DevelopmentalKernel {
         responseChain: value.responseChain,
         workspaceContinuity: value.workspaceContinuity,
         status: value.status,
+        usage: clone(value.usage ?? null),
       })),
       completed: state.completed,
       evidence: this.store.verifyObjectGraph(),
@@ -708,6 +710,79 @@ export class DevelopmentalKernel {
       completedCycles: state.cycles.filter(cycle => cycle.transition).length,
     });
   }
+}
+
+export function summarizeInferenceUsage(invocations) {
+  const completed = invocations.filter(value => value.status === 'completed');
+  const totals = emptyUsageSummary();
+  const byRole = {};
+  for (const invocation of completed) {
+    const usage = normalizedInferenceUsage(invocation.usage);
+    const role = invocation.role ?? 'unknown';
+    byRole[role] ??= emptyUsageSummary();
+    addUsage(totals, usage);
+    addUsage(byRole[role], usage);
+  }
+  return {
+    format: 'music-v3-inference-usage-summary-1',
+    ...finishUsage(totals),
+    byRole: Object.fromEntries(Object.entries(byRole).sort(([left], [right]) => left.localeCompare(right)).map(([role, value]) => [role, finishUsage(value)])),
+  };
+}
+
+function normalizedInferenceUsage(value) {
+  if (!value || typeof value !== 'object') return null;
+  const inputTokens = firstNumber(value.input_tokens, value.prompt_tokens, value.inputTokens?.total, value.inputTokens, value.promptTokens);
+  const outputTokens = firstNumber(value.output_tokens, value.completion_tokens, value.outputTokens?.total, value.outputTokens, value.completionTokens);
+  const cacheReadTokens = firstNumber(
+    value.cached_input_tokens,
+    value.input_tokens_details?.cached_tokens,
+    value.prompt_tokens_details?.cached_tokens,
+    value.inputTokenDetails?.cacheReadTokens,
+    value.inputTokens?.cacheRead,
+  );
+  const cacheWriteTokens = firstNumber(
+    value.cache_write_input_tokens,
+    value.input_tokens_details?.cache_write_tokens,
+    value.prompt_tokens_details?.cache_write_tokens,
+    value.inputTokenDetails?.cacheWriteTokens,
+    value.inputTokens?.cacheWrite,
+  );
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    cacheMetricsReported: cacheReadTokens !== null || cacheWriteTokens !== null,
+  };
+}
+
+function firstNumber(...values) {
+  return values.find(value => typeof value === 'number' && Number.isFinite(value)) ?? null;
+}
+
+function emptyUsageSummary() {
+  return { completedCalls: 0, reportedCalls: 0, cacheReportedCalls: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+}
+
+function addUsage(summary, usage) {
+  summary.completedCalls += 1;
+  if (!usage || usage.inputTokens === null) return;
+  summary.reportedCalls += 1;
+  summary.inputTokens += usage.inputTokens;
+  summary.outputTokens += usage.outputTokens ?? 0;
+  if (usage.cacheMetricsReported) summary.cacheReportedCalls += 1;
+  summary.cacheReadTokens += usage.cacheReadTokens ?? 0;
+  summary.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+}
+
+function finishUsage(summary) {
+  return {
+    ...summary,
+    unreportedCalls: summary.completedCalls - summary.reportedCalls,
+    uncachedInputTokens: Math.max(0, summary.inputTokens - summary.cacheReadTokens),
+    cacheReadFraction: summary.inputTokens > 0 ? summary.cacheReadTokens / summary.inputTokens : null,
+  };
 }
 
 function requiredCycle(cycles, id) {

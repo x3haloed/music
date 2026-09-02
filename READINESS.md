@@ -39,7 +39,7 @@ evidence that the developmental organ is executable subject state rather than
 prompt advice.
 
 The installed body also passed the active/control deterministic rehearsal.
-`npm run check` passes 48 tests and `npm audit --omit=dev` reports
+`npm run check` passes 66 tests and `npm audit --omit=dev` reports
 zero vulnerabilities.
 
 ## Preserved negative evidence

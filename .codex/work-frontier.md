@@ -15,6 +15,10 @@ inspection without turning that window into a second controller or authority.
   workspaces are never continuity substrates.
 - Fresh projections carry the exact current subject plus bounded historical
   transitions; they never duplicate cumulative predecessor subjects as history.
+- Prompt caching may reuse provider prefix computation, but never a prior
+  response, model thread, reasoning chain, subject transition, or factual
+  authority. One generation-shared exact projection prefix precedes fresh role
+  context, and provider-reported cache use remains auditable.
 - Exact succession imports and verifies every content-addressed object reachable
   from the inherited subject before successor genesis.
 - World contracts expose exact minimum witness shapes wherever generic JSON
@@ -56,7 +60,7 @@ inspection without turning that window into a second controller or authority.
 ## Evaluation regime
 
 - **Epoch:** V3-HATCH-READY-1
-- **Engineering anchors:** 62 deterministic tests; active/control rehearsal;
+- **Engineering anchors:** 66 deterministic tests; active/control rehearsal;
   hosted selector recurrence in `.music/hosted-selector-20260901-7`; installed
   GLM Flash hatch and replayable snapshot in
   `/Users/chad/.local/share/music/evidence/v3-final-live-311e5a8`.

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FunctionActor, ScriptActor } from '../src/actor.js';
 import { admitWager } from '../src/constitution.js';
-import { DevelopmentalKernel } from '../src/kernel.js';
+import { DevelopmentalKernel, summarizeInferenceUsage } from '../src/kernel.js';
 import { createSubject } from '../src/subject.js';
 import { defineWorld, WorldRegistry } from '../src/world.js';
 import { ResidentLease } from '../src/residency.js';
@@ -48,6 +48,25 @@ function fixture({ execute, plan = null, maxCycles = 1 } = {}) {
   const root = join(parent, 'run');
   return { parent, root, calls, world, worlds, actor, spec, wager };
 }
+
+test('inference usage summaries retain cache reads and writes across provider shapes', () => {
+  const summary = summarizeInferenceUsage([
+    { role: 'orient', status: 'completed', usage: { input_tokens: 100, output_tokens: 10, cached_input_tokens: 40, cache_write_input_tokens: 20 } },
+    { role: 'orient', status: 'completed', usage: { inputTokens: { total: 80, cacheRead: 60, cacheWrite: 0 }, outputTokens: { total: 5 } } },
+    { role: 'challenge', status: 'completed', usage: null },
+    { role: 'elect', status: 'failed', usage: { input_tokens: 999 } },
+  ]);
+  assert.equal(summary.completedCalls, 3);
+  assert.equal(summary.reportedCalls, 2);
+  assert.equal(summary.cacheReportedCalls, 2);
+  assert.equal(summary.inputTokens, 180);
+  assert.equal(summary.cacheReadTokens, 100);
+  assert.equal(summary.cacheWriteTokens, 20);
+  assert.equal(summary.uncachedInputTokens, 80);
+  assert.equal(summary.cacheReadFraction, 100 / 180);
+  assert.equal(summary.byRole.orient.cacheReadTokens, 100);
+  assert.equal(summary.byRole.challenge.unreportedCalls, 1);
+});
 
 test('bound world contact changes exact state through a direct predicate transition', async t => {
   const value = fixture();

@@ -79,6 +79,18 @@ compact successor identities. It never repeats cumulative historical subject
 snapshots; present state therefore appears once rather than once per retained
 generation.
 
+Prompt caching may reuse provider computation but cannot reuse cognitive
+output or hidden conversational state. The rendered request begins with one
+exact generation-shared projection core and ends with the perspective's role,
+role-specific additions, task, and output schema. OpenRouter receives a stable
+run-scoped session affinity key; GPT-5.6 through OpenRouter receives an explicit
+breakpoint after the shared core. Codex remains one new ephemeral thread per
+perspective. Whole-response caching and Codex thread resume are excluded
+because either would make an allegedly fresh perspective inherit an earlier
+answer or hidden reasoning. Provider-reported cache reads and writes are
+retained with each actor completion and summarized by audit; caching owns cost
+and routing only, never subject state or factual authority.
+
 ## Authorities
 
 - **Subject perspectives:** orient, propose wagers and their public selection
